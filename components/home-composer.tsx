@@ -1,0 +1,131 @@
+"use client"
+
+import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
+import { Plus, X } from "lucide-react"
+import { BrandLogo } from "@/components/brand-logo"
+import { DuaForm } from "@/components/dua-form"
+import type { Category } from "@/lib/types/dua"
+
+interface HomeComposerProps {
+  categories: Category[]
+  turnstileSiteKey?: string
+}
+
+export function HomeComposer({ categories, turnstileSiteKey }: HomeComposerProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const titleId = "home-composer-title"
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    const focusTarget = window.setTimeout(() => {
+      dialogRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus()
+    }, 0)
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false)
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.clearTimeout(focusTarget)
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [isOpen])
+
+  return (
+    <>
+      <div
+        className="group flex w-full cursor-pointer items-center gap-3 border-b feed-divider px-4 py-3 text-left transition hover:bg-muted/25 sm:px-5"
+        onClick={() => setIsOpen(true)}
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/10">
+          <BrandLogo variant="icon" href="" className="h-6 w-6" />
+        </span>
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="flex min-w-0 flex-1 items-center rounded-full border border-border/70 bg-muted/35 px-4 py-2.5 text-[15px] font-medium text-muted-foreground shadow-inner transition hover:border-primary/25 hover:bg-white hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:text-base"
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
+          aria-label="Open composer to share a dua request"
+        >
+          <span className="truncate">What dua would you like to share?</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
+          aria-label="Open composer to share a dua request"
+        >
+          <Plus className="h-5 w-5" aria-hidden="true" />
+        </button>
+      </div>
+
+      {isOpen
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[100] bg-slate-950/35 px-0 py-0 backdrop-blur-[2px] sm:px-4 sm:py-20 lg:px-6 lg:py-24"
+              role="presentation"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setIsOpen(false)
+              }}
+            >
+              <div
+                className="mx-auto flex min-h-full w-full max-w-2xl items-end sm:items-start sm:justify-center"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setIsOpen(false)
+                }}
+              >
+                <section
+                  ref={dialogRef}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby={titleId}
+                  className="max-h-[calc(100svh-1rem)] w-full overflow-y-auto rounded-t-[2rem] border border-primary/15 bg-white p-4 shadow-[0_35px_120px_rgba(15,23,42,0.24)] sm:max-h-[calc(100svh-10rem)] sm:rounded-[2rem] sm:p-5"
+                >
+                  <div className="rounded-[1.7rem] border border-primary/15 bg-gradient-to-br from-primary/[0.08] via-white to-muted/50 p-4 sm:p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h2 id={titleId} className="text-xl font-semibold tracking-tight text-foreground">
+                          Share a dua request
+                        </h2>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                          Ask for support from the community. Avoid private details and share only what helps others
+                          respond with care.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsOpen(false)}
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-white text-muted-foreground transition hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label="Close composer"
+                      >
+                        <X className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </div>
+
+                    <div className="mt-5">
+                      <DuaForm
+                        categories={categories}
+                        turnstileSiteKey={turnstileSiteKey}
+                        onSuccess={() => setIsOpen(false)}
+                      />
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  )
+}

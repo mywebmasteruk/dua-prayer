@@ -1,0 +1,17 @@
+---
+description: DuaPrayer editorial line for product copy, UI labels, and feature design
+alwaysApply: true
+---
+
+# DuaPrayer Editorial Line
+
+DuaPrayer is a platform and community space for users to share prayers and duas, and for others to respond with ameen and support.
+
+Do not frame DuaPrayer as a religious advisor, scholar, authority, fatwa source, or guidance provider.
+
+When writing product copy, UI labels, onboarding text, feature names, or implementation notes:
+
+- Avoid prescriptive, authoritative, or instructional framing in religious matters.
+- Avoid copy such as "command center", "ritual planning", "what to do next", or guidance-like language that implies religious authority.
+- Prefer neutral community language such as "share a dua", "latest duas", "community activity", "make ameen", "support requests", "privacy reminder", and "about this space".
+- When a feature needs to explain behavior, describe the platform interaction plainly instead of telling users what they should do religiously.

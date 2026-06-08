@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 210 11% 7%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 11% 7%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 11% 7%;
+    --primary: 142 71% 36%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 17% 96%;
+    --secondary-foreground: 210 11% 20%;
+    --muted: 210 17% 97%;
+    --muted-foreground: 210 8% 46%;
+    --accent: 142 45% 95%;
+    --accent-foreground: 142 71% 28%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 210 16% 90%;
+    --input: 210 16% 90%;
+    --ring: 142 71% 36%;
+    --divider: 210 16% 93%;
+    --surface-hover: 210 17% 97%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 0 0% 0%;
+    --foreground: 0 0% 96%;
+    --card: 0 0% 4%;
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 4%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 142 65% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 62%;
+    --accent: 142 30% 12%;
+    --accent-foreground: 142 55% 72%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 142 65% 45%;
+    --divider: 0 0% 14%;
+    --surface-hover: 0 0% 8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  a[href]:active:not([aria-disabled="true"]) {
+    @apply opacity-80;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .font-arabic-dua {
+    font-family: "Noto Sans Arabic", "IBM Plex Sans Arabic", Arial, Tahoma, sans-serif;
+  }
+
+  .feed-divider {
+    border-color: hsl(var(--divider));
+  }
+  .feed-surface-hover {
+    @apply transition-colors duration-150;
+  }
+  .feed-surface-hover:hover {
+    background-color: hsl(var(--surface-hover));
+  }
+
+  .tap-feedback {
+    @apply transition-[transform,opacity,background-color,color,border-color,box-shadow] duration-150;
+  }
+
+  .tap-feedback:active:not(:disabled):not([aria-disabled="true"]) {
+    @apply scale-[0.98] opacity-90;
+  }
+}
+
+body[data-navigating] {
+  cursor: progress;
+}
+
+body[data-navigating] main {
+  opacity: 0.97;
+  transition: opacity 200ms ease;
+}
