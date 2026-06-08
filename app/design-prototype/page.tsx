@@ -27,6 +27,7 @@ import {
   X,
 } from "lucide-react"
 import { BrandLogo } from "@/components/brand-logo"
+import { PrayerHandsIcon } from "@/components/icons/prayer-hands"
 
 type PrayerCard = {
   name: string
@@ -413,9 +414,7 @@ export default function DesignPrototypePage() {
                             aria-label={`Make ameen for ${card.name}. ${card.prayers} ameens so far.`}
                             className="inline-flex items-center gap-1.5 rounded-full px-1 py-1 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           >
-                            <span className="flex h-4 w-4 items-center justify-center">
-                              <BrandLogo variant="icon" href="" className="h-3.5 w-3.5" />
-                            </span>
+                            <PrayerHandsIcon className="h-4 w-4" aria-hidden="true" />
                             <span>{card.prayers} Ameens</span>
                           </button>
                           <button

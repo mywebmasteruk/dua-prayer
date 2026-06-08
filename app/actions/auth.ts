@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { isFoundingAdminUser, resolveAdminLandingPath, userHasAdminAccess } from "@/lib/auth"
 
 function getAppUrl() {
   return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
@@ -14,21 +15,20 @@ function buildCallbackUrl(next?: string) {
   return url.toString()
 }
 
-async function resolvePostAuthRedirect(next: string, userId: string) {
-  const supabase = await createServerSupabaseClient()
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", userId)
-    .single()
-
+async function resolvePostAuthRedirect(next: string, userId: string, email?: string | null) {
+  const user = { id: userId, email }
   const wantsAdmin = next === "/admin" || next.startsWith("/admin")
+
   if (wantsAdmin) {
-    if (profile?.is_admin) return "/admin"
-    return "/auth?error=not_admin"
+    const hasAccess = await userHasAdminAccess(user)
+    if (!hasAccess) return "/auth?error=not_admin"
+    if (next === "/admin" || next === "/admin/") return resolveAdminLandingPath(user)
+    return next
   }
 
-  if (profile?.is_admin && next === "/") return "/admin"
+  if ((await userHasAdminAccess(user)) && next === "/") {
+    return resolveAdminLandingPath(user)
+  }
   return next || "/"
 }
 
@@ -41,7 +41,7 @@ export async function signIn(formData: FormData) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) return { error: error.message }
 
-  const destination = await resolvePostAuthRedirect(next, data.user.id)
+  const destination = await resolvePostAuthRedirect(next, data.user.id, data.user.email)
   revalidatePath("/")
   redirect(destination)
 }

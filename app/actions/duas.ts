@@ -4,7 +4,7 @@ import { headers, cookies } from "next/headers"
 import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
-import { requireAdmin } from "@/lib/auth"
+import { requirePermission } from "@/lib/auth"
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
 import { verifyTurnstile } from "@/lib/turnstile"
 import { randomBytes } from "crypto"
@@ -83,8 +83,8 @@ export async function getDuas(options: { category?: string; page?: number } = {}
 }
 
 export async function getAdminDuas(filters: { search?: string; status?: string; category?: string }) {
-  const { isAdmin } = await requireAdmin()
-  if (!isAdmin) return []
+  const gate = await requirePermission("manage_duas")
+  if (!gate.ok) return []
 
   const admin = createAdminSupabaseClient()
   let query = admin
@@ -214,8 +214,8 @@ export async function flagDua(duaId: number) {
 }
 
 export async function updateDuaStatus(id: number, published: boolean) {
-  const { isAdmin } = await requireAdmin()
-  if (!isAdmin) return { error: "Unauthorized" }
+  const gate = await requirePermission("manage_duas")
+  if (!gate.ok) return { error: "Unauthorized" }
 
   const admin = createAdminSupabaseClient()
   const { error } = await admin.from("duas").update({ published }).eq("id", id)
@@ -227,8 +227,8 @@ export async function updateDuaStatus(id: number, published: boolean) {
 }
 
 export async function unflagDua(id: number) {
-  const { isAdmin } = await requireAdmin()
-  if (!isAdmin) return { error: "Unauthorized" }
+  const gate = await requirePermission("manage_duas")
+  if (!gate.ok) return { error: "Unauthorized" }
 
   const admin = createAdminSupabaseClient()
   const { error } = await admin.from("duas").update({ flagged: false }).eq("id", id)
@@ -239,8 +239,8 @@ export async function unflagDua(id: number) {
 }
 
 export async function updateDua(id: number, text: string, categoryId: number | null) {
-  const { isAdmin } = await requireAdmin()
-  if (!isAdmin) return { error: "Unauthorized" }
+  const gate = await requirePermission("manage_duas")
+  if (!gate.ok) return { error: "Unauthorized" }
 
   const admin = createAdminSupabaseClient()
   const { error } = await admin.from("duas").update({ text, category_id: categoryId }).eq("id", id)
@@ -252,8 +252,8 @@ export async function updateDua(id: number, text: string, categoryId: number | n
 }
 
 export async function deleteDua(id: number) {
-  const { isAdmin } = await requireAdmin()
-  if (!isAdmin) return { error: "Unauthorized" }
+  const gate = await requirePermission("manage_duas")
+  if (!gate.ok) return { error: "Unauthorized" }
 
   const admin = createAdminSupabaseClient()
   const { error } = await admin.from("duas").delete().eq("id", id)

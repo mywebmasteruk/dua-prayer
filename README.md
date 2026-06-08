@@ -27,6 +27,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Client + server | Publishable key |
 | `SUPABASE_SECRET_KEY` | Server only | Secret key for admin writes |
 | `NEXT_PUBLIC_APP_URL` | Server | App URL for auth redirects |
+| `PLATFORM_FOUNDER_EMAIL` | Server | Founding super-admin email (full access, env-based) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Client | Optional Cloudflare Turnstile |
 | `TURNSTILE_SECRET_KEY` | Server | Optional Turnstile secret |
 
@@ -44,21 +45,23 @@ Get `DATABASE_URL` from [Supabase Dashboard](https://supabase.com/dashboard/proj
 
 **Manual alternative:** open **SQL Editor** and run `supabase/migrations/20250608000000_initial_schema.sql`, then promote admin:
 
-3. Promote your first admin (replace email):
+3. Promote your founding admin (must match `PLATFORM_FOUNDER_EMAIL` in `.env.local`):
 
 ```sql
 UPDATE public.profiles
-SET is_admin = true
-WHERE id = (SELECT id FROM auth.users WHERE email = 'your@email.com');
+SET is_admin = true, admin_role = 'admin', admin_permissions = '{}'
+WHERE id = (SELECT id FROM auth.users WHERE lower(email) = lower('webmaster@duaprayer.com'));
 ```
 
 If the user signed up before the migration, ensure a profile row exists:
 
 ```sql
-INSERT INTO public.profiles (id, is_admin)
-SELECT id, true FROM auth.users WHERE email = 'your@email.com'
-ON CONFLICT (id) DO UPDATE SET is_admin = true;
+INSERT INTO public.profiles (id, is_admin, admin_role, admin_permissions)
+SELECT id, true, 'admin', '{}'::jsonb FROM auth.users WHERE lower(email) = lower('webmaster@duaprayer.com')
+ON CONFLICT (id) DO UPDATE SET is_admin = true, admin_role = 'admin', admin_permissions = '{}';
 ```
+
+The founding admin also receives **full super-admin access** when their signed-in email matches `PLATFORM_FOUNDER_EMAIL`, even before the SQL step — but running setup promotes them in the database for RLS consistency.
 
 ## Authentication (admin sign-in)
 
@@ -129,7 +132,8 @@ Tests cover: dua submission appears in the feed after submit, homepage category 
 - Category filter + paginated feed
 - Flag for moderation (server-side)
 - Social sharing (WhatsApp, Telegram, X, Facebook)
-- Admin dashboard (`profiles.is_admin = true` only)
+- Admin dashboard with RBAC (founding admin + moderator/admin roles)
+- Roles & Access management at `/admin/settings/roles` (founding admin only)
 - Dark mode
 
 ## Brand assets

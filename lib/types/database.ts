@@ -10,9 +10,32 @@ export interface Database {
         Relationships: []
       }
       profiles: {
-        Row: { id: string; display_name: string | null; is_admin: boolean; created_at: string; updated_at: string }
-        Insert: { id: string; display_name?: string | null; is_admin?: boolean; created_at?: string; updated_at?: string }
-        Update: { id?: string; display_name?: string | null; is_admin?: boolean; updated_at?: string }
+        Row: {
+          id: string
+          display_name: string | null
+          is_admin: boolean
+          admin_role: "admin" | "moderator" | null
+          admin_permissions: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          display_name?: string | null
+          is_admin?: boolean
+          admin_role?: "admin" | "moderator" | null
+          admin_permissions?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          display_name?: string | null
+          is_admin?: boolean
+          admin_role?: "admin" | "moderator" | null
+          admin_permissions?: Json
+          updated_at?: string
+        }
         Relationships: []
       }
       duas: {
@@ -51,6 +74,12 @@ export interface Database {
         Row: { id: number; dua_id: number; user_id: string | null; voter_hash: string | null; created_at: string }
         Insert: { id?: number; dua_id: number; user_id?: string | null; voter_hash?: string | null; created_at?: string }
         Update: { id?: number; dua_id?: number; user_id?: string | null; voter_hash?: string | null }
+        Relationships: []
+      }
+      site_settings: {
+        Row: { key: string; value: string; updated_at: string }
+        Insert: { key: string; value?: string; updated_at?: string }
+        Update: { key?: string; value?: string; updated_at?: string }
         Relationships: []
       }
     }

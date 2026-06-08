@@ -6,6 +6,7 @@ import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/toaster"
 import { NavigationProvider } from "@/components/navigation-provider"
+import { AppTooltipProvider } from "@/components/app-tooltip-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -29,10 +30,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <Suspense fallback={null}>
-            <NavigationProvider>{children}</NavigationProvider>
-          </Suspense>
-          <Toaster />
+          <AppTooltipProvider>
+            <Suspense fallback={null}>
+              <NavigationProvider>{children}</NavigationProvider>
+            </Suspense>
+            <Toaster />
+          </AppTooltipProvider>
         </ThemeProvider>
       </body>
     </html>

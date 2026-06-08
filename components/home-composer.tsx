@@ -5,6 +5,7 @@ import { createPortal } from "react-dom"
 import { Plus, X } from "lucide-react"
 import { BrandLogo } from "@/components/brand-logo"
 import { DuaForm } from "@/components/dua-form"
+import { ActionIconTooltip } from "@/components/action-icon-tooltip"
 import type { Category } from "@/lib/types/dua"
 
 interface HomeComposerProps {
@@ -57,16 +58,18 @@ export function HomeComposer({ categories, turnstileSiteKey }: HomeComposerProps
         >
           <span className="truncate">What dua would you like to share?</span>
         </button>
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          aria-haspopup="dialog"
-          aria-expanded={isOpen}
-          aria-label="Open composer to share a dua request"
-        >
-          <Plus className="h-5 w-5" aria-hidden="true" />
-        </button>
+        <ActionIconTooltip label="Share dua">
+          <button
+            type="button"
+            onClick={() => setIsOpen(true)}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-haspopup="dialog"
+            aria-expanded={isOpen}
+            aria-label="Open composer to share a dua request"
+          >
+            <Plus className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </ActionIconTooltip>
       </div>
 
       {isOpen
@@ -102,14 +105,16 @@ export function HomeComposer({ categories, turnstileSiteKey }: HomeComposerProps
                           respond with care.
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsOpen(false)}
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-white text-muted-foreground transition hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label="Close composer"
-                      >
-                        <X className="h-4 w-4" aria-hidden="true" />
-                      </button>
+                      <ActionIconTooltip label="Close">
+                        <button
+                          type="button"
+                          onClick={() => setIsOpen(false)}
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-white text-muted-foreground transition hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label="Close composer"
+                        >
+                          <X className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      </ActionIconTooltip>
                     </div>
 
                     <div className="mt-5">

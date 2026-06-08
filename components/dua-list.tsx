@@ -3,12 +3,14 @@
 import type React from "react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Flag, HandHeart, Heart, Share2, Sparkles, UserRound } from "lucide-react"
+import { Flag, Heart, Share2, Sparkles, UserRound } from "lucide-react"
+import { PrayerHandsIcon } from "@/components/icons/prayer-hands"
 import type { Dua } from "@/lib/types/dua"
 import { toast } from "@/components/ui/use-toast"
 import { prayForDua, flagDua } from "@/app/actions/duas"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { ActionIconTooltip } from "@/components/action-icon-tooltip"
 import {
   arabicFontClassName,
   arabicTextSegmentPattern,
@@ -25,9 +27,10 @@ function ActionButton({
   children,
   className,
   active,
+  tooltip,
   ...props
-}: React.ComponentProps<typeof Button> & { active?: boolean }) {
-  return (
+}: React.ComponentProps<typeof Button> & { active?: boolean; tooltip?: string }) {
+  const button = (
     <Button
       variant="ghost"
       size="sm"
@@ -40,6 +43,14 @@ function ActionButton({
     >
       {children}
     </Button>
+  )
+
+  if (!tooltip) return button
+
+  return (
+    <ActionIconTooltip label={tooltip} disabled={props.disabled}>
+      {button}
+    </ActionIconTooltip>
   )
 }
 
@@ -206,10 +217,10 @@ export function DuaList({ duas }: DuaListProps) {
                   onClick={() => handlePray(dua.id, !!prayed)}
                   disabled={loadingPrays[dua.id] || prayed}
                   aria-label={prayed ? `Prayed ${dua.likes} times` : `Make ameen for this dua, ${dua.likes} ameens so far`}
-                  title={prayed ? `Prayed ${dua.likes} times` : "Make ameen for this dua"}
+                  tooltip={prayed ? "Prayed" : "Ameen"}
                   className="px-1 text-primary"
                 >
-                  <HandHeart className="h-4 w-4" aria-hidden="true" />
+                  <PrayerHandsIcon className="h-4 w-4" aria-hidden="true" />
                   <span className="text-xs font-semibold tabular-nums">{dua.likes}</span>
                 </ActionButton>
                 <ActionButton
@@ -217,6 +228,7 @@ export function DuaList({ duas }: DuaListProps) {
                   onClick={() => setLovedDuas((previous) => ({ ...previous, [dua.id]: !previous[dua.id] }))}
                   aria-pressed={isLoved}
                   aria-label={isLoved ? "Remove love from this dua" : "Love this dua"}
+                  tooltip={isLoved ? "Unlike" : "Like"}
                   className={cn("px-1", isLoved && "text-primary")}
                 >
                   <Heart className="h-4 w-4" aria-hidden="true" />
@@ -224,7 +236,7 @@ export function DuaList({ duas }: DuaListProps) {
                 </ActionButton>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <ActionButton aria-label="Share dua" title="Share dua" className="px-1">
+                    <ActionButton aria-label="Share dua" tooltip="Share" className="px-1">
                       <Share2 className="h-4 w-4" aria-hidden="true" />
                     </ActionButton>
                   </DropdownMenuTrigger>
@@ -240,7 +252,7 @@ export function DuaList({ duas }: DuaListProps) {
                   disabled={loadingFlags[dua.id]}
                   aria-label={isReported ? "Flagged; click to undo" : "Flag this dua"}
                   aria-pressed={isReported}
-                  title={isReported ? "Flagged; click to undo" : "Flag this dua"}
+                  tooltip={isReported ? "Unflag" : "Flag"}
                   className={cn(
                     "px-1",
                     isReported

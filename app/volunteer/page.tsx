@@ -1,15 +1,12 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ArrowLeft, Code2, HandHeart, Mail, Palette, ShieldCheck } from "lucide-react"
+import { ArrowLeft, Code2, HandHeart, Palette, ShieldCheck } from "lucide-react"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
-import { Button } from "@/components/ui/button"
+import { VolunteerApplySection } from "@/components/volunteer/volunteer-apply-section"
+import { getVolunteerFilloutEmbedSrc } from "@/app/actions/settings"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { requireAdmin } from "@/lib/auth"
-
-const VOLUNTEER_EMAIL = "volunteers@duaprayer.app"
-
-const volunteerMailto = `mailto:${VOLUNTEER_EMAIL}?subject=${encodeURIComponent("DuaPrayer volunteer inquiry")}`
 
 export const metadata: Metadata = {
   title: "Volunteer — DuaPrayer",
@@ -44,6 +41,7 @@ export default async function VolunteerPage() {
     data: { user },
   } = await supabase.auth.getUser()
   const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
+  const filloutSrc = await getVolunteerFilloutEmbedSrc()
 
   return (
     <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,hsl(var(--accent))_0,transparent_34%),linear-gradient(180deg,#ffffff_0%,hsl(var(--muted))_48%,#ffffff_100%)] text-foreground">
@@ -97,24 +95,7 @@ export default async function VolunteerPage() {
           </p>
         </section>
 
-        <section className="mt-6 rounded-[2rem] border border-border/70 bg-white/95 p-6 shadow-[0_18px_70px_rgba(15,23,42,0.07)] backdrop-blur-xl">
-          <h2 className="text-lg font-semibold tracking-tight">Get in touch</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Tell us how you&apos;d like to contribute — your skills, availability, and time zone. We&apos;ll reply with
-            next steps. Every bit of help keeps this space open for the Ummah.
-          </p>
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button asChild size="lg" className="rounded-full">
-              <a href={volunteerMailto}>
-                <Mail className="h-4 w-4" aria-hidden="true" />
-                Email {VOLUNTEER_EMAIL}
-              </a>
-            </Button>
-            <p className="text-xs leading-5 text-muted-foreground">
-              Prefer to write your own message? Use the address above and mention moderation, engineering, or design.
-            </p>
-          </div>
-        </section>
+        <VolunteerApplySection filloutSrc={filloutSrc} />
       </div>
 
       <Footer />

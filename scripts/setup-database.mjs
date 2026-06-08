@@ -5,7 +5,7 @@
  *
  * Usage: node scripts/setup-database.mjs
  */
-import { readFileSync, existsSync } from "fs"
+import { readFileSync, existsSync, readdirSync } from "fs"
 import { resolve, dirname } from "path"
 import { fileURLToPath } from "url"
 import pg from "pg"
@@ -30,7 +30,8 @@ function loadEnvLocal() {
 loadEnvLocal()
 
 const DATABASE_URL = process.env.DATABASE_URL
-const ADMIN_EMAIL = process.env.SETUP_ADMIN_EMAIL ?? "admin@duaprayer.app"
+const FOUNDER_EMAIL =
+  process.env.PLATFORM_FOUNDER_EMAIL ?? process.env.SETUP_ADMIN_EMAIL ?? "webmaster@duaprayer.com"
 
 if (!DATABASE_URL) {
   console.error(
@@ -39,24 +40,39 @@ if (!DATABASE_URL) {
   process.exit(1)
 }
 
-const migrationPath = resolve(root, "supabase/migrations/20250608000000_initial_schema.sql")
-const sql = readFileSync(migrationPath, "utf8")
+const migrationsDir = resolve(root, "supabase/migrations")
+const migrationFiles = readdirSync(migrationsDir)
+  .filter((name) => name.endsWith(".sql"))
+  .sort()
+
+if (migrationFiles.length === 0) {
+  console.error("No migration files found in supabase/migrations")
+  process.exit(1)
+}
+
+const sql = migrationFiles
+  .map((name) => readFileSync(resolve(migrationsDir, name), "utf8"))
+  .join("\n\n")
 
 const client = new pg.Client({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } })
 
 try {
   await client.connect()
-  console.log("Connected. Applying migration...")
+  console.log(`Connected. Applying ${migrationFiles.length} migration(s)...`)
   await client.query(sql)
 
   const adminSql = `
-    INSERT INTO public.profiles (id, display_name, is_admin)
-    SELECT id, COALESCE(raw_user_meta_data->>'display_name', split_part(email, '@', 1)), true
-    FROM auth.users WHERE email = $1
-    ON CONFLICT (id) DO UPDATE SET is_admin = true, updated_at = now();
+    INSERT INTO public.profiles (id, display_name, is_admin, admin_role, admin_permissions)
+    SELECT id, COALESCE(raw_user_meta_data->>'display_name', split_part(email, '@', 1)), true, 'admin', '{}'::jsonb
+    FROM auth.users WHERE lower(email) = lower($1)
+    ON CONFLICT (id) DO UPDATE SET
+      is_admin = true,
+      admin_role = 'admin',
+      admin_permissions = '{}'::jsonb,
+      updated_at = now();
   `
-  const res = await client.query(adminSql, [ADMIN_EMAIL])
-  console.log(`Admin promotion rows: ${res.rowCount}`)
+  const res = await client.query(adminSql, [FOUNDER_EMAIL])
+  console.log(`Founding admin promotion (${FOUNDER_EMAIL}) rows: ${res.rowCount}`)
   console.log("Database setup complete.")
 } catch (err) {
   console.error("Setup failed:", err.message)

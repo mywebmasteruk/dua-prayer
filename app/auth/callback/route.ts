@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { resolveAdminLandingPath, userHasAdminAccess } from "@/lib/auth"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
@@ -19,26 +20,24 @@ export async function GET(request: Request) {
     return NextResponse.redirect(authUrl)
   }
 
+  const user = { id: data.user.id, email: data.user.email }
   const wantsAdmin = next === "/admin" || next.startsWith("/admin")
-  if (wantsAdmin) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", data.user.id)
-      .single()
 
-    if (!profile?.is_admin) {
+  if (wantsAdmin) {
+    const hasAccess = await userHasAdminAccess(user)
+    if (!hasAccess) {
       return NextResponse.redirect(new URL("/auth?error=not_admin", requestUrl.origin))
     }
-    return NextResponse.redirect(new URL("/admin", requestUrl.origin))
+    if (next === "/admin" || next === "/admin/") {
+      const landing = await resolveAdminLandingPath(user)
+      return NextResponse.redirect(new URL(landing, requestUrl.origin))
+    }
+    return NextResponse.redirect(new URL(next, requestUrl.origin))
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", data.user.id)
-    .single()
+  const hasAccess = await userHasAdminAccess(user)
+  const destination =
+    hasAccess && next === "/" ? await resolveAdminLandingPath(user) : next
 
-  const destination = profile?.is_admin && next === "/" ? "/admin" : next
   return NextResponse.redirect(new URL(destination, requestUrl.origin))
 }
