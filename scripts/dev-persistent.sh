@@ -14,6 +14,8 @@ NEXT_BIN="$ROOT/node_modules/.bin/next"
 # Cloud-synced workspaces (iCloud/OneDrive) need polling watchers.
 export WATCHPACK_POLLING="${WATCHPACK_POLLING:-1000}"
 export CHOKIDAR_USEPOLLING="${CHOKIDAR_USEPOLLING:-true}"
+# Keep .next off synced paths so _next/static chunks are not corrupted mid-compile.
+export NEXT_DIST_DIR="${NEXT_DIST_DIR:-/tmp/dua-prayer-next}"
 
 pid_alive() {
   local pid="$1"
@@ -73,7 +75,8 @@ if [[ ! -x "$NEXT_BIN" ]]; then
 fi
 
 # Detached supervisor keeps next dev alive across agent shell exits and auto-restarts on crash.
-SUPERVISOR_CMD='while true; do
+SUPERVISOR_CMD='export NEXT_DIST_DIR="'"$NEXT_DIST_DIR"'"; export WATCHPACK_POLLING="'"$WATCHPACK_POLLING"'"; export CHOKIDAR_USEPOLLING="'"$CHOKIDAR_USEPOLLING"'";
+while true; do
   echo "[$(date -Iseconds)] starting next dev on port '"$PORT"'" >> "'"$LOG_FILE"'"
   "'"$NEXT_BIN"'" dev -p '"$PORT"' >> "'"$LOG_FILE"'" 2>&1 || true
   echo "[$(date -Iseconds)] next dev exited; restarting in 2s" >> "'"$LOG_FILE"'"

@@ -3,14 +3,14 @@
 import type React from "react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Flag, Heart, Share2, Sparkles, UserRound } from "lucide-react"
-import { PrayerHandsIcon } from "@/components/icons/prayer-hands"
+import { Flag, Heart, HeartHandshake, Share2, Sparkles, UserRound } from "lucide-react"
 import type { Dua } from "@/lib/types/dua"
 import { toast } from "@/components/ui/use-toast"
 import { prayForDua, flagDua } from "@/app/actions/duas"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { ActionIconTooltip } from "@/components/action-icon-tooltip"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   arabicFontClassName,
   arabicTextSegmentPattern,
@@ -220,7 +220,7 @@ export function DuaList({ duas }: DuaListProps) {
                   tooltip={prayed ? "Prayed" : "Ameen"}
                   className="px-1 text-primary"
                 >
-                  <PrayerHandsIcon className="h-4 w-4" aria-hidden="true" />
+                  <HeartHandshake className="h-4 w-4" aria-hidden="true" />
                   <span className="text-xs font-semibold tabular-nums">{dua.likes}</span>
                 </ActionButton>
                 <ActionButton
@@ -235,11 +235,16 @@ export function DuaList({ duas }: DuaListProps) {
                   <span className="text-xs font-semibold tabular-nums">{loveCount}</span>
                 </ActionButton>
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <ActionButton aria-label="Share dua" tooltip="Share" className="px-1">
-                      <Share2 className="h-4 w-4" aria-hidden="true" />
-                    </ActionButton>
-                  </DropdownMenuTrigger>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <ActionButton aria-label="Share dua" className="px-1">
+                          <Share2 className="h-4 w-4" aria-hidden="true" />
+                        </ActionButton>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>Share</TooltipContent>
+                  </Tooltip>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => shareOnSocial("whatsapp", dua)}>WhatsApp</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => shareOnSocial("telegram", dua)}>Telegram</DropdownMenuItem>
