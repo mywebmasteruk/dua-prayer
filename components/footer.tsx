@@ -8,18 +8,17 @@ export function Footer() {
   const year = new Date().getFullYear()
 
   return (
-    <footer className="mt-auto border-t border-white/70 bg-white/75 backdrop-blur-xl">
-      <div className="mx-auto max-w-[1250px] px-4 py-8 lg:px-6">
+    <footer className="site-shell-footer">
+      <div className="site-container py-8">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-3">
-            <Link
+            <BrandLogo
+              variant="icon"
               href="/"
-              className="inline-flex items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              aria-label="DuaPrayer home"
-            >
-              <BrandLogo variant="icon" href={undefined} className="h-8 w-8" />
-              <span className="text-base font-semibold tracking-tight text-foreground">DuaPrayer</span>
-            </Link>
+              showWordmark
+              wordmarkClassName="text-base font-semibold leading-none tracking-tight text-foreground"
+              className="h-8 w-8 shrink-0"
+            />
             <p className="max-w-sm text-sm leading-6 text-muted-foreground">
               A nonprofit community platform for sharing duas and responding with ameen — free for the Ummah.
             </p>
@@ -32,6 +31,9 @@ export function Footer() {
             <Link href="/donate" className={footerLinkClassName}>
               Donate
             </Link>
+            <Link href="/volunteer" className={footerLinkClassName}>
+              Volunteer
+            </Link>
             <Link href="/auth" className={footerLinkClassName}>
               Sign in
             </Link>
@@ -39,7 +41,7 @@ export function Footer() {
         </div>
 
         <p className="mt-6 border-t border-border/60 pt-6 text-xs leading-5 text-muted-foreground">
-          © {year} DuaPrayer. Not a religious authority — community support only.
+          © {year} DuaPrayer.
         </p>
       </div>
     </footer>

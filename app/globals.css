@@ -96,6 +96,18 @@
   .tap-feedback:active:not(:disabled):not([aria-disabled="true"]) {
     @apply scale-[0.98] opacity-90;
   }
+
+  .site-container {
+    @apply mx-auto w-full max-w-[1250px] px-4 lg:px-6;
+  }
+
+  .site-shell-header {
+    @apply sticky top-0 z-50 w-full border-b feed-divider bg-muted/60 shadow-[0_1px_3px_hsl(var(--foreground)/0.05)] backdrop-blur-md;
+  }
+
+  .site-shell-footer {
+    @apply mt-auto w-full border-t feed-divider bg-muted/45 shadow-[0_-1px_3px_hsl(var(--foreground)/0.04)] backdrop-blur-md;
+  }
 }
 
 body[data-navigating] {

@@ -5,7 +5,10 @@ test.describe("Auth page", () => {
     await page.goto("/auth")
     await page.waitForLoadState("networkidle")
 
-    await expect(page.getByText("Admin sign in")).toBeVisible()
+    await expect(page.getByText("User sign in")).toBeVisible()
+    await expect(
+      page.getByText("You can browse duas, share requests, and say ameen without an account."),
+    ).toBeVisible()
     await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible()
     await expect(page.getByRole("tab", { name: "Password" })).toBeVisible()
     await expect(page.getByRole("tab", { name: "Magic link" })).toBeVisible()
@@ -56,6 +59,6 @@ test.describe("Admin access", () => {
     await page.goto("/admin")
 
     await expect(page).toHaveURL(/\/auth\?next=\/admin/)
-    await expect(page.getByText("Admin sign in")).toBeVisible()
+    await expect(page.getByText("User sign in")).toBeVisible()
   })
 })

@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "@/components/ui/use-toast"
@@ -113,8 +113,19 @@ export function AuthForm({ error, resetSuccess, next }: AuthFormProps) {
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle className="text-center text-xl" role="heading" aria-level={2}>
-          Admin sign in
+          User sign in
         </CardTitle>
+        <CardDescription className="text-left space-y-2">
+          <p>
+            You can browse duas, share requests, and say ameen without an account.
+          </p>
+          <p>Sign in when you want your place in the community to follow you:</p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>Remember which duas you have supported</li>
+            <li>Continue on any device, not just this browser</li>
+            <li>Keep drafts, saved requests, and activity with you</li>
+          </ul>
+        </CardDescription>
         {resetSuccess && (
           <p className="text-sm text-green-600 text-center">Password updated. You can sign in now.</p>
         )}

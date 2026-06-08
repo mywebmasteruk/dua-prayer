@@ -12,16 +12,9 @@ interface HeaderProps {
 
 export function Header({ user, isAdmin = false }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-50 border-b border-white/70 bg-white/75 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-[1250px] items-center justify-between gap-4 px-4 lg:px-6">
-        <Link
-          href="/"
-          className="tap-feedback flex items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          aria-label="DuaPrayer home"
-        >
-          <BrandLogo variant="icon" href={undefined} priority className="h-9 w-9" />
-          <span className="text-[17px] font-semibold tracking-tight text-foreground">DuaPrayer</span>
-        </Link>
+    <header className="site-shell-header">
+      <div className="site-container flex h-16 items-center justify-between gap-4">
+        <BrandLogo variant="icon" href="/" showWordmark priority className="h-9 w-9 shrink-0" />
         <div className="flex items-center gap-1.5">
           {isAdmin ? (
             <Link href="/admin">
