@@ -4,8 +4,6 @@ import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import {
   ADMIN_PERMISSIONS,
-  ADMIN_ROLE_LABELS,
-  PERMISSION_LABELS,
   type AdminPermission,
   type AdminPermissionOverrides,
   type AdminRoleType,
@@ -224,5 +222,3 @@ export async function revokeAdminAccess(userId: string) {
   revalidatePath("/admin")
   return { success: true as const }
 }
-
-export { ADMIN_ROLE_LABELS, PERMISSION_LABELS, ADMIN_PERMISSIONS }
