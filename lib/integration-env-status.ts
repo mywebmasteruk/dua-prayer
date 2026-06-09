@@ -17,6 +17,23 @@ export type IntegrationEnvStatus = {
   auth: AuthEnvStatus
 }
 
+export function emptyIntegrationEnvStatus(): IntegrationEnvStatus {
+  return {
+    appUrl: null,
+    volunteerWebhookConfigured: false,
+    supabase: {
+      projectUrl: null,
+      anonKeyConfigured: false,
+      serviceRoleConfigured: false,
+    },
+    auth: {
+      appUrl: null,
+      supabaseAuth: false,
+      note: "Sign-in uses Supabase Auth (email magic link / OAuth configured in your Supabase project). Redirect URLs must include your app URL.",
+    },
+  }
+}
+
 export function getIntegrationEnvStatus(): IntegrationEnvStatus {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || null
   const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || null

@@ -14,7 +14,8 @@ function defaultAdminRedirect(ctx: NonNullable<Awaited<ReturnType<typeof getAdmi
   if (hasPermission(ctx, "manage_users")) return "/admin/users"
   if (hasPermission(ctx, "manage_settings")) return "/admin/copy"
   if (hasPermission(ctx, "manage_volunteers")) return "/admin/volunteers"
-  if (hasPermission(ctx, "manage_admins")) return "/admin/settings/roles"
+  if (hasPermission(ctx, "manage_admins")) return "/admin/users/roles"
+  if (hasPermission(ctx, "view_analytics")) return "/admin/volunteers/roles"
   return signInHref({ error: "not_admin" })
 }
 

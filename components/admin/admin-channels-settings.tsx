@@ -24,6 +24,8 @@ import { AdminRowActionsMenu } from "@/components/admin/admin-row-actions-menu"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
 import { AdminTableShell } from "@/components/admin/admin-table-shell"
 import { useAdminSelection } from "@/components/admin/use-admin-selection"
+import { VerifiedChannelBadge } from "@/components/verified-channel-badge"
+import { CHANNEL_TYPE_LABELS } from "@/lib/channel-types"
 
 type AdminChannelsSettingsProps = {
   initialChannels: AdminChannelRecord[]
@@ -294,7 +296,7 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">All channels</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Approved channels</h2>
             <span className="text-xs font-medium text-muted-foreground">{orderedChannels.length} total</span>
           </div>
           <Button type="button" size="sm" onClick={() => setAddDialogOpen(true)} disabled={isBusy}>
@@ -344,6 +346,7 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
                     </TableHead>
                     <TableHead className="py-2">Name</TableHead>
                     <TableHead className="hidden py-2 md:table-cell">Description</TableHead>
+                    <TableHead className="hidden py-2 lg:table-cell">Type</TableHead>
                     <TableHead className="py-2">Status</TableHead>
                     <TableHead className="hidden py-2 sm:table-cell">Duas</TableHead>
                     <TableHead className="hidden py-2 lg:table-cell">Order</TableHead>
@@ -360,11 +363,21 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
                           aria-label={`Select ${channel.name}`}
                         />
                       </TableCell>
-                      <TableCell className="py-2 font-medium">{channel.name}</TableCell>
+                      <TableCell className="py-2 font-medium">
+                        <div className="flex items-center gap-1.5">
+                          <span>{channel.name}</span>
+                          {channel.is_verified && channel.status === "approved" ? (
+                            <VerifiedChannelBadge className="h-3.5 w-3.5" />
+                          ) : null}
+                        </div>
+                      </TableCell>
                       <TableCell className="hidden max-w-[220px] py-2 text-muted-foreground md:table-cell">
                         <span className="truncate" title={channel.description}>
                           {truncateText(channel.description)}
                         </span>
+                      </TableCell>
+                      <TableCell className="hidden py-2 text-muted-foreground lg:table-cell">
+                        {CHANNEL_TYPE_LABELS[channel.channel_type]}
                       </TableCell>
                       <TableCell className="py-2">
                         <AdminStatusBadge

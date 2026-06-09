@@ -27,7 +27,7 @@ export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
 }
 
 export const MEMBER_ROLE_LABELS: Record<MemberRole, string> = {
-  volunteer: "Volunteer",
-  moderator: "Moderator",
-  admin: "Admin",
+  volunteer: "Helper",
+  moderator: "Supervisor",
+  admin: "Manager",
 }

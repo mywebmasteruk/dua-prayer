@@ -1,14 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import {
-  BookOpen,
-  HandHeart,
-  LayoutGrid,
-  Plug,
-  Settings2,
-  Shield,
-  Type,
-  Users,
-} from "lucide-react"
+import { BookOpen, HandHeart, LayoutGrid, Plug, Settings2, Type, Users } from "lucide-react"
 import type { AdminPermission } from "@/lib/admin-permissions"
 
 export type AdminNavKey =
@@ -19,7 +10,6 @@ export type AdminNavKey =
   | "settings"
   | "copy"
   | "integration"
-  | "roles"
 
 export type AdminNavLink = {
   key: AdminNavKey
@@ -91,13 +81,6 @@ export function getAdminNavLinks(
         canSee(permissions, isFoundingAdmin, "manage_settings") ||
         canSee(permissions, isFoundingAdmin, "manage_volunteers"),
     },
-    {
-      key: "roles",
-      href: "/admin/settings/roles",
-      label: "Roles & Access",
-      icon: Shield,
-      visible: isFoundingAdmin || canSee(permissions, isFoundingAdmin, "manage_admins"),
-    },
   ]
 
   return links.filter((link) => link.visible)
@@ -109,6 +92,5 @@ export function isAdminNavLinkActive(activePath: string, link: AdminNavLink): bo
   if (link.key === "integration") {
     return activePath === "/admin/integration" || activePath === "/admin/settings/stripe"
   }
-  if (link.key === "roles") return activePath === "/admin/settings/roles"
   return activePath === link.href || activePath.startsWith(`${link.href}/`)
 }

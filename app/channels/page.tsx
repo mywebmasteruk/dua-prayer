@@ -1,4 +1,6 @@
 import type { Metadata } from "next"
+import Link from "next/link"
+import { ArrowUpRight } from "lucide-react"
 import { getFeedDuas, getCategories } from "@/app/actions/duas"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { requireAdmin } from "@/lib/auth"
@@ -99,10 +101,21 @@ export default async function ChannelsPage() {
 
             <NavigationContentLoader className="min-h-0">
               <header className="border-b border-border/70 px-4 py-4 sm:px-5">
-                <h1 className="text-xl font-bold tracking-tight text-foreground">Channels</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Follow channels to personalize your Following feed on Home.
-                </p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h1 className="text-xl font-bold tracking-tight text-foreground">Channels</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Follow channels to personalize your Following feed on Home.
+                    </p>
+                  </div>
+                  <Link
+                    href="/channels/apply"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border/70 bg-background/60 px-3.5 py-1.5 text-sm font-medium text-foreground/85 transition hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Create a channel
+                    <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </div>
               </header>
 
               <ChannelSection channels={channels} />

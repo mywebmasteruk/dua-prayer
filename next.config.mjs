@@ -2,6 +2,7 @@
 const nextConfig = {
   // Keep dev build output off iCloud/OneDrive to avoid corrupt/stale _next/static chunks.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  serverExternalPackages: ["ws"],
   eslint: {
     ignoreDuringBuilds: true,
   },

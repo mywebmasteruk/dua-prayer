@@ -9,6 +9,7 @@ import {
   USER_ROLE_LABEL,
   type AdminRoleType,
 } from "@/lib/admin-permissions"
+import type { MemberRole } from "@/lib/volunteer-types"
 
 export type AppUserRecord = {
   id: string
@@ -18,6 +19,10 @@ export type AppUserRecord = {
   roleLabel: string
   adminRole: AdminRoleType | null
   isFoundingAdmin: boolean
+  memberRole: MemberRole | null
+  hasVolunteerApplication: boolean
+  /** True when the user owns an approved community channel (`categories.owner_id`). */
+  isChannelAdmin: boolean
   duaCount: number
   createdAt: string
 }
@@ -66,7 +71,8 @@ export async function listAppUsers(): Promise<{ users: AppUserRecord[] } | { err
   const admin = createAdminSupabaseClient()
   const { data: profiles, error } = await admin
     .from("profiles")
-    .select("id, display_name, is_admin, admin_role, created_at")
+    .select("id, display_name, is_admin, admin_role, member_role, volunteer_application, created_at")
+    .eq("account_status", "active")
     .order("created_at", { ascending: false })
 
   if (error) {
@@ -78,6 +84,7 @@ export async function listAppUsers(): Promise<{ users: AppUserRecord[] } | { err
 
   const ids = (profiles ?? []).map((p) => p.id)
   const duaCounts = new Map<string, number>()
+  const channelAdminIds = new Set<string>()
 
   if (ids.length > 0) {
     const { data: duaRows, error: duaError } = await admin.from("duas").select("user_id").in("user_id", ids)
@@ -87,6 +94,21 @@ export async function listAppUsers(): Promise<{ users: AppUserRecord[] } | { err
       for (const row of duaRows ?? []) {
         if (!row.user_id) continue
         duaCounts.set(row.user_id, (duaCounts.get(row.user_id) ?? 0) + 1)
+      }
+    }
+
+    const { data: ownedChannels, error: channelError } = await admin
+      .from("categories")
+      .select("owner_id")
+      .in("owner_id", ids)
+      .eq("channel_type", "user")
+      .eq("status", "approved")
+
+    if (channelError && channelError.code !== "42703") {
+      console.error("Error loading channel owners:", channelError)
+    } else {
+      for (const row of ownedChannels ?? []) {
+        if (row.owner_id) channelAdminIds.add(row.owner_id)
       }
     }
   }
@@ -106,6 +128,9 @@ export async function listAppUsers(): Promise<{ users: AppUserRecord[] } | { err
       }),
       adminRole: profile.admin_role,
       isFoundingAdmin: isFoundingAdminUser({ email }),
+      memberRole: profile.member_role,
+      hasVolunteerApplication: profile.volunteer_application != null,
+      isChannelAdmin: channelAdminIds.has(profile.id),
       duaCount: duaCounts.get(profile.id) ?? 0,
       createdAt: auth?.createdAt ?? profile.created_at,
     }
@@ -173,6 +198,7 @@ export async function setUserRole(input: { userId: string; role: "user" | AdminR
   }
 
   revalidatePath("/admin/users")
+  revalidatePath("/admin/users/roles")
   revalidatePath("/admin/settings/roles")
   revalidatePath("/admin")
   return { success: true as const }

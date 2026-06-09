@@ -1,25 +1,10 @@
 "use client"
 
 import { cn } from "@/lib/utils"
+import { INTEGRATION_TABS, type IntegrationTabId } from "@/lib/integration-tabs"
 
-export type IntegrationTabId =
-  | "stripe"
-  | "fillout"
-  | "volunteer-webhook"
-  | "supabase"
-  | "auth"
-
-export const INTEGRATION_TABS: { id: IntegrationTabId; label: string }[] = [
-  { id: "stripe", label: "Stripe" },
-  { id: "fillout", label: "Fillout" },
-  { id: "volunteer-webhook", label: "Volunteer webhook" },
-  { id: "supabase", label: "Supabase" },
-  { id: "auth", label: "Email & Auth" },
-]
-
-export function isIntegrationTabId(value: string | undefined): value is IntegrationTabId {
-  return INTEGRATION_TABS.some((tab) => tab.id === value)
-}
+export type { IntegrationTabId } from "@/lib/integration-tabs"
+export { INTEGRATION_TABS, isIntegrationTabId, resolveIntegrationTabId } from "@/lib/integration-tabs"
 
 type AdminIntegrationTabBarProps = {
   activeTab: IntegrationTabId

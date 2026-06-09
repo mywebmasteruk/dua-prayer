@@ -15,6 +15,7 @@ import {
 import { toast } from "@/components/ui/use-toast"
 import {
   ADMIN_ROLE_LABELS,
+  ASSIGNABLE_ADMIN_ROLES,
   PERMISSION_LABELS,
   ROLE_PERMISSIONS,
   SUPER_ADMIN_ROLE_LABEL,
@@ -117,13 +118,18 @@ export function RolesAccessSettings({ currentUser, admins, canManageAdmins }: Ro
 
       <AdminSection title="Role presets">
         <ul className="space-y-3 text-sm text-muted-foreground">
-          {(Object.keys(ROLE_PERMISSIONS) as AdminRoleType[]).map((roleKey) => (
+          {ASSIGNABLE_ADMIN_ROLES.map((roleKey) => (
             <li key={roleKey}>
               <span className="font-medium text-foreground">{ADMIN_ROLE_LABELS[roleKey]}</span>
               {" — "}
               {ROLE_PERMISSIONS[roleKey].map((p) => PERMISSION_LABELS[p]).join(", ")}
             </li>
           ))}
+          <li>
+            <span className="font-medium text-foreground">{ADMIN_ROLE_LABELS.volunteer}</span>
+            {" — "}
+            {ROLE_PERMISSIONS.volunteer.map((p) => PERMISSION_LABELS[p]).join(", ")} (assigned via Volunteers → Roles)
+          </li>
           <li>
             <span className="font-medium text-foreground">{SUPER_ADMIN_ROLE_LABEL}</span>
             {" — "}
@@ -156,7 +162,7 @@ export function RolesAccessSettings({ currentUser, admins, canManageAdmins }: Ro
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(ADMIN_ROLE_LABELS) as AdminRoleType[]).map((roleKey) => (
+                  {ASSIGNABLE_ADMIN_ROLES.map((roleKey) => (
                     <SelectItem key={roleKey} value={roleKey}>
                       {ADMIN_ROLE_LABELS[roleKey]}
                     </SelectItem>
@@ -232,7 +238,8 @@ export function RolesAccessSettings({ currentUser, admins, canManageAdmins }: Ro
 
       {!canManageAdmins && (
         <p className="text-sm text-muted-foreground">
-          Only the founding admin can invite or change other admins. You can view your own permissions above.
+          Only the founding admin or admins with the &ldquo;Manage admins &amp; roles&rdquo; permission can
+          invite or change other admins. You can view role presets and the admin team in read-only mode.
         </p>
       )}
     </div>

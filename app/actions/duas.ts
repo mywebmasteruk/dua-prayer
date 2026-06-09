@@ -100,6 +100,14 @@ function normalizeCategoryRow(row: {
   description?: string | null
   is_active?: boolean | null
   sort_order?: number | null
+  channel_type?: string | null
+  status?: string | null
+  owner_id?: string | null
+  handle?: string | null
+  is_verified?: boolean | null
+  verified_at?: string | null
+  reviewed_at?: string | null
+  reviewed_by?: string | null
   created_at?: string
   updated_at?: string
 }): Category {
@@ -109,23 +117,39 @@ function normalizeCategoryRow(row: {
     description: row.description ?? "",
     is_active: row.is_active ?? true,
     sort_order: row.sort_order ?? 0,
+    channel_type: row.channel_type === "user" ? "user" : "category",
+    status:
+      row.status === "pending_review" || row.status === "rejected" ? row.status : "approved",
+    owner_id: row.owner_id ?? null,
+    handle: row.handle ?? null,
+    is_verified: row.is_verified ?? row.channel_type !== "user",
+    verified_at: row.verified_at ?? null,
+    reviewed_at: row.reviewed_at ?? null,
+    reviewed_by: row.reviewed_by ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   }
 }
 
+const CATEGORY_SELECT =
+  "id, name, description, is_active, sort_order, channel_type, status, owner_id, handle, is_verified, verified_at, reviewed_at, reviewed_by, created_at, updated_at"
+
 async function fetchCategoriesFromDb(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
-  options: { includeInactive?: boolean } = {},
+  options: { includeInactive?: boolean; includeUnapproved?: boolean } = {},
 ): Promise<Category[]> {
   let query = supabase
     .from("categories")
-    .select("id, name, description, is_active, sort_order, created_at, updated_at")
+    .select(CATEGORY_SELECT)
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true })
 
   if (!options.includeInactive) {
     query = query.eq("is_active", true)
+  }
+
+  if (!options.includeUnapproved) {
+    query = query.eq("status", "approved")
   }
 
   const { data, error } = await query
@@ -140,8 +164,13 @@ async function fetchCategoriesFromDb(
 
   let legacyQuery = supabase
     .from("categories")
-    .select("id, name, created_at")
+    .select("id, name, description, is_active, sort_order, created_at, updated_at")
+    .order("sort_order", { ascending: true })
     .order("name", { ascending: true })
+
+  if (!options.includeInactive) {
+    legacyQuery = legacyQuery.eq("is_active", true)
+  }
 
   const { data: legacy, error: legacyError } = await legacyQuery
   if (legacyError) {

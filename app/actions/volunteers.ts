@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
-import { requirePermission } from "@/lib/auth"
+import { getAdminContext, hasPermission, requirePermission } from "@/lib/auth"
 import { memberRoleToAdminFields } from "@/lib/volunteers"
 import {
   ACCOUNT_STATUS_LABELS,
@@ -19,6 +19,15 @@ export type VolunteerApplicantRecord = {
   accountStatus: AccountStatus
   memberRole: MemberRole | null
   application: VolunteerApplicationPayload | null
+  createdAt: string
+  reviewedAt: string | null
+}
+
+export type ActiveVolunteerRecord = {
+  id: string
+  email: string
+  displayName: string | null
+  memberRole: MemberRole
   createdAt: string
   reviewedAt: string | null
 }
@@ -152,6 +161,7 @@ export async function reviewVolunteerApplicant(input: {
     })
 
     revalidatePath("/admin/volunteers")
+    revalidatePath("/admin/volunteers/roles")
     revalidatePath("/admin/users")
     return { success: true as const, status: ACCOUNT_STATUS_LABELS.rejected }
   }
@@ -183,6 +193,7 @@ export async function reviewVolunteerApplicant(input: {
   })
 
   revalidatePath("/admin/volunteers")
+  revalidatePath("/admin/volunteers/roles")
   revalidatePath("/admin/users")
   revalidatePath("/admin")
 
@@ -225,6 +236,112 @@ export async function deleteVolunteerApplicant(input: { userId: string }) {
   if (deleteError) return { error: deleteError.message }
 
   revalidatePath("/admin/volunteers")
+  revalidatePath("/admin/volunteers/roles")
   revalidatePath("/admin/users")
   return { success: true as const }
+}
+
+export async function listActiveVolunteers(): Promise<
+  { volunteers: ActiveVolunteerRecord[] } | { error: string }
+> {
+  const gate = await requirePermission("manage_volunteers")
+  if (!gate.ok) {
+    return { error: gate.error === "Forbidden" ? "You cannot manage volunteers." : "Unauthorized" }
+  }
+
+  const admin = createAdminSupabaseClient()
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, display_name, member_role, created_at, reviewed_at")
+    .eq("account_status", "active")
+    .not("member_role", "is", null)
+    .order("reviewed_at", { ascending: false, nullsFirst: false })
+
+  if (error) {
+    console.error("Error listing active volunteers:", error)
+    return { error: error.message }
+  }
+
+  const emails = await listAuthEmails()
+
+  const volunteers: ActiveVolunteerRecord[] = (data ?? [])
+    .filter((row) => row.member_role)
+    .map((row) => ({
+      id: row.id,
+      email: emails.get(row.id) ?? "",
+      displayName: row.display_name,
+      memberRole: row.member_role as MemberRole,
+      createdAt: row.created_at,
+      reviewedAt: row.reviewed_at,
+    }))
+
+  return { volunteers }
+}
+
+export async function updateVolunteerTier(input: { userId: string; tier: MemberRole }) {
+  const gate = await requirePermission("manage_volunteers")
+  if (!gate.ok) {
+    return { error: gate.error === "Forbidden" ? "You cannot manage volunteers." : "Unauthorized" }
+  }
+
+  const admin = createAdminSupabaseClient()
+
+  const { data: profile, error: loadError } = await admin
+    .from("profiles")
+    .select("account_status, member_role")
+    .eq("id", input.userId)
+    .single()
+
+  if (loadError || !profile) {
+    return { error: loadError?.message ?? "Volunteer not found." }
+  }
+
+  if (profile.account_status !== "active" || !profile.member_role) {
+    return { error: "Only active volunteers can be reassigned to a different tier." }
+  }
+
+  const adminFields = memberRoleToAdminFields(input.tier)
+  const now = new Date().toISOString()
+
+  const { error } = await admin
+    .from("profiles")
+    .update({
+      member_role: input.tier,
+      is_admin: adminFields.is_admin,
+      admin_role: adminFields.admin_role,
+      admin_permissions: {},
+      updated_at: now,
+    })
+    .eq("id", input.userId)
+
+  if (error) return { error: error.message }
+
+  await admin.auth.admin.updateUserById(input.userId, {
+    app_metadata: { member_role: input.tier },
+  })
+
+  revalidatePath("/admin/volunteers")
+  revalidatePath("/admin/volunteers/roles")
+  revalidatePath("/admin/users")
+  revalidatePath("/admin")
+
+  return {
+    success: true as const,
+    tier: MEMBER_ROLE_LABELS[input.tier],
+  }
+}
+
+export async function getVolunteerRolesAccess() {
+  const ctx = await getAdminContext()
+  if (!ctx) {
+    return { canManageTiers: false, canViewRoles: false }
+  }
+
+  const canManageTiers = ctx.isFoundingAdmin || hasPermission(ctx, "manage_volunteers")
+  const canViewRoles =
+    canManageTiers ||
+    hasPermission(ctx, "view_analytics") ||
+    hasPermission(ctx, "manage_duas")
+
+  return { canManageTiers, canViewRoles }
 }

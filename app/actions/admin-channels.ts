@@ -9,23 +9,84 @@ export type AdminChannelRecord = Category & {
   duaCount: number
 }
 
+function mapAdminChannelRow(channel: {
+  id: number
+  name: string
+  description: string
+  is_active: boolean
+  sort_order: number
+  channel_type?: "category" | "user" | null
+  status?: "approved" | "pending_review" | "rejected" | null
+  owner_id?: string | null
+  handle?: string | null
+  is_verified?: boolean | null
+  verified_at?: string | null
+  reviewed_at?: string | null
+  reviewed_by?: string | null
+  created_at: string
+  updated_at: string
+}): Category {
+  return {
+    id: channel.id,
+    name: channel.name,
+    description: channel.description,
+    is_active: channel.is_active,
+    sort_order: channel.sort_order,
+    channel_type: channel.channel_type === "user" ? "user" : "category",
+    status:
+      channel.status === "pending_review" || channel.status === "rejected"
+        ? channel.status
+        : "approved",
+    owner_id: channel.owner_id ?? null,
+    handle: channel.handle ?? null,
+    is_verified: channel.is_verified ?? channel.channel_type !== "user",
+    verified_at: channel.verified_at ?? null,
+    reviewed_at: channel.reviewed_at ?? null,
+    reviewed_by: channel.reviewed_by ?? null,
+    created_at: channel.created_at,
+    updated_at: channel.updated_at,
+  }
+}
+
 export async function listAdminChannels(): Promise<{ channels: AdminChannelRecord[] } | { error: string }> {
   const gate = await requirePermission("manage_channels")
   if (!gate.ok) return { error: gate.error === "Forbidden" ? "You cannot manage channels." : "Unauthorized" }
 
   const admin = createAdminSupabaseClient()
-  const { data: channels, error } = await admin
+  const fullSelect =
+    "id, name, description, is_active, sort_order, channel_type, status, owner_id, handle, is_verified, verified_at, reviewed_at, reviewed_by, created_at, updated_at"
+
+  type ChannelRow = Parameters<typeof mapAdminChannelRow>[0]
+
+  let channelRows: ChannelRow[] = []
+  const modern = await admin
     .from("categories")
-    .select("id, name, description, is_active, sort_order, created_at, updated_at")
+    .select(fullSelect)
+    .eq("status", "approved")
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true })
 
-  if (error) {
-    console.error("Error listing channels:", error)
-    return { error: error.message }
+  if (modern.error?.code === "42703") {
+    const legacy = await admin
+      .from("categories")
+      .select("id, name, description, is_active, sort_order, created_at, updated_at")
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true })
+
+    if (legacy.error) {
+      console.error("Error listing channels:", legacy.error)
+      return { error: legacy.error.message }
+    }
+
+    channelRows = (legacy.data ?? []) as ChannelRow[]
+  } else if (modern.error) {
+    console.error("Error listing channels:", modern.error)
+    return { error: modern.error.message }
+  } else {
+    channelRows = (modern.data ?? []) as ChannelRow[]
   }
 
-  const ids = (channels ?? []).map((c) => c.id)
+  const ids = channelRows.map((c) => c.id)
   const counts = new Map<number, number>()
 
   if (ids.length > 0) {
@@ -40,8 +101,8 @@ export async function listAdminChannels(): Promise<{ channels: AdminChannelRecor
   }
 
   return {
-    channels: (channels ?? []).map((channel) => ({
-      ...channel,
+    channels: channelRows.map((channel) => ({
+      ...mapAdminChannelRow(channel),
       duaCount: counts.get(channel.id) ?? 0,
     })),
   }
@@ -74,7 +135,11 @@ export async function createChannel(input: {
   const { error } = await admin.from("categories").insert({
     name,
     description,
+    channel_type: "category",
+    status: "approved",
     is_active: input.isActive ?? true,
+    is_verified: true,
+    verified_at: new Date().toISOString(),
     sort_order: sortOrder,
     updated_at: new Date().toISOString(),
   })

@@ -10,6 +10,15 @@ export interface Database {
           description: string
           is_active: boolean
           sort_order: number
+          channel_type: "category" | "user"
+          status: "approved" | "pending_review" | "rejected"
+          owner_id: string | null
+          handle: string | null
+          is_verified: boolean
+          verified_at: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          application: Json | null
           created_at: string
           updated_at: string
         }
@@ -19,6 +28,15 @@ export interface Database {
           description?: string
           is_active?: boolean
           sort_order?: number
+          channel_type?: "category" | "user"
+          status?: "approved" | "pending_review" | "rejected"
+          owner_id?: string | null
+          handle?: string | null
+          is_verified?: boolean
+          verified_at?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          application?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -28,6 +46,15 @@ export interface Database {
           description?: string
           is_active?: boolean
           sort_order?: number
+          channel_type?: "category" | "user"
+          status?: "approved" | "pending_review" | "rejected"
+          owner_id?: string | null
+          handle?: string | null
+          is_verified?: boolean
+          verified_at?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          application?: Json | null
           updated_at?: string
         }
         Relationships: []
@@ -37,7 +64,7 @@ export interface Database {
           id: string
           display_name: string | null
           is_admin: boolean
-          admin_role: "admin" | "moderator" | null
+          admin_role: "admin" | "moderator" | "volunteer" | null
           admin_permissions: Json
           account_status: "active" | "pending_review" | "rejected"
           member_role: "volunteer" | "moderator" | "admin" | null
@@ -51,7 +78,7 @@ export interface Database {
           id: string
           display_name?: string | null
           is_admin?: boolean
-          admin_role?: "admin" | "moderator" | null
+          admin_role?: "admin" | "moderator" | "volunteer" | null
           admin_permissions?: Json
           account_status?: "active" | "pending_review" | "rejected"
           member_role?: "volunteer" | "moderator" | "admin" | null
@@ -65,7 +92,7 @@ export interface Database {
           id?: string
           display_name?: string | null
           is_admin?: boolean
-          admin_role?: "admin" | "moderator" | null
+          admin_role?: "admin" | "moderator" | "volunteer" | null
           admin_permissions?: Json
           account_status?: "active" | "pending_review" | "rejected"
           member_role?: "volunteer" | "moderator" | "admin" | null
@@ -127,6 +154,9 @@ export interface Database {
       increment_likes: { Args: { dua_id: number }; Returns: undefined }
       is_admin: { Args: Record<string, never>; Returns: boolean }
     }
-    Enums: Record<string, never>
+    Enums: {
+      channel_type: "category" | "user"
+      channel_status: "approved" | "pending_review" | "rejected"
+    }
   }
 }

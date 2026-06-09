@@ -41,36 +41,41 @@ type ProfileAdminFields = {
 }
 
 async function getProfileAdminFields(userId: string): Promise<ProfileAdminFields | null> {
-  let admin
   try {
-    admin = createAdminSupabaseClient()
-  } catch (error) {
-    console.error("Admin profile lookup: Supabase admin client unavailable", error)
-    return null
-  }
+    let admin
+    try {
+      admin = createAdminSupabaseClient()
+    } catch (error) {
+      console.error("Admin profile lookup: Supabase admin client unavailable", error)
+      return null
+    }
 
-  const { data, error } = await admin
-    .from("profiles")
-    .select("is_admin, admin_role, admin_permissions, display_name")
-    .eq("id", userId)
-    .single()
+    const { data, error } = await admin
+      .from("profiles")
+      .select("is_admin, admin_role, admin_permissions, display_name")
+      .eq("id", userId)
+      .single()
 
-  if (error || !data) return null
+    if (error || !data) return null
 
-  const overrides: AdminPermissionOverrides = {}
-  if (data.admin_permissions && typeof data.admin_permissions === "object") {
-    for (const [key, value] of Object.entries(data.admin_permissions as Record<string, unknown>)) {
-      if (isAdminPermission(key) && typeof value === "boolean") {
-        overrides[key] = value
+    const overrides: AdminPermissionOverrides = {}
+    if (data.admin_permissions && typeof data.admin_permissions === "object") {
+      for (const [key, value] of Object.entries(data.admin_permissions as Record<string, unknown>)) {
+        if (isAdminPermission(key) && typeof value === "boolean") {
+          overrides[key] = value
+        }
       }
     }
-  }
 
-  return {
-    is_admin: data.is_admin === true,
-    admin_role: data.admin_role,
-    admin_permissions: overrides,
-    display_name: data.display_name,
+    return {
+      is_admin: data.is_admin === true,
+      admin_role: data.admin_role,
+      admin_permissions: overrides,
+      display_name: data.display_name,
+    }
+  } catch (error) {
+    console.error("Admin profile lookup failed:", error)
+    return null
   }
 }
 
@@ -85,33 +90,38 @@ export type AdminContext = {
 }
 
 export const getAdminContext = cache(async (): Promise<AdminContext | null> => {
-  const user = await getSession()
-  if (!user) return null
+  try {
+    const user = await getSession()
+    if (!user) return null
 
-  if (isFoundingAdminUser(user)) {
+    if (isFoundingAdminUser(user)) {
+      const profile = await getProfileAdminFields(user.id)
+      return {
+        user,
+        isFoundingAdmin: true,
+        isAdmin: true,
+        role: null,
+        permissions: founderPermissions(),
+        displayName: profile?.display_name ?? null,
+      }
+    }
+
     const profile = await getProfileAdminFields(user.id)
+    if (!profile?.is_admin) return null
+
+    const permissions = resolvePermissions(profile.admin_role ?? "admin", profile.admin_permissions)
+
     return {
       user,
-      isFoundingAdmin: true,
+      isFoundingAdmin: false,
       isAdmin: true,
-      role: null,
-      permissions: founderPermissions(),
-      displayName: profile?.display_name ?? null,
+      role: profile.admin_role,
+      permissions,
+      displayName: profile.display_name,
     }
-  }
-
-  const profile = await getProfileAdminFields(user.id)
-  if (!profile?.is_admin) return null
-
-  const permissions = resolvePermissions(profile.admin_role ?? "admin", profile.admin_permissions)
-
-  return {
-    user,
-    isFoundingAdmin: false,
-    isAdmin: true,
-    role: profile.admin_role,
-    permissions,
-    displayName: profile.display_name,
+  } catch (error) {
+    console.error("getAdminContext failed:", error)
+    return null
   }
 })
 
@@ -204,6 +214,7 @@ export async function resolveAdminLandingPath(user: { id: string; email?: string
   if (permissions.includes("manage_users")) return "/admin/users"
   if (permissions.includes("manage_settings")) return "/admin/copy"
   if (permissions.includes("manage_volunteers")) return "/admin/volunteers"
-  if (permissions.includes("manage_admins")) return "/admin/settings/roles"
+  if (permissions.includes("manage_admins")) return "/admin/users/roles"
+  if (permissions.includes("view_analytics")) return "/admin/volunteers/roles"
   return signInHref({ error: "not_admin" })
 }

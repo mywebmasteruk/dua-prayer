@@ -31,6 +31,12 @@ const getVolunteerFilloutSettingCached = unstable_cache(
   { revalidate: 300, tags: ["site-setting-volunteer-fillout"] },
 )
 
+const getChannelFilloutSettingCached = unstable_cache(
+  () => fetchSiteSettingValue(SITE_SETTING_KEYS.channelFilloutEmbed),
+  ["site-setting-channel-fillout"],
+  { revalidate: 300, tags: ["site-setting-channel-fillout"] },
+)
+
 export async function getVolunteerFilloutEmbedSrc(): Promise<string | null> {
   const raw = await getVolunteerFilloutSettingCached()
   if (!raw) return null
@@ -42,5 +48,19 @@ export async function getVolunteerFilloutEmbedSrc(): Promise<string | null> {
 /** Uncached read for admin integration UI — caller must enforce RBAC. */
 export async function getVolunteerFilloutSettingValue(): Promise<string> {
   const value = await fetchSiteSettingValue(SITE_SETTING_KEYS.volunteerFilloutEmbed)
+  return value ?? ""
+}
+
+export async function getChannelFilloutEmbedSrc(): Promise<string | null> {
+  const raw = await getChannelFilloutSettingCached()
+  if (!raw) return null
+
+  const parsed = parseFilloutEmbed(raw)
+  return parsed?.src ?? null
+}
+
+/** Uncached read for admin channels UI — caller must enforce RBAC. */
+export async function getChannelFilloutSettingValue(): Promise<string> {
+  const value = await fetchSiteSettingValue(SITE_SETTING_KEYS.channelFilloutEmbed)
   return value ?? ""
 }

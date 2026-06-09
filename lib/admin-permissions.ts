@@ -10,12 +10,16 @@ export const ADMIN_PERMISSIONS = [
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number]
 
-export type AdminRoleType = "admin" | "moderator"
+export type AdminRoleType = "admin" | "moderator" | "volunteer"
 
 export const ADMIN_ROLE_LABELS: Record<AdminRoleType, string> = {
   admin: "Admin",
   moderator: "Moderator",
+  volunteer: "Volunteer helper",
 }
+
+/** Admin roles assignable from Users → Roles (volunteer helper tier is set via Volunteers). */
+export const ASSIGNABLE_ADMIN_ROLES = ["admin", "moderator"] as const satisfies readonly AdminRoleType[]
 
 export const USER_ROLE_LABEL = "User"
 export const SUPER_ADMIN_ROLE_LABEL = "Super Admin"
@@ -32,6 +36,7 @@ export const PERMISSION_LABELS: Record<AdminPermission, string> = {
 
 /** Role presets — `manage_admins` is founder-only and never included here. */
 export const ROLE_PERMISSIONS: Record<AdminRoleType, readonly AdminPermission[]> = {
+  volunteer: ["view_analytics"],
   moderator: ["manage_duas", "manage_channels", "view_analytics"],
   admin: [
     "manage_duas",

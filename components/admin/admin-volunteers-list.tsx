@@ -85,7 +85,7 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
   const [bulkRejectOpen, setBulkRejectOpen] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState<VolunteerApplicantRecord | null>(null)
-  const [selectedRole, setSelectedRole] = useState<MemberRole>("volunteer")
+  const [selectedRole, setSelectedRole] = useState<MemberRole>("volunteer") // Helper — default tier
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
@@ -508,7 +508,7 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
               selections are skipped.
             </p>
             <div className="space-y-1.5">
-              <Label htmlFor="bulk-volunteer-role">Role</Label>
+              <Label htmlFor="bulk-volunteer-role">Tier</Label>
               <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as MemberRole)}>
                 <SelectTrigger id="bulk-volunteer-role">
                   <SelectValue />
@@ -590,11 +590,11 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              Assign a role for <span className="font-medium text-foreground">{reviewing?.email}</span>.
-              Moderator and Admin gain access to admin tools per their role preset.
+              Assign a tier for <span className="font-medium text-foreground">{reviewing?.email}</span>.
+              New volunteers default to Helper. Supervisors and Managers gain broader admin access.
             </p>
             <div className="space-y-1.5">
-              <Label htmlFor="volunteer-role">Role</Label>
+              <Label htmlFor="volunteer-role">Tier</Label>
               <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as MemberRole)}>
                 <SelectTrigger id="volunteer-role">
                   <SelectValue />

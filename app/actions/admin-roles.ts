@@ -4,12 +4,19 @@ import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import {
   ADMIN_PERMISSIONS,
+  ASSIGNABLE_ADMIN_ROLES,
   type AdminPermission,
   type AdminPermissionOverrides,
   type AdminRoleType,
   resolvePermissions,
 } from "@/lib/admin-permissions"
-import { getFoundingAdminEmail, isFoundingAdminUser, requirePermission } from "@/lib/auth"
+import {
+  getAdminContext,
+  getFoundingAdminEmail,
+  hasPermission,
+  isFoundingAdminUser,
+  requirePermission,
+} from "@/lib/auth"
 
 export type AdminUserRecord = {
   id: string
@@ -63,11 +70,18 @@ function parseOverrides(raw: unknown): AdminPermissionOverrides {
   return overrides
 }
 
-export async function getCurrentAdminAccess() {
-  const gate = await requirePermission("manage_admins")
-  const ctx = gate.context ?? (await requirePermission("manage_duas")).context
+function canViewAdminRoles(ctx: NonNullable<Awaited<ReturnType<typeof getAdminContext>>>) {
+  return (
+    ctx.isFoundingAdmin ||
+    hasPermission(ctx, "manage_admins") ||
+    hasPermission(ctx, "manage_users")
+  )
+}
 
-  if (!ctx) {
+export async function getCurrentAdminAccess() {
+  const ctx = await getAdminContext()
+
+  if (!ctx || !canViewAdminRoles(ctx)) {
     return {
       currentUser: null,
       canManageAdmins: false,
@@ -93,8 +107,9 @@ export async function getCurrentAdminAccess() {
 }
 
 export async function listAdminUsers(): Promise<{ admins: AdminUserRecord[] } | { error: string }> {
-  const gate = await requirePermission("manage_admins")
-  if (!gate.ok) return { error: gate.error === "Forbidden" ? "You cannot manage admin roles." : "Unauthorized" }
+  const ctx = await getAdminContext()
+  if (!ctx) return { error: "Unauthorized" }
+  if (!canViewAdminRoles(ctx)) return { error: "You cannot view admin roles." }
 
   const admin = createAdminSupabaseClient()
   const { data: profiles, error } = await admin
@@ -142,6 +157,10 @@ export async function assignAdminRole(input: {
 
   const email = input.email.trim().toLowerCase()
   if (!email) return { error: "Email is required" }
+
+  if (!ASSIGNABLE_ADMIN_ROLES.includes(input.role as (typeof ASSIGNABLE_ADMIN_ROLES)[number])) {
+    return { error: "Volunteer helper tiers are assigned from Admin → Volunteers → Roles." }
+  }
 
   const founderEmail = getFoundingAdminEmail()
   if (founderEmail && email === founderEmail) {
@@ -191,6 +210,7 @@ export async function assignAdminRole(input: {
   if (upsertError) return { error: upsertError.message }
 
   revalidatePath("/admin/settings/roles")
+  revalidatePath("/admin/users/roles")
   revalidatePath("/admin")
   return { success: true as const }
 }
@@ -219,6 +239,7 @@ export async function revokeAdminAccess(userId: string) {
   if (error) return { error: error.message }
 
   revalidatePath("/admin/settings/roles")
+  revalidatePath("/admin/users/roles")
   revalidatePath("/admin")
   return { success: true as const }
 }

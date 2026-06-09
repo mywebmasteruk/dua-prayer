@@ -48,7 +48,7 @@ export default async function AdminSettingsPage() {
             description="Invite admins, assign roles, and review permissions."
             action={
               <Button variant="outline" size="sm" asChild className="rounded-full">
-                <Link href="/admin/settings/roles">
+                <Link href="/admin/users/roles">
                   <Shield className="h-4 w-4" aria-hidden="true" />
                   Manage roles
                 </Link>

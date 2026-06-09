@@ -18,9 +18,11 @@ export function IntegrationFilloutTab({ initialValue }: IntegrationFilloutTabPro
           <Link href="/volunteer" className="text-primary underline-offset-2 hover:underline">
             /volunteer
           </Link>
-          . Point Fillout&apos;s webhook to{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">/api/webhooks/volunteer</code> (see the Volunteer
-          webhook tab). Review submissions in{" "}
+          . Point Fillout&apos;s webhook in{" "}
+          <Link href="/admin/integration?tab=webhooks" className="text-primary underline-offset-2 hover:underline">
+            Integration → Webhooks
+          </Link>
+          . Review submissions in{" "}
           <Link href="/admin/volunteers" className="text-primary underline-offset-2 hover:underline">
             Admin → Volunteers
           </Link>

@@ -2,11 +2,8 @@
 
 import { useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import {
-  AdminIntegrationTabBar,
-  isIntegrationTabId,
-  type IntegrationTabId,
-} from "@/components/admin/admin-integration-tab-bar"
+import { AdminIntegrationTabBar, type IntegrationTabId } from "@/components/admin/admin-integration-tab-bar"
+import { resolveIntegrationTabId } from "@/lib/integration-tabs"
 import { IntegrationAuthTab } from "@/components/admin/integration-auth-tab"
 import { IntegrationFilloutTab } from "@/components/admin/integration-fillout-tab"
 import { IntegrationStripeTab } from "@/components/admin/integration-stripe-tab"
@@ -35,7 +32,7 @@ export function IntegrationHub({
   const router = useRouter()
   const searchParams = useSearchParams()
   const tabParam = searchParams?.get("tab") ?? undefined
-  const activeTab: IntegrationTabId = isIntegrationTabId(tabParam) ? tabParam : initialTab
+  const activeTab: IntegrationTabId = resolveIntegrationTabId(tabParam) ?? initialTab
 
   const handleTabChange = useCallback(
     (tab: IntegrationTabId) => {

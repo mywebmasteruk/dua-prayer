@@ -14,7 +14,7 @@ export function createAdminSupabaseClient() {
 
   return createClient<Database>(url, secret, {
     auth: { autoRefreshToken: false, persistSession: false },
-    // Node 20 on Vercel has no global WebSocket; Realtime init throws without a transport.
-    realtime: typeof WebSocket === "undefined" ? { transport: ws } : undefined,
+    // Server-only client — always use ws. Vercel Node 20 may expose a broken global WebSocket.
+    realtime: { transport: ws },
   })
 }

@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,12 +39,35 @@ import { AdminEmptyState } from "@/components/admin/admin-empty-state"
 import { AdminRowActionsMenu } from "@/components/admin/admin-row-actions-menu"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
 import { AdminTableShell } from "@/components/admin/admin-table-shell"
+import { AdminToolbar } from "@/components/admin/admin-toolbar"
 import { useAdminSelection } from "@/components/admin/use-admin-selection"
+import { FilterPill } from "@/components/feed-filters"
+import { useNavigationRouter } from "@/hooks/use-navigation-router"
+import {
+  isAdminUser,
+  isChannelAdminUser,
+  isVolunteerUser,
+  matchesUserTypeFilter,
+  parseUserTypeFilter,
+  USER_TYPE_FILTER_LABELS,
+  USER_TYPE_FILTERS,
+  userTypeBadges,
+  type UserTypeFilter,
+} from "@/lib/user-types"
 
 type AdminUsersListProps = {
   users: AppUserRecord[]
   currentUserId: string
+  initialTypeFilter?: UserTypeFilter
 }
+
+const TYPE_FILTER_OPTIONS: Array<{ id: UserTypeFilter; label: string }> = [
+  { id: "all", label: "All" },
+  ...USER_TYPE_FILTERS.filter((id) => id !== "all").map((id) => ({
+    id,
+    label: USER_TYPE_FILTER_LABELS[id],
+  })),
+]
 
 function formatJoinedDate(value: string) {
   const date = new Date(value)
@@ -51,14 +75,15 @@ function formatJoinedDate(value: string) {
   return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
 }
 
-function roleTone(user: AppUserRecord): "success" | "warning" | "neutral" {
-  if (user.isFoundingAdmin) return "success"
-  if (user.isAdmin) return "warning"
-  return "neutral"
-}
-
-export function AdminUsersList({ users: initialUsers, currentUserId }: AdminUsersListProps) {
+export function AdminUsersList({
+  users: initialUsers,
+  currentUserId,
+  initialTypeFilter = "all",
+}: AdminUsersListProps) {
+  const router = useNavigationRouter()
+  const searchParams = useSearchParams()
   const [users, setUsers] = useState(initialUsers)
+  const [typeFilter, setTypeFilter] = useState<UserTypeFilter>(initialTypeFilter)
   const [editingUser, setEditingUser] = useState<AppUserRecord | null>(null)
   const [deletingUser, setDeletingUser] = useState<AppUserRecord | null>(null)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
@@ -66,11 +91,52 @@ export function AdminUsersList({ users: initialUsers, currentUserId }: AdminUser
   const [selectedRole, setSelectedRole] = useState<string>("user")
   const [savingId, setSavingId] = useState<string | null>(null)
 
+  useEffect(() => {
+    setTypeFilter(parseUserTypeFilter(searchParams.get("type")))
+  }, [searchParams])
+
+  const handleTypeFilterChange = useCallback(
+    (next: UserTypeFilter) => {
+      setTypeFilter(next)
+      const params = new URLSearchParams(searchParams.toString())
+      if (next === "all") {
+        params.delete("type")
+      } else {
+        params.set("type", next)
+      }
+      const query = params.toString()
+      router.push(query ? `/admin/users?${query}` : "/admin/users")
+    },
+    [router, searchParams],
+  )
+
+  const typeCounts = useMemo(() => {
+    const counts: Record<UserTypeFilter, number> = {
+      all: users.length,
+      admin: 0,
+      volunteer: 0,
+      user: 0,
+      channel_admin: 0,
+    }
+    for (const user of users) {
+      if (isAdminUser(user)) counts.admin += 1
+      if (isVolunteerUser(user)) counts.volunteer += 1
+      if (isChannelAdminUser(user)) counts.channel_admin += 1
+      if (matchesUserTypeFilter(user, "user")) counts.user += 1
+    }
+    return counts
+  }, [users])
+
+  const filteredUsers = useMemo(
+    () => users.filter((user) => matchesUserTypeFilter(user, typeFilter)),
+    [users, typeFilter],
+  )
+
   const canDeleteUser = (user: AppUserRecord) => !user.isFoundingAdmin && user.id !== currentUserId
 
   const selectableUsers = useMemo(
-    () => users.filter((user) => !user.isFoundingAdmin && user.id !== currentUserId),
-    [users, currentUserId],
+    () => filteredUsers.filter((user) => !user.isFoundingAdmin && user.id !== currentUserId),
+    [filteredUsers, currentUserId],
   )
   const selectableIds = useMemo(() => selectableUsers.map((user) => user.id), [selectableUsers])
   const { selected, toggle, toggleAll, clear, allSelected, someSelected, selectedCount } =
@@ -228,8 +294,54 @@ export function AdminUsersList({ users: initialUsers, currentUserId }: AdminUser
     )
   }
 
+  const filterToolbar = (
+    <AdminToolbar
+      count={`${filteredUsers.length} user${filteredUsers.length === 1 ? "" : "s"}`}
+      className="mb-4"
+    >
+      <div
+        className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+        role="tablist"
+        aria-label="Filter users by type"
+      >
+        {TYPE_FILTER_OPTIONS.map((option) => (
+          <FilterPill
+            key={option.id}
+            label={
+              typeCounts[option.id] > 0
+                ? `${option.label} (${typeCounts[option.id]})`
+                : option.label
+            }
+            isActive={typeFilter === option.id}
+            onSelect={() => handleTypeFilterChange(option.id)}
+          />
+        ))}
+      </div>
+    </AdminToolbar>
+  )
+
+  if (filteredUsers.length === 0) {
+    return (
+      <>
+        {filterToolbar}
+        <AdminEmptyState
+          title="No users in this view"
+          description={
+            typeFilter === "channel_admin"
+              ? "No users currently own an approved community channel."
+              : typeFilter === "volunteer"
+                ? "No approved volunteers with active accounts. Pending applicants are under Admin → Volunteers."
+                : "Try another type filter."
+          }
+        />
+      </>
+    )
+  }
+
   return (
     <>
+      {filterToolbar}
+
       <AdminBulkActionsBar
         selectedCount={selectedCount}
         onClear={clear}
@@ -259,14 +371,14 @@ export function AdminUsersList({ users: initialUsers, currentUserId }: AdminUser
                 />
               </TableHead>
               <TableHead className="py-2">User</TableHead>
-              <TableHead className="py-2">Role</TableHead>
+              <TableHead className="py-2">Type</TableHead>
               <TableHead className="hidden py-2 sm:table-cell">Joined</TableHead>
               <TableHead className="hidden py-2 md:table-cell">Duas</TableHead>
               <TableHead className="w-10 py-2 pr-3 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.map((user) => {
+            {filteredUsers.map((user) => {
               const canEdit = !user.isFoundingAdmin
               const canDelete = canDeleteUser(user)
               const currentRole = user.isAdmin ? (user.adminRole ?? "admin") : "user"
@@ -290,7 +402,11 @@ export function AdminUsersList({ users: initialUsers, currentUserId }: AdminUser
                     ) : null}
                   </TableCell>
                   <TableCell className="py-2">
-                    <AdminStatusBadge label={user.roleLabel} tone={roleTone(user)} />
+                    <div className="flex flex-wrap gap-1">
+                      {userTypeBadges(user).map((badge) => (
+                        <AdminStatusBadge key={badge.label} label={badge.label} tone={badge.tone} />
+                      ))}
+                    </div>
                   </TableCell>
                   <TableCell className="hidden py-2 text-muted-foreground sm:table-cell">
                     {formatJoinedDate(user.createdAt)}

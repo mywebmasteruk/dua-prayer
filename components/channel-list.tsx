@@ -3,11 +3,16 @@
 import { LayoutGrid, Search, UserPlus, UserCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { VerifiedChannelBadge } from "@/components/verified-channel-badge"
+import type { ChannelType } from "@/lib/channel-types"
 
 export interface ChannelItem {
   id: number
   name: string
+  handle: string
   description: string
+  channelType: ChannelType
+  isVerified: boolean
   duaCount: number
   ameenCount: number
   sortOrder: number
@@ -68,8 +73,11 @@ export function ChannelList({ channels, followedIds, onToggleFollow, hasActiveFi
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="truncate text-[15px] font-bold text-foreground">{channel.name}</h3>
-                  <p className="mt-0.5 truncate text-sm text-muted-foreground">@{channel.name.toLowerCase().replace(/\s+/g, "")}</p>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <h3 className="truncate text-[15px] font-bold text-foreground">{channel.name}</h3>
+                    {channel.isVerified ? <VerifiedChannelBadge className="h-4 w-4" /> : null}
+                  </div>
+                  <p className="mt-0.5 truncate text-sm text-muted-foreground">@{channel.handle}</p>
                 </div>
                 <Button
                   type="button"

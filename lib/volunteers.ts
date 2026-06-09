@@ -17,9 +17,8 @@ function isValidEmail(email: string): boolean {
 
 export function memberRoleToAdminFields(role: MemberRole): {
   is_admin: boolean
-  admin_role: AdminRoleType | null
+  admin_role: AdminRoleType
 } {
-  if (role === "volunteer") return { is_admin: false, admin_role: null }
   return { is_admin: true, admin_role: role }
 }
 
