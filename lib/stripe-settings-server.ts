@@ -116,7 +116,18 @@ async function fetchStripeSettingsFromDb(): Promise<{
   live: StripeSettings
   test: StripeSettings
 }> {
-  const supabase = createAdminSupabaseClient()
+  let supabase
+  try {
+    supabase = createAdminSupabaseClient()
+  } catch (error) {
+    console.error("Stripe settings: Supabase admin client unavailable", error)
+    return {
+      mode: "live",
+      live: envLiveSettings(),
+      test: envTestSettings(),
+    }
+  }
+
   const { data, error } = await supabase
     .from("site_settings")
     .select("key, value")

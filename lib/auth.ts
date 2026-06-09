@@ -41,14 +41,21 @@ type ProfileAdminFields = {
 }
 
 async function getProfileAdminFields(userId: string): Promise<ProfileAdminFields | null> {
-  const admin = createAdminSupabaseClient()
-  const { data } = await admin
+  let admin
+  try {
+    admin = createAdminSupabaseClient()
+  } catch (error) {
+    console.error("Admin profile lookup: Supabase admin client unavailable", error)
+    return null
+  }
+
+  const { data, error } = await admin
     .from("profiles")
     .select("is_admin, admin_role, admin_permissions, display_name")
     .eq("id", userId)
     .single()
 
-  if (!data) return null
+  if (error || !data) return null
 
   const overrides: AdminPermissionOverrides = {}
   if (data.admin_permissions && typeof data.admin_permissions === "object") {
@@ -120,8 +127,16 @@ export async function getSession() {
 export async function isUserAdmin(userId: string, email?: string | null): Promise<boolean> {
   if (email && isFoundingAdminUser({ email })) return true
 
-  const admin = createAdminSupabaseClient()
-  const { data } = await admin.from("profiles").select("is_admin").eq("id", userId).single()
+  let admin
+  try {
+    admin = createAdminSupabaseClient()
+  } catch (error) {
+    console.error("isUserAdmin: Supabase admin client unavailable", error)
+    return false
+  }
+
+  const { data, error } = await admin.from("profiles").select("is_admin").eq("id", userId).single()
+  if (error) return false
   return data?.is_admin === true
 }
 

@@ -1,3 +1,5 @@
+"use client"
+
 import Link from "next/link"
 import { AdminSection } from "@/components/admin/admin-section"
 import { VolunteerFormSettings } from "@/components/admin/volunteer-form-settings"

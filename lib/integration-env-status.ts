@@ -26,14 +26,21 @@ export function getIntegrationEnvStatus(): IntegrationEnvStatus {
     volunteerWebhookConfigured: Boolean(process.env.VOLUNTEER_WEBHOOK_SECRET?.trim()),
     supabase: {
       projectUrl,
-      anonKeyConfigured: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()),
+      anonKeyConfigured: Boolean(
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
+          process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim(),
+      ),
       serviceRoleConfigured: Boolean(
         process.env.SUPABASE_SECRET_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
       ),
     },
     auth: {
       appUrl,
-      supabaseAuth: Boolean(projectUrl && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()),
+      supabaseAuth: Boolean(
+        projectUrl &&
+          (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
+            process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()),
+      ),
       note: "Sign-in uses Supabase Auth (email magic link / OAuth configured in your Supabase project). Redirect URLs must include your app URL.",
     },
   }

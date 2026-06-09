@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import ws from "ws"
 import type { Database } from "@/lib/types/database"
 
 export function createAdminSupabaseClient() {
@@ -13,5 +14,7 @@ export function createAdminSupabaseClient() {
 
   return createClient<Database>(url, secret, {
     auth: { autoRefreshToken: false, persistSession: false },
+    // Node 20 on Vercel has no global WebSocket; Realtime init throws without a transport.
+    realtime: typeof WebSocket === "undefined" ? { transport: ws } : undefined,
   })
 }

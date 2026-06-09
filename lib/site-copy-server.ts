@@ -18,7 +18,14 @@ function withDefaults(values: Partial<SiteCopy>): SiteCopy {
 }
 
 async function fetchSiteCopyFromDb(): Promise<SiteCopy> {
-  const supabase = createAdminSupabaseClient()
+  let supabase
+  try {
+    supabase = createAdminSupabaseClient()
+  } catch (error) {
+    console.error("Site copy: Supabase admin client unavailable", error)
+    return withDefaults({})
+  }
+
   const keys = Object.values(SITE_SETTING_KEY_MAP)
 
   const { data, error } = await supabase.from("site_settings").select("key, value").in("key", keys)
