@@ -5,8 +5,11 @@ import { InnerPageLayout } from "@/components/inner-page-layout"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import { IntegrationHub } from "@/components/admin/integration-hub"
 import { isIntegrationTabId } from "@/components/admin/admin-integration-tab-bar"
-import { getStripeSettingsForAdmin } from "@/lib/stripe-settings-server"
-import { getVolunteerFilloutSettingForAdmin } from "@/app/actions/settings"
+import {
+  emptyStripeSettingsAdminView,
+  getStripeSettingsForAdmin,
+} from "@/lib/stripe-settings-server"
+import { getVolunteerFilloutSettingValue } from "@/lib/site-settings-server"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
 import { getIntegrationEnvStatus } from "@/lib/integration-env-status"
@@ -29,10 +32,21 @@ export default async function AdminIntegrationPage({ searchParams }: PageProps) 
   const params = await searchParams
   const initialTab = isIntegrationTabId(params.tab) ? params.tab : "stripe"
 
-  const [stripeSettings, filloutValue] = await Promise.all([
-    canManageSettings ? getStripeSettingsForAdmin() : Promise.resolve(null),
-    canVolunteer ? getVolunteerFilloutSettingForAdmin() : Promise.resolve(""),
-  ])
+  let stripeSettings = emptyStripeSettingsAdminView()
+  let filloutValue = ""
+  let loadWarning: string | null = null
+
+  try {
+    const [loadedStripe, loadedFillout] = await Promise.all([
+      canManageSettings ? getStripeSettingsForAdmin() : Promise.resolve(null),
+      canVolunteer ? getVolunteerFilloutSettingValue() : Promise.resolve(""),
+    ])
+    if (loadedStripe) stripeSettings = loadedStripe
+    filloutValue = loadedFillout
+  } catch (error) {
+    console.error("Admin integration page failed to load settings:", error)
+    loadWarning = "Some integration settings could not be loaded. You can still review tabs below."
+  }
 
   const envStatus = getIntegrationEnvStatus()
 
@@ -44,42 +58,16 @@ export default async function AdminIntegrationPage({ searchParams }: PageProps) 
         description="Connect payments, forms, webhooks, and platform services used by DuaPrayer."
       />
 
+      {loadWarning ? (
+        <p className="mb-4 rounded-lg border border-amber-200/80 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          {loadWarning}
+        </p>
+      ) : null}
+
       <Suspense fallback={<div className="py-8 text-sm text-muted-foreground">Loading integrations…</div>}>
         <IntegrationHub
           initialTab={initialTab}
-          stripeSettings={
-            stripeSettings ?? {
-              mode: "live",
-              live: {
-                hasSecretKey: false,
-                secretKeyLast4: null,
-                secretKeySource: null,
-                publishableKey: "",
-                publishableKeySource: null,
-                hasWebhookSecret: false,
-                webhookSecretLast4: null,
-                webhookSecretSource: null,
-                donationProductId: "",
-                donationProductIdSource: null,
-                ready: false,
-              },
-              test: {
-                hasSecretKey: false,
-                secretKeyLast4: null,
-                secretKeySource: null,
-                publishableKey: "",
-                publishableKeySource: null,
-                hasWebhookSecret: false,
-                webhookSecretLast4: null,
-                webhookSecretSource: null,
-                donationProductId: "",
-                donationProductIdSource: null,
-                ready: false,
-              },
-              donationsReady: false,
-              activeModeReady: false,
-            }
-          }
+          stripeSettings={stripeSettings}
           filloutValue={filloutValue}
           envStatus={envStatus}
           canManageStripe={canManageSettings}

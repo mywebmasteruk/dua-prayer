@@ -187,8 +187,38 @@ export async function getStripeSettings(): Promise<StripeSettings & { mode: Stri
   return { ...active, mode }
 }
 
+const EMPTY_CREDENTIAL_VIEW: StripeCredentialAdminView = {
+  hasSecretKey: false,
+  secretKeyLast4: null,
+  secretKeySource: null,
+  publishableKey: "",
+  publishableKeySource: null,
+  hasWebhookSecret: false,
+  webhookSecretLast4: null,
+  webhookSecretSource: null,
+  donationProductId: "",
+  donationProductIdSource: null,
+  ready: false,
+}
+
+export function emptyStripeSettingsAdminView(): StripeSettingsAdminView {
+  return {
+    mode: "live",
+    live: { ...EMPTY_CREDENTIAL_VIEW },
+    test: { ...EMPTY_CREDENTIAL_VIEW },
+    donationsReady: false,
+    activeModeReady: false,
+  }
+}
+
 export async function getStripeSettingsForAdmin(): Promise<StripeSettingsAdminView> {
-  const supabase = createAdminSupabaseClient()
+  let supabase
+  try {
+    supabase = createAdminSupabaseClient()
+  } catch (error) {
+    console.error("Stripe settings admin: missing Supabase credentials", error)
+    return emptyStripeSettingsAdminView()
+  }
   const { data, error } = await supabase
     .from("site_settings")
     .select("key, value")

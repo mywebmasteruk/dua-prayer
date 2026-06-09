@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { getAdminContext, hasPermission, requirePermission } from "@/lib/auth"
 import { parseFilloutEmbed } from "@/lib/fillout"
+import { getVolunteerFilloutSettingValue } from "@/lib/site-settings-server"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
 
 function canManageVolunteerSettings(ctx: NonNullable<Awaited<ReturnType<typeof getAdminContext>>>) {
@@ -14,20 +15,7 @@ function canManageVolunteerSettings(ctx: NonNullable<Awaited<ReturnType<typeof g
 export async function getVolunteerFilloutSettingForAdmin(): Promise<string> {
   const ctx = await getAdminContext()
   if (!ctx || !canManageVolunteerSettings(ctx)) return ""
-
-  const admin = createAdminSupabaseClient()
-  const { data, error } = await admin
-    .from("site_settings")
-    .select("value")
-    .eq("key", SITE_SETTING_KEYS.volunteerFilloutEmbed)
-    .maybeSingle()
-
-  if (error) {
-    console.error("Error fetching volunteer fillout setting:", error)
-    return ""
-  }
-
-  return data?.value ?? ""
+  return getVolunteerFilloutSettingValue()
 }
 
 export async function updateVolunteerFilloutSetting(rawInput: string) {

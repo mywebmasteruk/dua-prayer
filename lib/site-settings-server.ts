@@ -5,7 +5,14 @@ import { parseFilloutEmbed } from "@/lib/fillout"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
 
 async function fetchSiteSettingValue(key: string): Promise<string | null> {
-  const supabase = createAdminSupabaseClient()
+  let supabase
+  try {
+    supabase = createAdminSupabaseClient()
+  } catch (error) {
+    console.error(`Site setting ${key}: missing Supabase credentials`, error)
+    return null
+  }
+
   const { data, error } = await supabase.from("site_settings").select("value").eq("key", key).maybeSingle()
 
   if (error) {
@@ -30,4 +37,10 @@ export async function getVolunteerFilloutEmbedSrc(): Promise<string | null> {
 
   const parsed = parseFilloutEmbed(raw)
   return parsed?.src ?? null
+}
+
+/** Uncached read for admin integration UI — caller must enforce RBAC. */
+export async function getVolunteerFilloutSettingValue(): Promise<string> {
+  const value = await fetchSiteSettingValue(SITE_SETTING_KEYS.volunteerFilloutEmbed)
+  return value ?? ""
 }

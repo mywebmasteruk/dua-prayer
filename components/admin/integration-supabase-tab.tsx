@@ -58,7 +58,7 @@ export function IntegrationSupabaseTab({ status }: IntegrationSupabaseTabProps) 
           <EnvStatusRow
             label="Service role"
             configured={status.serviceRoleConfigured}
-            detail="SUPABASE_SERVICE_ROLE_KEY (server only)"
+            detail="SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY (server only)"
           />
         </dl>
       </AdminSection>

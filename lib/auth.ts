@@ -1,3 +1,4 @@
+import { cache } from "react"
 import type { User } from "@supabase/supabase-js"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { getServerUser } from "@/lib/server-user"
@@ -76,7 +77,7 @@ export type AdminContext = {
   displayName: string | null
 }
 
-export async function getAdminContext(): Promise<AdminContext | null> {
+export const getAdminContext = cache(async (): Promise<AdminContext | null> => {
   const user = await getSession()
   if (!user) return null
 
@@ -105,7 +106,7 @@ export async function getAdminContext(): Promise<AdminContext | null> {
     permissions,
     displayName: profile.display_name,
   }
-}
+})
 
 export function hasPermission(ctx: AdminContext, permission: AdminPermission): boolean {
   if (ctx.isFoundingAdmin) return true
