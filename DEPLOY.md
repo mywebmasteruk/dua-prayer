@@ -33,11 +33,13 @@ This script (`scripts/deploy-prod.sh`):
 
 1. Clones/updates `origin/main` to `/tmp/dua-prayer-deploy` (outside iCloud)
 2. Copies the local `.vercel` link from this project
-3. Runs `npm ci`, `vercel build --prod`, `vercel deploy --prebuilt --prod`
+3. Strips `.git` (blocked git author causes UNKNOWN deploys on team projects)
+4. Pins `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID` from your local `.vercel/project.json`
+5. Runs `npm ci`, `vercel build --prod`, `vercel deploy --prebuilt --prod`
 
 Requires: `npx vercel whoami` succeeds (run `npx vercel login` once).
 
-Typical timing: **~30–90s** after dependencies are cached.
+Typical timing: **~60–120s** after dependencies are cached (first run ~3–5 min).
 
 ## Vercel ↔ GitHub (optional native integration)
 
