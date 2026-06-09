@@ -23,7 +23,7 @@ export default async function AdminUsersPage() {
         description="View community accounts, update display names, and assign User, Moderator, or Admin roles."
       />
 
-      <AdminUsersList users={users} />
+      <AdminUsersList users={users} currentUserId={ctx.user.id} />
     </InnerPageLayout>
   )
 }

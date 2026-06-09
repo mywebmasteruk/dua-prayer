@@ -1,6 +1,16 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -16,7 +26,13 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "@/components/ui/use-toast"
 import { ADMIN_ROLE_LABELS, USER_ROLE_LABEL, type AdminRoleType } from "@/lib/admin-permissions"
-import { setUserRole, updateUserDisplayName, type AppUserRecord } from "@/app/actions/admin-users"
+import {
+  deleteUser,
+  deleteUsers,
+  setUserRole,
+  updateUserDisplayName,
+  type AppUserRecord,
+} from "@/app/actions/admin-users"
 import { AdminBulkActionsBar } from "@/components/admin/admin-bulk-actions-bar"
 import { AdminEmptyState } from "@/components/admin/admin-empty-state"
 import { AdminRowActionsMenu } from "@/components/admin/admin-row-actions-menu"
@@ -26,6 +42,7 @@ import { useAdminSelection } from "@/components/admin/use-admin-selection"
 
 type AdminUsersListProps = {
   users: AppUserRecord[]
+  currentUserId: string
 }
 
 function formatJoinedDate(value: string) {
@@ -40,14 +57,21 @@ function roleTone(user: AppUserRecord): "success" | "warning" | "neutral" {
   return "neutral"
 }
 
-export function AdminUsersList({ users: initialUsers }: AdminUsersListProps) {
+export function AdminUsersList({ users: initialUsers, currentUserId }: AdminUsersListProps) {
   const [users, setUsers] = useState(initialUsers)
   const [editingUser, setEditingUser] = useState<AppUserRecord | null>(null)
+  const [deletingUser, setDeletingUser] = useState<AppUserRecord | null>(null)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [displayName, setDisplayName] = useState("")
   const [selectedRole, setSelectedRole] = useState<string>("user")
   const [savingId, setSavingId] = useState<string | null>(null)
 
-  const selectableUsers = useMemo(() => users.filter((user) => !user.isFoundingAdmin), [users])
+  const canDeleteUser = (user: AppUserRecord) => !user.isFoundingAdmin && user.id !== currentUserId
+
+  const selectableUsers = useMemo(
+    () => users.filter((user) => !user.isFoundingAdmin && user.id !== currentUserId),
+    [users, currentUserId],
+  )
   const selectableIds = useMemo(() => selectableUsers.map((user) => user.id), [selectableUsers])
   const { selected, toggle, toggleAll, clear, allSelected, someSelected, selectedCount } =
     useAdminSelection(selectableIds)
@@ -119,6 +143,56 @@ export function AdminUsersList({ users: initialUsers }: AdminUsersListProps) {
     toast({ title: "User updated" })
   }
 
+  const handleDeleteUser = async () => {
+    if (!deletingUser) return
+
+    setSavingId(deletingUser.id)
+    const result = await deleteUser(deletingUser.id)
+    setSavingId(null)
+
+    if ("error" in result && result.error) {
+      toast({ title: "Could not delete user", description: result.error, variant: "destructive" })
+      return
+    }
+
+    setUsers((prev) => prev.filter((item) => item.id !== deletingUser.id))
+    setDeletingUser(null)
+    clear()
+    toast({ title: "User deleted", description: "The account has been permanently removed." })
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedUsers.length === 0) return
+
+    setSavingId("bulk")
+    const result = await deleteUsers(selectedUsers.map((user) => user.id))
+    setSavingId(null)
+    setBulkDeleteOpen(false)
+
+    if ("error" in result) {
+      toast({ title: "Could not delete users", description: result.error, variant: "destructive" })
+      return
+    }
+
+    const removedIds = new Set(result.deletedIds)
+    setUsers((prev) => prev.filter((item) => !removedIds.has(item.id)))
+    clear()
+
+    const failureCount = result.failureCount ?? 0
+    if (failureCount > 0) {
+      toast({
+        title: "Delete completed with errors",
+        description: `${result.deletedCount} deleted, ${failureCount} could not be removed.`,
+        variant: "destructive",
+      })
+    } else {
+      toast({
+        title: "Users deleted",
+        description: `${result.deletedCount} account(s) permanently removed.`,
+      })
+    }
+  }
+
   const runBulkRole = async (role: "user" | AdminRoleType, label: string) => {
     if (selectedUsers.length === 0) return
     setSavingId("bulk")
@@ -163,6 +237,12 @@ export function AdminUsersList({ users: initialUsers }: AdminUsersListProps) {
           { label: "Set as User", onClick: () => runBulkRole("user", "Demote to User"), disabled: isBusy },
           { label: "Set as Moderator", onClick: () => runBulkRole("moderator", "Promote to Moderator"), disabled: isBusy },
           { label: "Set as Admin", onClick: () => runBulkRole("admin", "Promote to Admin"), disabled: isBusy },
+          {
+            label: "Delete",
+            onClick: () => setBulkDeleteOpen(true),
+            variant: "destructive",
+            disabled: isBusy,
+          },
         ]}
       />
 
@@ -188,6 +268,7 @@ export function AdminUsersList({ users: initialUsers }: AdminUsersListProps) {
           <TableBody>
             {users.map((user) => {
               const canEdit = !user.isFoundingAdmin
+              const canDelete = canDeleteUser(user)
               const currentRole = user.isAdmin ? (user.adminRole ?? "admin") : "user"
 
               return (
@@ -196,7 +277,7 @@ export function AdminUsersList({ users: initialUsers }: AdminUsersListProps) {
                     <Checkbox
                       checked={selected.has(user.id)}
                       onCheckedChange={() => toggle(user.id)}
-                      disabled={!canEdit}
+                      disabled={!canDelete}
                       aria-label={`Select ${user.email || user.id}`}
                     />
                   </TableCell>
@@ -240,6 +321,16 @@ export function AdminUsersList({ users: initialUsers }: AdminUsersListProps) {
                                 else toast({ title: "Role updated" })
                               }) }]
                             : []),
+                          ...(canDelete
+                            ? [
+                                {
+                                  label: "Delete",
+                                  onClick: () => setDeletingUser(user),
+                                  destructive: true,
+                                  separatorBefore: true,
+                                },
+                              ]
+                            : []),
                         ]}
                       />
                     ) : (
@@ -252,6 +343,58 @@ export function AdminUsersList({ users: initialUsers }: AdminUsersListProps) {
           </TableBody>
         </Table>
       </AdminTableShell>
+
+      <AlertDialog open={!!deletingUser} onOpenChange={(open) => !open && setDeletingUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete user?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Permanently delete the account for{" "}
+              <span className="font-medium text-foreground">{deletingUser?.email || deletingUser?.id}</span>?
+              Their profile will be removed and their duas will no longer be linked to this account. This cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={savingId === deletingUser?.id}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={savingId === deletingUser?.id}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleDeleteUser()
+              }}
+            >
+              {savingId === deletingUser?.id ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedCount} user(s)?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Permanently delete {selectedCount} selected account(s)? Profiles will be removed and duas will no longer
+              be linked to those accounts. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={savingId === "bulk"}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={savingId === "bulk"}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleBulkDelete()
+              }}
+            >
+              {savingId === "bulk" ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
         <DialogContent>

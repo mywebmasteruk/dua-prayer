@@ -177,3 +177,83 @@ export async function setUserRole(input: { userId: string; role: "user" | AdminR
   revalidatePath("/admin")
   return { success: true as const }
 }
+
+function deleteUserGuard(input: { userId: string; email: string; actorId: string }): { ok: true } | { error: string } {
+  if (input.userId === input.actorId) {
+    return { error: "You cannot delete your own account." }
+  }
+
+  if (isFoundingAdminUser({ email: input.email })) {
+    return { error: "The platform founder account cannot be deleted." }
+  }
+
+  return { ok: true }
+}
+
+function revalidateAfterUserDelete() {
+  revalidatePath("/admin/users")
+  revalidatePath("/admin/volunteers")
+  revalidatePath("/admin")
+}
+
+export async function deleteUser(userId: string) {
+  const gate = await requirePermission("manage_users")
+  if (!gate.ok) return { error: gate.error === "Forbidden" ? "You cannot manage users." : "Unauthorized" }
+
+  const trimmedId = userId.trim()
+  if (!trimmedId) return { error: "User id is required." }
+
+  const authUsers = await listAllAuthUsers()
+  const email = authUsers.get(trimmedId)?.email ?? ""
+
+  const guard = deleteUserGuard({ userId: trimmedId, email, actorId: gate.user.id })
+  if ("error" in guard) return guard
+
+  const admin = createAdminSupabaseClient()
+  const { error } = await admin.auth.admin.deleteUser(trimmedId)
+  if (error) return { error: error.message }
+
+  revalidateAfterUserDelete()
+  return { success: true as const }
+}
+
+export async function deleteUsers(userIds: string[]) {
+  const gate = await requirePermission("manage_users")
+  if (!gate.ok) return { error: gate.error === "Forbidden" ? "You cannot manage users." : "Unauthorized" }
+
+  const uniqueIds = [...new Set(userIds.map((id) => id.trim()).filter(Boolean))]
+  if (uniqueIds.length === 0) return { error: "No users selected." }
+
+  const authUsers = await listAllAuthUsers()
+  const admin = createAdminSupabaseClient()
+
+  let deletedCount = 0
+  let failureCount = 0
+  const deletedIds: string[] = []
+
+  for (const userId of uniqueIds) {
+    const email = authUsers.get(userId)?.email ?? ""
+    const guard = deleteUserGuard({ userId, email, actorId: gate.user.id })
+    if ("error" in guard) {
+      failureCount += 1
+      continue
+    }
+
+    const { error } = await admin.auth.admin.deleteUser(userId)
+    if (error) {
+      failureCount += 1
+      continue
+    }
+
+    deletedCount += 1
+    deletedIds.push(userId)
+  }
+
+  if (deletedCount > 0) revalidateAfterUserDelete()
+
+  if (deletedCount === 0) {
+    return { error: "No users could be deleted. You cannot remove yourself or the platform founder." }
+  }
+
+  return { success: true as const, deletedCount, failureCount, deletedIds }
+}
