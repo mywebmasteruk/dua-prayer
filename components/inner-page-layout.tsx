@@ -56,6 +56,7 @@ export async function InnerPageLayout({
               permissions={adminCtx.permissions}
               isFoundingAdmin={adminCtx.isFoundingAdmin}
               activePath={activePath}
+              sidebarTagline={siteCopy.sidebarTagline}
             />
           ) : (
             <HomeSidebarNav

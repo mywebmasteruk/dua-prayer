@@ -1,9 +1,8 @@
-import Link from "next/link"
 import { BookOpen, HandCoins, HandHeart, Home, Info, LayoutGrid, Shield, ShieldAlert, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signInHref } from "@/lib/auth-modal"
-import { BrandLogo } from "./brand-logo"
 import { AuthButton } from "./auth/auth-button"
+import { isSidebarPathActive, SidebarBranding, SidebarNavItem } from "./sidebar-nav-shared"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 interface HomeSidebarNavProps {
@@ -13,44 +12,6 @@ interface HomeSidebarNavProps {
   showLogo?: boolean
   className?: string
   sidebarTagline?: string
-}
-
-function NavItem({
-  href,
-  label,
-  icon: Icon,
-  active = false,
-  variant = "default",
-}: {
-  href: string
-  label: string
-  icon: typeof Home
-  active?: boolean
-  variant?: "default" | "cta"
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "group flex w-full max-w-full items-center gap-3 rounded-full px-3 py-2.5 text-[14px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:px-4 lg:py-3",
-        variant === "cta"
-          ? "justify-center -translate-x-1 gap-2 bg-primary text-[14px] font-bold text-primary-foreground hover:bg-primary/90 lg:text-[15px]"
-          : cn(
-              "hover:bg-muted/60 lg:text-[18px]",
-              active ? "font-bold text-foreground" : "font-normal text-foreground/85",
-            ),
-      )}
-    >
-      <Icon className="h-[24px] w-[24px] shrink-0" aria-hidden="true" />
-      <span>{label}</span>
-    </Link>
-  )
-}
-
-function isActivePath(activePath: string, href: string) {
-  if (href === "/") return activePath === "/"
-  return activePath === href || activePath.startsWith(`${href}/`)
 }
 
 export function HomeSidebarNav({
@@ -66,44 +27,54 @@ export function HomeSidebarNav({
 
   return (
     <div className={cn("flex flex-col", className)}>
-      {showLogo ? (
-        <div>
-          <BrandLogo variant="icon" href="/" showWordmark priority className="h-9 w-9 shrink-0" />
-          <p className="mt-2 text-xs leading-snug text-muted-foreground">{sidebarTagline}</p>
-        </div>
-      ) : null}
+      {showLogo ? <SidebarBranding tagline={sidebarTagline} /> : null}
 
       <nav aria-label="Primary" className={cn("space-y-1", showLogo && "mt-4")}>
-        <NavItem href="/" label="Home" icon={Home} active={isActivePath(activePath, "/")} />
-        <NavItem
+        <SidebarNavItem href="/" label="Home" icon={Home} active={isSidebarPathActive(activePath, "/")} />
+        <SidebarNavItem
           href="/channels"
           label="Channels"
           icon={LayoutGrid}
-          active={isActivePath(activePath, "/channels")}
+          active={isSidebarPathActive(activePath, "/channels")}
         />
-        <NavItem
+        <SidebarNavItem
           href="/resources"
           label="Resources"
           icon={BookOpen}
-          active={isActivePath(activePath, "/resources")}
+          active={isSidebarPathActive(activePath, "/resources")}
         />
-        <NavItem href="/about" label="About" icon={Info} active={isActivePath(activePath, "/about")} />
-        <NavItem href="/donate" label="Donate" icon={HandCoins} active={isActivePath(activePath, "/donate")} />
-        <NavItem
+        <SidebarNavItem href="/about" label="About" icon={Info} active={isSidebarPathActive(activePath, "/about")} />
+        <SidebarNavItem
+          href="/donate"
+          label="Donate"
+          icon={HandCoins}
+          active={isSidebarPathActive(activePath, "/donate")}
+        />
+        <SidebarNavItem
           href="/volunteer"
           label="Volunteer"
           icon={HandHeart}
-          active={isActivePath(activePath, "/volunteer")}
+          active={isSidebarPathActive(activePath, "/volunteer")}
         />
-        <NavItem href="/safety" label="Safety" icon={Shield} active={isActivePath(activePath, "/safety")} />
-        <NavItem
+        <SidebarNavItem
+          href="/safety"
+          label="Safety"
+          icon={Shield}
+          active={isSidebarPathActive(activePath, "/safety")}
+        />
+        <SidebarNavItem
           href={accountHref}
           label={accountLabel}
           icon={User}
           variant={user ? "default" : "cta"}
         />
         {isAdmin ? (
-          <NavItem href="/admin" label="Admin" icon={ShieldAlert} active={isActivePath(activePath, "/admin")} />
+          <SidebarNavItem
+            href="/admin"
+            label="Admin"
+            icon={ShieldAlert}
+            active={isSidebarPathActive(activePath, "/admin")}
+          />
         ) : null}
         {user ? <AuthButton user={user} variant="cta" /> : null}
       </nav>
