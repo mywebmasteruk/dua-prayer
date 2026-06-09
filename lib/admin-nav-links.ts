@@ -1,9 +1,9 @@
 import type { LucideIcon } from "lucide-react"
 import {
   BookOpen,
-  CreditCard,
   HandHeart,
   LayoutGrid,
+  Plug,
   Settings2,
   Shield,
   Type,
@@ -18,7 +18,7 @@ export type AdminNavKey =
   | "volunteers"
   | "settings"
   | "copy"
-  | "stripe"
+  | "integration"
   | "roles"
 
 export type AdminNavLink = {
@@ -73,7 +73,7 @@ export function getAdminNavLinks(
       icon: Settings2,
       visible:
         canSee(permissions, isFoundingAdmin, "manage_settings") ||
-        canSee(permissions, isFoundingAdmin, "manage_volunteers"),
+        canSee(permissions, isFoundingAdmin, "manage_admins"),
     },
     {
       key: "copy",
@@ -83,11 +83,13 @@ export function getAdminNavLinks(
       visible: canSee(permissions, isFoundingAdmin, "manage_settings"),
     },
     {
-      key: "stripe",
-      href: "/admin/settings/stripe",
-      label: "Stripe donations",
-      icon: CreditCard,
-      visible: canSee(permissions, isFoundingAdmin, "manage_settings"),
+      key: "integration",
+      href: "/admin/integration",
+      label: "Integration",
+      icon: Plug,
+      visible:
+        canSee(permissions, isFoundingAdmin, "manage_settings") ||
+        canSee(permissions, isFoundingAdmin, "manage_volunteers"),
     },
     {
       key: "roles",
@@ -104,7 +106,9 @@ export function getAdminNavLinks(
 export function isAdminNavLinkActive(activePath: string, link: AdminNavLink): boolean {
   if (link.key === "dashboard") return activePath === "/admin"
   if (link.key === "settings") return activePath === "/admin/settings"
-  if (link.key === "stripe") return activePath === "/admin/settings/stripe"
+  if (link.key === "integration") {
+    return activePath === "/admin/integration" || activePath === "/admin/settings/stripe"
+  }
   if (link.key === "roles") return activePath === "/admin/settings/roles"
   return activePath === link.href || activePath.startsWith(`${link.href}/`)
 }

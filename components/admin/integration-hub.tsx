@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   AdminIntegrationTabBar,
@@ -20,6 +20,8 @@ type IntegrationHubProps = {
   stripeSettings: StripeSettingsAdminView
   filloutValue: string
   envStatus: IntegrationEnvStatus
+  canManageStripe: boolean
+  canManageFillout: boolean
 }
 
 export function IntegrationHub({
@@ -27,14 +29,16 @@ export function IntegrationHub({
   stripeSettings,
   filloutValue,
   envStatus,
+  canManageStripe,
+  canManageFillout,
 }: IntegrationHubProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [activeTab, setActiveTab] = useState<IntegrationTabId>(initialTab)
+  const tabParam = searchParams?.get("tab")
+  const activeTab = isIntegrationTabId(tabParam ?? undefined) ? tabParam : initialTab
 
   const handleTabChange = useCallback(
     (tab: IntegrationTabId) => {
-      setActiveTab(tab)
       const params = new URLSearchParams(searchParams?.toString() ?? "")
       params.set("tab", tab)
       router.replace(`/admin/integration?${params.toString()}`, { scroll: false })
@@ -42,23 +46,33 @@ export function IntegrationHub({
     [router, searchParams],
   )
 
-  const tabFromUrl = searchParams?.get("tab")
-  const resolvedTab = isIntegrationTabId(tabFromUrl ?? undefined) ? tabFromUrl : activeTab
-
   return (
     <div className="space-y-0">
-      <AdminIntegrationTabBar activeTab={resolvedTab} onTabChange={handleTabChange} />
+      <AdminIntegrationTabBar activeTab={activeTab} onTabChange={handleTabChange} />
 
       <div className="pt-6">
-        {resolvedTab === "stripe" ? (
+        {activeTab === "stripe" && canManageStripe ? (
           <IntegrationStripeTab initial={stripeSettings} />
         ) : null}
-        {resolvedTab === "fillout" ? <IntegrationFilloutTab initialValue={filloutValue} /> : null}
-        {resolvedTab === "volunteer-webhook" ? (
-          <IntegrationVolunteerWebhookTab appUrl={envStatus.appUrl} webhookConfigured={envStatus.volunteerWebhookConfigured} />
+        {activeTab === "stripe" && !canManageStripe ? (
+          <p className="text-sm text-muted-foreground">You don&apos;t have permission to manage Stripe settings.</p>
         ) : null}
-        {resolvedTab === "supabase" ? <IntegrationSupabaseTab status={envStatus.supabase} /> : null}
-        {resolvedTab === "auth" ? <IntegrationAuthTab status={envStatus.auth} appUrl={envStatus.appUrl} /> : null}
+        {activeTab === "fillout" && canManageFillout ? (
+          <IntegrationFilloutTab initialValue={filloutValue} />
+        ) : null}
+        {activeTab === "fillout" && !canManageFillout ? (
+          <p className="text-sm text-muted-foreground">You don&apos;t have permission to manage Fillout settings.</p>
+        ) : null}
+        {activeTab === "volunteer-webhook" ? (
+          <IntegrationVolunteerWebhookTab
+            appUrl={envStatus.appUrl}
+            webhookConfigured={envStatus.volunteerWebhookConfigured}
+          />
+        ) : null}
+        {activeTab === "supabase" ? <IntegrationSupabaseTab status={envStatus.supabase} /> : null}
+        {activeTab === "auth" ? (
+          <IntegrationAuthTab status={envStatus.auth} appUrl={envStatus.appUrl} />
+        ) : null}
       </div>
     </div>
   )
