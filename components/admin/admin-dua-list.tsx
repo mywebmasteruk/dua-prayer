@@ -1,20 +1,30 @@
 "use client"
 
-import { useState } from "react"
-import { Card } from "@/components/ui/card"
+import { useMemo, useState } from "react"
+import { Flag } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Edit, Eye, EyeOff, Flag, Trash2 } from "lucide-react"
-import { toast } from "@/components/ui/use-toast"
-import type { Dua, Category } from "@/lib/types/dua"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { updateDuaStatus, unflagDua, updateDua, deleteDua } from "@/app/actions/duas"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/components/ui/use-toast"
+import { deleteDua, unflagDua, updateDua, updateDuaStatus } from "@/app/actions/duas"
+import type { Category, Dua } from "@/lib/types/dua"
+import { AdminBulkActionsBar } from "@/components/admin/admin-bulk-actions-bar"
+import { AdminRowActionsMenu } from "@/components/admin/admin-row-actions-menu"
+import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
+import { useAdminSelection } from "@/components/admin/use-admin-selection"
 
 interface AdminDuaListProps {
   initialDuas: Dua[]
   categories: Category[]
+}
+
+function truncateText(text: string, max = 80) {
+  if (text.length <= max) return text
+  return `${text.slice(0, max).trim()}…`
 }
 
 export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
@@ -24,21 +34,47 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
   const [editCategory, setEditCategory] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleTogglePublish = async (dua: Dua) => {
-    setIsLoading(true)
-    const result = await updateDuaStatus(dua.id, !dua.published)
+  const duaIds = useMemo(() => duas.map((dua) => dua.id), [duas])
+  const { selected, toggle, toggleAll, clear, allSelected, someSelected, selectedCount } = useAdminSelection(duaIds)
 
-    if (result.error) {
+  const selectedDuas = useMemo(() => duas.filter((dua) => selected.has(dua.id)), [duas, selected])
+
+  const runBulk = async (label: string, fn: (dua: Dua) => Promise<{ error?: string } | { success?: boolean }>) => {
+    if (selectedDuas.length === 0) return
+    setIsLoading(true)
+    let failures = 0
+
+    for (const dua of selectedDuas) {
+      const result = await fn(dua)
+      if ("error" in result && result.error) failures += 1
+    }
+
+    setIsLoading(false)
+    clear()
+
+    if (failures > 0) {
       toast({
-        title: "Error",
-        description: "Failed to update dua status",
+        title: `${label} completed with errors`,
+        description: `${failures} of ${selectedDuas.length} items could not be updated.`,
         variant: "destructive",
       })
     } else {
-      setDuas(duas.map((d) => (d.id === dua.id ? { ...d, published: !dua.published } : d)))
+      toast({ title: `${label} completed`, description: `${selectedDuas.length} dua(s) updated.` })
+    }
+  }
+
+  const handleTogglePublish = async (dua: Dua, published?: boolean) => {
+    const nextPublished = published ?? !dua.published
+    setIsLoading(true)
+    const result = await updateDuaStatus(dua.id, nextPublished)
+
+    if (result.error) {
+      toast({ title: "Error", description: "Failed to update dua status", variant: "destructive" })
+    } else {
+      setDuas((prev) => prev.map((d) => (d.id === dua.id ? { ...d, published: nextPublished } : d)))
       toast({
         title: "Success",
-        description: `Dua ${dua.published ? "unpublished" : "published"} successfully`,
+        description: `Dua ${nextPublished ? "published" : "unpublished"} successfully`,
       })
     }
     setIsLoading(false)
@@ -49,17 +85,10 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
     const result = await unflagDua(dua.id)
 
     if (result.error) {
-      toast({
-        title: "Error",
-        description: "Failed to unflag dua",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to unflag dua", variant: "destructive" })
     } else {
-      setDuas(duas.map((d) => (d.id === dua.id ? { ...d, flagged: false } : d)))
-      toast({
-        title: "Success",
-        description: "Dua unflagged successfully",
-      })
+      setDuas((prev) => prev.map((d) => (d.id === dua.id ? { ...d, flagged: false } : d)))
+      toast({ title: "Success", description: "Dua unflagged successfully" })
     }
     setIsLoading(false)
   }
@@ -71,17 +100,10 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
     const result = await deleteDua(dua.id)
 
     if (result.error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete dua",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to delete dua", variant: "destructive" })
     } else {
-      setDuas(duas.filter((d) => d.id !== dua.id))
-      toast({
-        title: "Success",
-        description: "Dua deleted successfully",
-      })
+      setDuas((prev) => prev.filter((d) => d.id !== dua.id))
+      toast({ title: "Success", description: "Dua deleted successfully" })
     }
     setIsLoading(false)
   }
@@ -89,124 +111,192 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
   const openEditDialog = (dua: Dua) => {
     setEditingDua(dua)
     setEditText(dua.text)
-    setEditCategory(dua.category_id?.toString() || "")
+    setEditCategory(dua.category_id?.toString() ?? "none")
   }
 
   const handleSaveEdit = async () => {
     if (!editingDua) return
 
     setIsLoading(true)
-    const result = await updateDua(editingDua.id, editText, editCategory ? Number.parseInt(editCategory) : null)
+    const categoryId = editCategory === "none" ? null : Number.parseInt(editCategory)
+    const result = await updateDua(editingDua.id, editText, categoryId)
 
     if (result.error) {
-      toast({
-        title: "Error",
-        description: "Failed to update dua",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to update dua", variant: "destructive" })
     } else {
-      setDuas(
-        duas.map((d) =>
+      setDuas((prev) =>
+        prev.map((d) =>
           d.id === editingDua.id
             ? {
                 ...d,
                 text: editText,
-                category_id: editCategory ? Number.parseInt(editCategory) : null,
-                category_name: categories.find((c) => c.id.toString() === editCategory)?.name,
+                category_id: categoryId,
+                category_name: categoryId ? categories.find((c) => c.id === categoryId)?.name : undefined,
               }
             : d,
         ),
       )
-
-      toast({
-        title: "Success",
-        description: "Dua updated successfully",
-      })
-
+      toast({ title: "Success", description: "Dua updated successfully" })
       setEditingDua(null)
     }
     setIsLoading(false)
   }
 
+  const bulkPublish = async () => {
+    await runBulk("Publish", async (dua) => {
+      if (dua.published) return { success: true }
+      const result = await updateDuaStatus(dua.id, true)
+      if (!result.error) {
+        setDuas((prev) => prev.map((d) => (d.id === dua.id ? { ...d, published: true } : d)))
+      }
+      return result
+    })
+  }
+
+  const bulkUnpublish = async () => {
+    await runBulk("Unpublish", async (dua) => {
+      if (!dua.published) return { success: true }
+      const result = await updateDuaStatus(dua.id, false)
+      if (!result.error) {
+        setDuas((prev) => prev.map((d) => (d.id === dua.id ? { ...d, published: false } : d)))
+      }
+      return result
+    })
+  }
+
+  const bulkUnflag = async () => {
+    const flagged = selectedDuas.filter((dua) => dua.flagged)
+    if (flagged.length === 0) {
+      toast({ title: "Nothing to unflag", description: "No flagged duas in selection." })
+      return
+    }
+    await runBulk("Unflag", async (dua) => {
+      if (!dua.flagged) return { success: true }
+      const result = await unflagDua(dua.id)
+      if (!result.error) {
+        setDuas((prev) => prev.map((d) => (d.id === dua.id ? { ...d, flagged: false } : d)))
+      }
+      return result
+    })
+  }
+
+  const bulkDelete = async () => {
+    if (!confirm(`Delete ${selectedCount} dua(s)? This cannot be undone.`)) return
+    await runBulk("Delete", async (dua) => {
+      const result = await deleteDua(dua.id)
+      if (!result.error) {
+        setDuas((prev) => prev.filter((d) => d.id !== dua.id))
+      }
+      return result
+    })
+  }
+
   if (duas.length === 0) {
-    return <div className="text-center py-8 text-muted-foreground">No duas found matching your filters.</div>
+    return <div className="py-8 text-center text-sm text-muted-foreground">No duas found matching your filters.</div>
   }
 
   return (
     <>
-      <div className="space-y-4">
-        {duas.map((dua) => (
-          <Card key={dua.id} className="p-4 border-border">
-            <div className="flex flex-col gap-2">
-              <div className="flex justify-between">
-                <div className="flex gap-2">
-                  {dua.flagged && (
-                    <span className="text-xs bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-full">
+      <AdminBulkActionsBar
+        selectedCount={selectedCount}
+        onClear={clear}
+        actions={[
+          { label: "Publish", onClick: bulkPublish, disabled: isLoading },
+          { label: "Unpublish", onClick: bulkUnpublish, disabled: isLoading },
+          {
+            label: "Unflag",
+            onClick: bulkUnflag,
+            disabled: isLoading || !selectedDuas.some((dua) => dua.flagged),
+          },
+          { label: "Delete", onClick: bulkDelete, variant: "destructive", disabled: isLoading },
+        ]}
+      />
+
+      <div className="overflow-hidden rounded-lg border border-border/70">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-10 px-3 py-2">
+                <Checkbox
+                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                  onCheckedChange={toggleAll}
+                  aria-label="Select all duas"
+                />
+              </TableHead>
+              <TableHead className="py-2">Content</TableHead>
+              <TableHead className="hidden py-2 sm:table-cell">Category</TableHead>
+              <TableHead className="py-2">Status</TableHead>
+              <TableHead className="hidden py-2 md:table-cell">Ameen</TableHead>
+              <TableHead className="hidden py-2 lg:table-cell">Flag</TableHead>
+              <TableHead className="w-10 py-2 pr-3 text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {duas.map((dua) => (
+              <TableRow key={dua.id} className="text-sm">
+                <TableCell className="px-3 py-2">
+                  <Checkbox
+                    checked={selected.has(dua.id)}
+                    onCheckedChange={() => toggle(dua.id)}
+                    aria-label={`Select dua ${dua.id}`}
+                  />
+                </TableCell>
+                <TableCell className="max-w-[240px] py-2">
+                  <p className="truncate font-medium text-foreground" title={dua.text}>
+                    {truncateText(dua.text)}
+                  </p>
+                  {dua.category_name ? (
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground sm:hidden">{dua.category_name}</p>
+                  ) : null}
+                </TableCell>
+                <TableCell className="hidden py-2 sm:table-cell">
+                  {dua.category_name ? (
+                    <AdminStatusBadge label={dua.category_name} tone="neutral" />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="py-2">
+                  <AdminStatusBadge
+                    label={dua.published ? "Published" : "Unpublished"}
+                    tone={dua.published ? "success" : "warning"}
+                  />
+                </TableCell>
+                <TableCell className="hidden py-2 text-muted-foreground md:table-cell">{dua.likes}</TableCell>
+                <TableCell className="hidden py-2 lg:table-cell">
+                  {dua.flagged ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
+                      <Flag className="h-3.5 w-3.5" aria-hidden="true" />
                       Flagged
                     </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
                   )}
-                </div>
-              </div>
-
-              <p className="py-2">{dua.text}</p>
-
-              <div className="flex flex-wrap justify-between items-center gap-2 mt-2">
-                <div className="flex flex-wrap gap-2">
-                  {dua.category_name && (
-                    <span className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded-full">
-                      {dua.category_name}
-                    </span>
-                  )}
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      dua.published
-                        ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                    }`}
-                  >
-                    {dua.published ? "Published" : "Unpublished"}
-                  </span>
-                  <span className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground">
-                    Ameen: {dua.likes}
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={() => openEditDialog(dua)} disabled={isLoading}>
-                    <Edit className="h-4 w-4 mr-1" />
-                    Edit
-                  </Button>
-
-                  <Button variant="outline" size="sm" onClick={() => handleTogglePublish(dua)} disabled={isLoading}>
-                    {dua.published ? (
-                      <>
-                        <EyeOff className="h-4 w-4 mr-1" />
-                        Unpublish
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="h-4 w-4 mr-1" />
-                        Publish
-                      </>
-                    )}
-                  </Button>
-
-                  {dua.flagged && (
-                    <Button variant="outline" size="sm" onClick={() => handleUnflag(dua)} disabled={isLoading}>
-                      <Flag className="h-4 w-4 mr-1" />
-                      Unflag
-                    </Button>
-                  )}
-
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(dua)} disabled={isLoading}>
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </Card>
-        ))}
+                </TableCell>
+                <TableCell className="py-2 pr-3 text-right">
+                  <AdminRowActionsMenu
+                    disabled={isLoading}
+                    label={`Actions for dua ${dua.id}`}
+                    actions={[
+                      { label: "Edit", onClick: () => openEditDialog(dua) },
+                      {
+                        label: dua.published ? "Unpublish" : "Publish",
+                        onClick: () => handleTogglePublish(dua),
+                      },
+                      ...(dua.flagged ? [{ label: "Unflag", onClick: () => handleUnflag(dua) }] : []),
+                      {
+                        label: "Delete",
+                        onClick: () => handleDelete(dua),
+                        destructive: true,
+                        separatorBefore: true,
+                      },
+                    ]}
+                  />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
 
       <Dialog open={!!editingDua} onOpenChange={(open) => !open && setEditingDua(null)}>
@@ -222,7 +312,7 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
             <div className="space-y-2">
               <Label htmlFor="edit-category">Category</Label>
               <Select value={editCategory} onValueChange={setEditCategory}>
-                <SelectTrigger>
+                <SelectTrigger id="edit-category">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>

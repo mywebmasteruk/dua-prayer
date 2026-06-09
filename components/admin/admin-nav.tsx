@@ -5,7 +5,7 @@ import type { AdminPermission } from "@/lib/admin-permissions"
 type AdminNavProps = {
   permissions: AdminPermission[]
   isFoundingAdmin: boolean
-  active: "dashboard" | "channels" | "users" | "settings" | "copy" | "roles"
+  active: "dashboard" | "channels" | "users" | "settings" | "copy" | "roles" | "stripe"
 }
 
 function canSee(permissions: AdminPermission[], isFoundingAdmin: boolean, required: AdminPermission) {
@@ -44,6 +44,12 @@ export function AdminNav({ permissions, isFoundingAdmin, active }: AdminNavProps
       key: "copy" as const,
       href: "/admin/copy",
       label: "Site copy",
+      visible: canSee(permissions, isFoundingAdmin, "manage_settings"),
+    },
+    {
+      key: "stripe" as const,
+      href: "/admin/settings/stripe",
+      label: "Stripe donations",
       visible: canSee(permissions, isFoundingAdmin, "manage_settings"),
     },
     {

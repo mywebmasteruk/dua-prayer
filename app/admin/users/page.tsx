@@ -1,5 +1,4 @@
-import Link from "next/link"
-import { ArrowLeft, Users } from "lucide-react"
+import { Users } from "lucide-react"
 import { redirect } from "next/navigation"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { AdminNav } from "@/components/admin/admin-nav"
@@ -18,13 +17,6 @@ export default async function AdminUsersPage() {
 
   return (
     <InnerPageLayout activePath="/admin" contentClassName="max-w-[691px]">
-      <Link
-        href="/admin"
-        className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to dashboard
-      </Link>
       <div className="mb-2 flex items-center gap-2">
         <Users className="h-6 w-6 text-primary" aria-hidden="true" />
         <h1 className="text-2xl font-semibold">Users</h1>
@@ -35,9 +27,7 @@ export default async function AdminUsersPage() {
 
       <AdminNav permissions={ctx.permissions} isFoundingAdmin={ctx.isFoundingAdmin} active="users" />
 
-      <section className="rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
-        <AdminUsersList users={users} />
-      </section>
+      <AdminUsersList users={users} />
     </InnerPageLayout>
   )
 }

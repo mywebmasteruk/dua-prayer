@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Settings2 } from "lucide-react"
+import { CreditCard, Settings2 } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { Button } from "@/components/ui/button"
 import { AdminDuaList } from "@/components/admin/admin-dua-list"
@@ -46,6 +46,7 @@ export default async function AdminPage({
     hasPermission(ctx, "manage_settings") ||
     hasPermission(ctx, "manage_volunteers") ||
     hasPermission(ctx, "manage_admins")
+  const canManageStripe = ctx.isFoundingAdmin || hasPermission(ctx, "manage_settings")
 
   return (
     <InnerPageLayout activePath="/admin" contentClassName="max-w-[691px]">
@@ -54,14 +55,24 @@ export default async function AdminPage({
           <h1 className="mb-2 text-2xl font-semibold">Admin Dashboard</h1>
           <p className="text-sm text-muted-foreground">Manage duas and moderate content</p>
         </div>
-        {canAccessSettings && (
-          <Button variant="outline" size="sm" asChild className="rounded-full">
-            <Link href="/admin/settings">
-              <Settings2 className="h-4 w-4" aria-hidden="true" />
-              Settings
-            </Link>
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canManageStripe && (
+            <Button variant="outline" size="sm" asChild className="rounded-full">
+              <Link href="/admin/settings/stripe">
+                <CreditCard className="h-4 w-4" aria-hidden="true" />
+                Stripe
+              </Link>
+            </Button>
+          )}
+          {canAccessSettings && (
+            <Button variant="outline" size="sm" asChild className="rounded-full">
+              <Link href="/admin/settings">
+                <Settings2 className="h-4 w-4" aria-hidden="true" />
+                Settings
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       <AdminNav permissions={ctx.permissions} isFoundingAdmin={ctx.isFoundingAdmin} active="dashboard" />

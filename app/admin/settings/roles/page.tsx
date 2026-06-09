@@ -1,5 +1,4 @@
-import Link from "next/link"
-import { ArrowLeft, Shield } from "lucide-react"
+import { Shield } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { AdminNav } from "@/components/admin/admin-nav"
 import { RolesAccessSettings } from "@/components/admin/roles-access-settings"
@@ -21,13 +20,6 @@ export default async function AdminRolesPage() {
 
   return (
     <InnerPageLayout activePath="/admin" contentClassName="max-w-[691px]">
-      <Link
-        href="/admin/settings"
-        className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to settings
-      </Link>
       <div className="mb-2 flex items-center gap-2">
         <Shield className="h-6 w-6 text-primary" aria-hidden="true" />
         <h1 className="text-2xl font-semibold">Roles &amp; Access</h1>

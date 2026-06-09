@@ -1,11 +1,14 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ArrowDown, ArrowUp, Loader2, Plus, Trash2 } from "lucide-react"
+import { Loader2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
 import {
@@ -15,6 +18,10 @@ import {
   updateChannel,
   type AdminChannelRecord,
 } from "@/app/actions/admin-channels"
+import { AdminBulkActionsBar } from "@/components/admin/admin-bulk-actions-bar"
+import { AdminRowActionsMenu } from "@/components/admin/admin-row-actions-menu"
+import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
+import { useAdminSelection } from "@/components/admin/use-admin-selection"
 
 type AdminChannelsSettingsProps = {
   initialChannels: AdminChannelRecord[]
@@ -36,18 +43,31 @@ function toDraft(channel: AdminChannelRecord): DraftChannel {
   }
 }
 
+function truncateText(text: string, max = 60) {
+  if (text.length <= max) return text
+  return `${text.slice(0, max).trim()}…`
+}
+
 export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettingsProps) {
   const [channels, setChannels] = useState(initialChannels)
-  const [drafts, setDrafts] = useState<Record<number, DraftChannel>>(() =>
-    Object.fromEntries(initialChannels.map((c) => [c.id, toDraft(c)])),
-  )
   const [newName, setNewName] = useState("")
   const [newDescription, setNewDescription] = useState("")
-  const [savingId, setSavingId] = useState<number | "new" | "reorder" | null>(null)
+  const [savingId, setSavingId] = useState<number | "new" | "reorder" | "bulk" | null>(null)
+  const [editingChannel, setEditingChannel] = useState<AdminChannelRecord | null>(null)
+  const [editDraft, setEditDraft] = useState<DraftChannel | null>(null)
 
   const orderedChannels = useMemo(
     () => [...channels].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
     [channels],
+  )
+
+  const channelIds = useMemo(() => orderedChannels.map((channel) => channel.id), [orderedChannels])
+  const { selected, toggle, toggleAll, clear, allSelected, someSelected, selectedCount } =
+    useAdminSelection(channelIds)
+
+  const selectedChannels = useMemo(
+    () => orderedChannels.filter((channel) => selected.has(channel.id)),
+    [orderedChannels, selected],
   )
 
   const handleCreate = async (event: React.FormEvent) => {
@@ -67,17 +87,21 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
     window.location.reload()
   }
 
-  const handleSave = async (channel: AdminChannelRecord) => {
-    const draft = drafts[channel.id]
-    if (!draft) return
+  const openEditDialog = (channel: AdminChannelRecord) => {
+    setEditingChannel(channel)
+    setEditDraft(toDraft(channel))
+  }
 
-    setSavingId(channel.id)
+  const handleSaveEdit = async () => {
+    if (!editingChannel || !editDraft) return
+
+    setSavingId(editingChannel.id)
     const result = await updateChannel({
-      id: channel.id,
-      name: draft.name,
-      description: draft.description,
-      isActive: draft.isActive,
-      sortOrder: draft.sortOrder,
+      id: editingChannel.id,
+      name: editDraft.name,
+      description: editDraft.description,
+      isActive: editDraft.isActive,
+      sortOrder: editDraft.sortOrder,
     })
     setSavingId(null)
 
@@ -88,15 +112,34 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
 
     setChannels((prev) =>
       prev.map((item) =>
-        item.id === channel.id
-          ? { ...item, ...draft, name: draft.name, description: draft.description, is_active: draft.isActive, sort_order: draft.sortOrder }
+        item.id === editingChannel.id
+          ? {
+              ...item,
+              name: editDraft.name,
+              description: editDraft.description,
+              is_active: editDraft.isActive,
+              sort_order: editDraft.sortOrder,
+            }
           : item,
       ),
     )
+    setEditingChannel(null)
+    setEditDraft(null)
     toast({ title: "Channel saved" })
   }
 
   const handleDelete = async (channel: AdminChannelRecord) => {
+    if (channel.duaCount > 0) {
+      toast({
+        title: "Cannot delete channel",
+        description: "This channel has duas attached. Deactivate it instead.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!confirm(`Delete channel "${channel.name}"?`)) return
+
     setSavingId(channel.id)
     const result = await deleteChannel(channel.id)
     setSavingId(null)
@@ -108,6 +151,24 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
 
     setChannels((prev) => prev.filter((item) => item.id !== channel.id))
     toast({ title: "Channel deleted" })
+  }
+
+  const setChannelActive = async (channel: AdminChannelRecord, isActive: boolean) => {
+    if (channel.is_active === isActive) return
+
+    setSavingId(channel.id)
+    const result = await updateChannel({ id: channel.id, isActive })
+    setSavingId(null)
+
+    if ("error" in result && result.error) {
+      toast({ title: "Could not update channel", description: result.error, variant: "destructive" })
+      return
+    }
+
+    setChannels((prev) =>
+      prev.map((item) => (item.id === channel.id ? { ...item, is_active: isActive } : item)),
+    )
+    toast({ title: isActive ? "Channel activated" : "Channel deactivated" })
   }
 
   const moveChannel = async (channelId: number, direction: "up" | "down") => {
@@ -135,25 +196,94 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
         return newIndex === -1 ? channel : { ...channel, sort_order: (newIndex + 1) * 10 }
       }),
     )
-    setDrafts((prev) => {
-      const next = { ...prev }
-      for (const [id, draft] of Object.entries(next)) {
-        const newIndex = nextIds.indexOf(Number(id))
-        if (newIndex !== -1) next[Number(id)] = { ...draft, sortOrder: (newIndex + 1) * 10 }
+  }
+
+  const runBulk = async (label: string, fn: (channel: AdminChannelRecord) => Promise<{ error?: string } | { success?: boolean }>) => {
+    if (selectedChannels.length === 0) return
+    setSavingId("bulk")
+    let failures = 0
+
+    for (const channel of selectedChannels) {
+      const result = await fn(channel)
+      if ("error" in result && result.error) failures += 1
+    }
+
+    setSavingId(null)
+    clear()
+
+    if (failures > 0) {
+      toast({
+        title: `${label} completed with errors`,
+        description: `${failures} of ${selectedChannels.length} channels could not be updated.`,
+        variant: "destructive",
+      })
+    } else {
+      toast({ title: `${label} completed`, description: `${selectedChannels.length} channel(s) updated.` })
+    }
+  }
+
+  const bulkActivate = async () => {
+    await runBulk("Activate", async (channel) => {
+      if (channel.is_active) return { success: true }
+      const result = await updateChannel({ id: channel.id, isActive: true })
+      if (!result.error) {
+        setChannels((prev) => prev.map((item) => (item.id === channel.id ? { ...item, is_active: true } : item)))
       }
-      return next
+      return result
     })
   }
 
+  const bulkDeactivate = async () => {
+    await runBulk("Deactivate", async (channel) => {
+      if (!channel.is_active) return { success: true }
+      const result = await updateChannel({ id: channel.id, isActive: false })
+      if (!result.error) {
+        setChannels((prev) => prev.map((item) => (item.id === channel.id ? { ...item, is_active: false } : item)))
+      }
+      return result
+    })
+  }
+
+  const bulkDelete = async () => {
+    const deletable = selectedChannels.filter((channel) => channel.duaCount === 0)
+    if (deletable.length === 0) {
+      toast({
+        title: "Nothing to delete",
+        description: "Selected channels have duas attached. Deactivate them instead.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (!confirm(`Delete ${deletable.length} channel(s)?`)) return
+
+    setSavingId("bulk")
+    let failures = 0
+
+    for (const channel of deletable) {
+      const result = await deleteChannel(channel.id)
+      if (result.error) failures += 1
+      else setChannels((prev) => prev.filter((item) => item.id !== channel.id))
+    }
+
+    setSavingId(null)
+    clear()
+
+    if (failures > 0) {
+      toast({ title: "Delete completed with errors", variant: "destructive" })
+    } else {
+      toast({ title: "Channels deleted" })
+    }
+  }
+
+  const isBusy = savingId !== null
+
   return (
-    <div className="space-y-8">
-      <section className="rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
-        <h2 className="text-lg font-semibold tracking-tight">Add channel</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Channels group duas on the home feed and channel browser.
-        </p>
-        <form onSubmit={handleCreate} className="mt-6 space-y-4">
-          <div className="space-y-2">
+    <div className="space-y-6">
+      <section className="rounded-lg border border-border/70 bg-card p-4 shadow-sm">
+        <h2 className="text-base font-semibold tracking-tight">Add channel</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Channels group duas on the home feed and channel browser.</p>
+        <form onSubmit={handleCreate} className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5 sm:col-span-1">
             <Label htmlFor="new-channel-name">Name</Label>
             <Input
               id="new-channel-name"
@@ -163,142 +293,202 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
               required
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="new-channel-description">Description</Label>
             <Textarea
               id="new-channel-description"
               value={newDescription}
               onChange={(event) => setNewDescription(event.target.value)}
-              rows={3}
+              rows={2}
               required
             />
           </div>
-          <Button type="submit" disabled={savingId === "new"}>
-            {savingId === "new" ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Creating…
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                Add channel
-              </>
-            )}
-          </Button>
+          <div className="sm:col-span-2">
+            <Button type="submit" size="sm" disabled={savingId === "new"}>
+              {savingId === "new" ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Creating…
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Add channel
+                </>
+              )}
+            </Button>
+          </div>
         </form>
       </section>
 
-      <section className="rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
-        <h2 className="text-lg font-semibold tracking-tight">Channels</h2>
+      <section>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold tracking-tight">Channels</h2>
+          <span className="text-xs text-muted-foreground">{orderedChannels.length} total</span>
+        </div>
+
         {orderedChannels.length === 0 ? (
-          <p className="mt-4 text-sm text-muted-foreground">No channels yet.</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">No channels yet.</p>
         ) : (
-          <ul className="mt-4 divide-y divide-border/60">
-            {orderedChannels.map((channel, index) => {
-              const draft = drafts[channel.id] ?? toDraft(channel)
-              return (
-                <li key={channel.id} className="py-5 first:pt-0 last:pb-0">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-sm text-muted-foreground">
-                      {channel.duaCount} dua{channel.duaCount === 1 ? "" : "s"} · order {draft.sortOrder}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        disabled={index === 0 || savingId === "reorder"}
-                        onClick={() => moveChannel(channel.id, "up")}
-                        aria-label={`Move ${channel.name} up`}
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        disabled={index === orderedChannels.length - 1 || savingId === "reorder"}
-                        onClick={() => moveChannel(channel.id, "down")}
-                        aria-label={`Move ${channel.name} down`}
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="mt-4 space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor={`channel-name-${channel.id}`}>Name</Label>
-                      <Input
-                        id={`channel-name-${channel.id}`}
-                        value={draft.name}
-                        onChange={(event) =>
-                          setDrafts((prev) => ({
-                            ...prev,
-                            [channel.id]: { ...draft, name: event.target.value },
-                          }))
-                        }
+          <>
+            <AdminBulkActionsBar
+              selectedCount={selectedCount}
+              onClear={clear}
+              actions={[
+                { label: "Activate", onClick: bulkActivate, disabled: isBusy },
+                { label: "Deactivate", onClick: bulkDeactivate, disabled: isBusy },
+                {
+                  label: "Delete",
+                  onClick: bulkDelete,
+                  variant: "destructive",
+                  disabled: isBusy || !selectedChannels.some((channel) => channel.duaCount === 0),
+                },
+              ]}
+            />
+
+            <div className="overflow-hidden rounded-lg border border-border/70">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-10 px-3 py-2">
+                      <Checkbox
+                        checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                        onCheckedChange={toggleAll}
+                        aria-label="Select all channels"
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`channel-description-${channel.id}`}>Description</Label>
-                      <Textarea
-                        id={`channel-description-${channel.id}`}
-                        value={draft.description}
-                        onChange={(event) =>
-                          setDrafts((prev) => ({
-                            ...prev,
-                            [channel.id]: { ...draft, description: event.target.value },
-                          }))
-                        }
-                        rows={3}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 px-4 py-3">
-                      <div>
-                        <p className="text-sm font-medium">Active</p>
-                        <p className="text-xs text-muted-foreground">Inactive channels are hidden from the public feed.</p>
-                      </div>
-                      <Switch
-                        checked={draft.isActive}
-                        onCheckedChange={(checked) =>
-                          setDrafts((prev) => ({
-                            ...prev,
-                            [channel.id]: { ...draft, isActive: checked },
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" size="sm" disabled={savingId === channel.id} onClick={() => handleSave(channel)}>
-                        {savingId === channel.id ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                            Saving…
-                          </>
-                        ) : (
-                          "Save"
-                        )}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={savingId === channel.id || channel.duaCount > 0}
-                        onClick={() => handleDelete(channel)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+                    </TableHead>
+                    <TableHead className="py-2">Name</TableHead>
+                    <TableHead className="hidden py-2 md:table-cell">Description</TableHead>
+                    <TableHead className="py-2">Status</TableHead>
+                    <TableHead className="hidden py-2 sm:table-cell">Duas</TableHead>
+                    <TableHead className="hidden py-2 lg:table-cell">Order</TableHead>
+                    <TableHead className="w-10 py-2 pr-3 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orderedChannels.map((channel, index) => (
+                    <TableRow key={channel.id} className="text-sm">
+                      <TableCell className="px-3 py-2">
+                        <Checkbox
+                          checked={selected.has(channel.id)}
+                          onCheckedChange={() => toggle(channel.id)}
+                          aria-label={`Select ${channel.name}`}
+                        />
+                      </TableCell>
+                      <TableCell className="py-2 font-medium">{channel.name}</TableCell>
+                      <TableCell className="hidden max-w-[220px] py-2 text-muted-foreground md:table-cell">
+                        <span className="truncate" title={channel.description}>
+                          {truncateText(channel.description)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <AdminStatusBadge
+                          label={channel.is_active ? "Active" : "Inactive"}
+                          tone={channel.is_active ? "success" : "warning"}
+                        />
+                      </TableCell>
+                      <TableCell className="hidden py-2 text-muted-foreground sm:table-cell">{channel.duaCount}</TableCell>
+                      <TableCell className="hidden py-2 text-muted-foreground lg:table-cell">{channel.sort_order}</TableCell>
+                      <TableCell className="py-2 pr-3 text-right">
+                        <AdminRowActionsMenu
+                          disabled={isBusy}
+                          label={`Actions for ${channel.name}`}
+                          actions={[
+                            { label: "Edit", onClick: () => openEditDialog(channel) },
+                            {
+                              label: channel.is_active ? "Deactivate" : "Activate",
+                              onClick: () => setChannelActive(channel, !channel.is_active),
+                            },
+                            {
+                              label: "Move up",
+                              onClick: () => moveChannel(channel.id, "up"),
+                              disabled: index === 0 || savingId === "reorder",
+                            },
+                            {
+                              label: "Move down",
+                              onClick: () => moveChannel(channel.id, "down"),
+                              disabled: index === orderedChannels.length - 1 || savingId === "reorder",
+                            },
+                            {
+                              label: "Delete",
+                              onClick: () => handleDelete(channel),
+                              destructive: true,
+                              disabled: channel.duaCount > 0,
+                              separatorBefore: true,
+                            },
+                          ]}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
       </section>
+
+      <Dialog
+        open={!!editingChannel}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingChannel(null)
+            setEditDraft(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit channel</DialogTitle>
+          </DialogHeader>
+          {editDraft ? (
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-channel-name">Name</Label>
+                <Input
+                  id="edit-channel-name"
+                  value={editDraft.name}
+                  onChange={(event) => setEditDraft({ ...editDraft, name: event.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-channel-description">Description</Label>
+                <Textarea
+                  id="edit-channel-description"
+                  value={editDraft.description}
+                  onChange={(event) => setEditDraft({ ...editDraft, description: event.target.value })}
+                  rows={3}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 px-3 py-2.5">
+                <div>
+                  <p className="text-sm font-medium">Active</p>
+                  <p className="text-xs text-muted-foreground">Inactive channels are hidden from the public feed.</p>
+                </div>
+                <Switch
+                  checked={editDraft.isActive}
+                  onCheckedChange={(checked) => setEditDraft({ ...editDraft, isActive: checked })}
+                />
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingChannel(null)
+                setEditDraft(null)
+              }}
+              disabled={savingId === editingChannel?.id}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={savingId === editingChannel?.id}>
+              {savingId === editingChannel?.id ? "Saving…" : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

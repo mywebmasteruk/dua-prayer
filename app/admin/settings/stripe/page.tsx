@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { ArrowLeft, CreditCard } from "lucide-react"
+import { CreditCard } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { AdminNav } from "@/components/admin/admin-nav"
 import { StripeSettingsForm } from "@/components/admin/stripe-settings"
@@ -21,18 +21,11 @@ export default async function AdminStripeSettingsPage() {
 
   return (
     <InnerPageLayout activePath="/admin" contentClassName="max-w-[691px]">
-      <Link
-        href="/admin/settings"
-        className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to settings
-      </Link>
-      <div className="mb-6 flex items-center gap-2">
+      <div className="mb-2 flex items-center gap-2">
         <CreditCard className="h-6 w-6 text-primary" aria-hidden="true" />
         <h1 className="text-2xl font-semibold">Stripe donations</h1>
       </div>
-      <p className="-mt-4 mb-6 text-sm text-muted-foreground">
+      <p className="mb-6 text-sm text-muted-foreground">
         Connect the masjidweb.com Stripe account so visitors can give on{" "}
         <Link href="/donate" className="text-primary underline-offset-2 hover:underline">
           /donate
