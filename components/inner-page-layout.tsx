@@ -4,6 +4,7 @@ import { getAdminContext } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
 import { getServerUserAdminFlag } from "@/lib/layout-auth"
 import { getSiteCopy } from "@/lib/site-copy-server"
+import { adminContentClassName } from "@/components/admin/admin-layout"
 import { cn } from "@/lib/utils"
 import { AdminMobileNav } from "./admin/admin-mobile-nav"
 import { AdminSidebarNav } from "./admin/admin-sidebar-nav"
@@ -69,9 +70,10 @@ export async function InnerPageLayout({
         <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white pb-20 lg:col-span-2 lg:col-start-2 lg:border-l lg:border-border/70 lg:pb-0">
           <main
             className={cn(
-              "w-full flex-1 px-4 py-6 lg:px-6 lg:py-10",
-              contentClassName,
-              contentClassName?.includes("max-w") && "mx-auto",
+              "w-full flex-1 px-4 py-6 sm:px-5 lg:px-8 lg:py-8",
+              isAdminLayout ? contentClassName ?? adminContentClassName : contentClassName,
+              (isAdminLayout ? contentClassName ?? adminContentClassName : contentClassName)?.includes("max-w") &&
+                "mx-auto",
             )}
           >
             <PageLogoLink className="mb-6 lg:hidden" />

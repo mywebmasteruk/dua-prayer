@@ -18,8 +18,10 @@ import { toast } from "@/components/ui/use-toast"
 import { ADMIN_ROLE_LABELS, USER_ROLE_LABEL, type AdminRoleType } from "@/lib/admin-permissions"
 import { setUserRole, updateUserDisplayName, type AppUserRecord } from "@/app/actions/admin-users"
 import { AdminBulkActionsBar } from "@/components/admin/admin-bulk-actions-bar"
+import { AdminEmptyState } from "@/components/admin/admin-empty-state"
 import { AdminRowActionsMenu } from "@/components/admin/admin-row-actions-menu"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
+import { AdminTableShell } from "@/components/admin/admin-table-shell"
 import { useAdminSelection } from "@/components/admin/use-admin-selection"
 
 type AdminUsersListProps = {
@@ -144,7 +146,12 @@ export function AdminUsersList({ users: initialUsers }: AdminUsersListProps) {
   const isBusy = savingId !== null
 
   if (users.length === 0) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">No users found yet.</p>
+    return (
+      <AdminEmptyState
+        title="No users yet"
+        description="Community accounts will appear here once people sign up."
+      />
+    )
   }
 
   return (
@@ -159,7 +166,7 @@ export function AdminUsersList({ users: initialUsers }: AdminUsersListProps) {
         ]}
       />
 
-      <div className="overflow-hidden rounded-lg border border-border/70">
+      <AdminTableShell>
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -244,7 +251,7 @@ export function AdminUsersList({ users: initialUsers }: AdminUsersListProps) {
             })}
           </TableBody>
         </Table>
-      </div>
+      </AdminTableShell>
 
       <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
         <DialogContent>

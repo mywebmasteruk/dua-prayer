@@ -19,8 +19,11 @@ import {
   type AdminChannelRecord,
 } from "@/app/actions/admin-channels"
 import { AdminBulkActionsBar } from "@/components/admin/admin-bulk-actions-bar"
+import { AdminEmptyState } from "@/components/admin/admin-empty-state"
 import { AdminRowActionsMenu } from "@/components/admin/admin-row-actions-menu"
+import { AdminSection } from "@/components/admin/admin-section"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
+import { AdminTableShell } from "@/components/admin/admin-table-shell"
 import { useAdminSelection } from "@/components/admin/use-admin-selection"
 
 type AdminChannelsSettingsProps = {
@@ -279,10 +282,11 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
 
   return (
     <div className="space-y-6">
-      <section className="rounded-lg border border-border/70 bg-card p-4 shadow-sm">
-        <h2 className="text-base font-semibold tracking-tight">Add channel</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Channels group duas on the home feed and channel browser.</p>
-        <form onSubmit={handleCreate} className="mt-4 grid gap-3 sm:grid-cols-2">
+      <AdminSection
+        title="Add channel"
+        description="Channels group duas on the home feed and channel browser."
+      >
+        <form onSubmit={handleCreate} className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5 sm:col-span-1">
             <Label htmlFor="new-channel-name">Name</Label>
             <Input
@@ -319,16 +323,19 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
             </Button>
           </div>
         </form>
-      </section>
+      </AdminSection>
 
       <section>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold tracking-tight">Channels</h2>
-          <span className="text-xs text-muted-foreground">{orderedChannels.length} total</span>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">All channels</h2>
+          <span className="text-xs font-medium text-muted-foreground">{orderedChannels.length} total</span>
         </div>
 
         {orderedChannels.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">No channels yet.</p>
+          <AdminEmptyState
+            title="No channels yet"
+            description="Add your first channel above to organize duas on the home feed."
+          />
         ) : (
           <>
             <AdminBulkActionsBar
@@ -346,7 +353,7 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
               ]}
             />
 
-            <div className="overflow-hidden rounded-lg border border-border/70">
+            <AdminTableShell>
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -423,7 +430,7 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </AdminTableShell>
           </>
         )}
       </section>

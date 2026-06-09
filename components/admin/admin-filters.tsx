@@ -10,12 +10,14 @@ import { Button } from "@/components/ui/button"
 import { Search } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Category } from "@/lib/types/dua"
+import { AdminToolbar } from "@/components/admin/admin-toolbar"
 
 interface AdminFiltersProps {
   categories: Category[]
+  resultCount?: number
 }
 
-export function AdminFilters({ categories }: AdminFiltersProps) {
+export function AdminFilters({ categories, resultCount }: AdminFiltersProps) {
   const router = useNavigationRouter()
   const searchParams = useSearchParams()
 
@@ -23,7 +25,6 @@ export function AdminFilters({ categories }: AdminFiltersProps) {
   const [status, setStatus] = useState(searchParams.get("status") || "")
   const [category, setCategory] = useState(searchParams.get("category") || "")
 
-  // Initialize filters from URL on component mount
   useEffect(() => {
     setSearch(searchParams.get("search") || "")
     setStatus(searchParams.get("status") || "")
@@ -38,14 +39,12 @@ export function AdminFilters({ categories }: AdminFiltersProps) {
   const updateFilters = (updates: { search?: string; status?: string; category?: string }) => {
     const params = new URLSearchParams()
 
-    // Preserve existing params that aren't being updated
     for (const [key, value] of Array.from(searchParams.entries())) {
       if (!Object.keys(updates).includes(key)) {
         params.set(key, value)
       }
     }
 
-    // Add updated params
     if (updates.search !== undefined) {
       if (updates.search) {
         params.set("search", updates.search)
@@ -91,54 +90,63 @@ export function AdminFilters({ categories }: AdminFiltersProps) {
     router.push("/admin")
   }
 
-  return (
-    <div className="mb-6 space-y-4">
-      <div className="flex flex-col sm:flex-row gap-4">
-        <form onSubmit={handleSearch} className="flex-1 flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search duas..."
-              className="pl-8"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <Button type="submit">Search</Button>
-        </form>
+  const hasActiveFilters = Boolean(search || (status && status !== "all") || (category && category !== "all"))
 
-        <Button variant="outline" onClick={handleReset}>
+  return (
+    <AdminToolbar
+      count={
+        typeof resultCount === "number"
+          ? `${resultCount} dua${resultCount === 1 ? "" : "s"}`
+          : undefined
+      }
+    >
+      <form onSubmit={handleSearch} className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-xs">
+        <div className="relative min-w-0 flex-1">
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Input
+            placeholder="Search duas…"
+            className="h-9 pl-8"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search duas"
+          />
+        </div>
+        <Button type="submit" size="sm" className="h-9 shrink-0">
+          Search
+        </Button>
+      </form>
+
+      <Select value={status || "all"} onValueChange={handleStatusChange}>
+        <SelectTrigger className="h-9 w-full sm:w-[148px]" aria-label="Filter by status">
+          <SelectValue placeholder="Status" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All statuses</SelectItem>
+          <SelectItem value="published">Published</SelectItem>
+          <SelectItem value="unpublished">Unpublished</SelectItem>
+          <SelectItem value="flagged">Flagged</SelectItem>
+        </SelectContent>
+      </Select>
+
+      <Select value={category || "all"} onValueChange={handleCategoryChange}>
+        <SelectTrigger className="h-9 w-full sm:w-[168px]" aria-label="Filter by category">
+          <SelectValue placeholder="Category" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All categories</SelectItem>
+          {categories.map((cat) => (
+            <SelectItem key={cat.id} value={cat.id.toString()}>
+              {cat.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {hasActiveFilters ? (
+        <Button type="button" variant="ghost" size="sm" className="h-9 shrink-0" onClick={handleReset}>
           Reset
         </Button>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-4">
-        <Select value={status} onValueChange={handleStatusChange}>
-          <SelectTrigger className="w-full sm:w-[200px]">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="published">Published</SelectItem>
-            <SelectItem value="unpublished">Unpublished</SelectItem>
-            <SelectItem value="flagged">Flagged</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={category} onValueChange={handleCategoryChange}>
-          <SelectTrigger className="w-full sm:w-[200px]">
-            <SelectValue placeholder="Filter by category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat.id} value={cat.id.toString()}>
-                {cat.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
+      ) : null}
+    </AdminToolbar>
   )
 }

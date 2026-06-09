@@ -23,8 +23,8 @@ function MobileAdminNavItem({ link, active }: { link: AdminNavLink; active: bool
       href={link.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "tap-feedback flex shrink-0 flex-col items-center gap-0.5 px-2 py-1 text-[10px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active ? "text-primary" : "text-muted-foreground",
+        "tap-feedback flex shrink-0 flex-col items-center gap-0.5 rounded-md px-2.5 py-1.5 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground",
       )}
     >
       <Icon className={cn("h-5 w-5", active && "stroke-[2.5]")} aria-hidden="true" />

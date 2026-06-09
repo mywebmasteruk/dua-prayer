@@ -13,8 +13,10 @@ import { toast } from "@/components/ui/use-toast"
 import { deleteDua, unflagDua, updateDua, updateDuaStatus } from "@/app/actions/duas"
 import type { Category, Dua } from "@/lib/types/dua"
 import { AdminBulkActionsBar } from "@/components/admin/admin-bulk-actions-bar"
+import { AdminEmptyState } from "@/components/admin/admin-empty-state"
 import { AdminRowActionsMenu } from "@/components/admin/admin-row-actions-menu"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
+import { AdminTableShell } from "@/components/admin/admin-table-shell"
 import { useAdminSelection } from "@/components/admin/use-admin-selection"
 
 interface AdminDuaListProps {
@@ -192,7 +194,12 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
   }
 
   if (duas.length === 0) {
-    return <div className="py-8 text-center text-sm text-muted-foreground">No duas found matching your filters.</div>
+    return (
+      <AdminEmptyState
+        title="No duas match your filters"
+        description="Try adjusting search or filter options, or reset to see all duas."
+      />
+    )
   }
 
   return (
@@ -212,23 +219,23 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
         ]}
       />
 
-      <div className="overflow-hidden rounded-lg border border-border/70">
+      <AdminTableShell>
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="w-10 px-3 py-2">
+              <TableHead className="w-10 px-3 py-2.5">
                 <Checkbox
                   checked={allSelected ? true : someSelected ? "indeterminate" : false}
                   onCheckedChange={toggleAll}
                   aria-label="Select all duas"
                 />
               </TableHead>
-              <TableHead className="py-2">Content</TableHead>
-              <TableHead className="hidden py-2 sm:table-cell">Category</TableHead>
-              <TableHead className="py-2">Status</TableHead>
-              <TableHead className="hidden py-2 md:table-cell">Ameen</TableHead>
-              <TableHead className="hidden py-2 lg:table-cell">Flag</TableHead>
-              <TableHead className="w-10 py-2 pr-3 text-right">Actions</TableHead>
+              <TableHead className="py-2.5">Content</TableHead>
+              <TableHead className="hidden py-2.5 sm:table-cell">Category</TableHead>
+              <TableHead className="py-2.5">Status</TableHead>
+              <TableHead className="hidden py-2.5 md:table-cell">Ameen</TableHead>
+              <TableHead className="hidden py-2.5 lg:table-cell">Flag</TableHead>
+              <TableHead className="w-10 py-2.5 pr-3 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -241,7 +248,7 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
                     aria-label={`Select dua ${dua.id}`}
                   />
                 </TableCell>
-                <TableCell className="max-w-[240px] py-2">
+                <TableCell className="max-w-[280px] py-2.5">
                   <p className="truncate font-medium text-foreground" title={dua.text}>
                     {truncateText(dua.text)}
                   </p>
@@ -297,7 +304,7 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
             ))}
           </TableBody>
         </Table>
-      </div>
+      </AdminTableShell>
 
       <Dialog open={!!editingDua} onOpenChange={(open) => !open && setEditingDua(null)}>
         <DialogContent>

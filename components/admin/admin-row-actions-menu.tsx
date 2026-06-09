@@ -38,7 +38,7 @@ export function AdminRowActionsMenu({ actions, disabled, label = "Row actions" }
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          className="h-8 w-8 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
           disabled={disabled}
           aria-label={label}
         >

@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation"
+import { BookOpen } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { AdminDuaList } from "@/components/admin/admin-dua-list"
 import { AdminFilters } from "@/components/admin/admin-filters"
+import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import { getCategories, getAdminDuas } from "../actions/duas"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
@@ -39,13 +41,14 @@ export default async function AdminPage({
   })
 
   return (
-    <InnerPageLayout activePath="/admin" contentClassName="max-w-[691px]">
-      <div className="mb-6">
-        <h1 className="mb-2 text-2xl font-semibold">Admin Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Manage duas and moderate content</p>
-      </div>
+    <InnerPageLayout activePath="/admin">
+      <AdminPageHeader
+        icon={BookOpen}
+        title="Duas"
+        description="Review, publish, and moderate community prayer requests."
+      />
 
-      <AdminFilters categories={categories} />
+      <AdminFilters categories={categories} resultCount={duas.length} />
       <AdminDuaList initialDuas={duas} categories={categories} />
     </InnerPageLayout>
   )

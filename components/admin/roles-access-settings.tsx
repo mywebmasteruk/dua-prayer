@@ -26,6 +26,8 @@ import {
   revokeAdminAccess,
   type AdminUserRecord,
 } from "@/app/actions/admin-roles"
+import { AdminEmptyState } from "@/components/admin/admin-empty-state"
+import { AdminSection } from "@/components/admin/admin-section"
 
 type RolesAccessSettingsProps = {
   currentUser: {
@@ -78,11 +80,10 @@ export function RolesAccessSettings({ currentUser, admins, canManageAdmins }: Ro
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {currentUser && (
-        <section className="rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
-          <h2 className="text-lg font-semibold tracking-tight">Your access</h2>
-          <dl className="mt-4 space-y-2 text-sm">
+        <AdminSection title="Your access">
+          <dl className="space-y-2.5 text-sm">
             <div className="flex flex-wrap gap-x-2">
               <dt className="text-muted-foreground">Signed in as</dt>
               <dd className="font-medium">{currentUser.email}</dd>
@@ -111,12 +112,11 @@ export function RolesAccessSettings({ currentUser, admins, canManageAdmins }: Ro
               </dd>
             </div>
           </dl>
-        </section>
+        </AdminSection>
       )}
 
-      <section className="rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
-        <h2 className="text-lg font-semibold tracking-tight">Role presets</h2>
-        <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
+      <AdminSection title="Role presets">
+        <ul className="space-y-3 text-sm text-muted-foreground">
           {(Object.keys(ROLE_PERMISSIONS) as AdminRoleType[]).map((roleKey) => (
             <li key={roleKey}>
               <span className="font-medium text-foreground">{ADMIN_ROLE_LABELS[roleKey]}</span>
@@ -130,15 +130,14 @@ export function RolesAccessSettings({ currentUser, admins, canManageAdmins }: Ro
             All permissions via SUPER_ADMIN_EMAIL (not assignable)
           </li>
         </ul>
-      </section>
+      </AdminSection>
 
       {canManageAdmins && (
-        <section className="rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
-          <h2 className="text-lg font-semibold tracking-tight">Invite admin</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            The person must already have a DuaPrayer account (same email they use to sign in).
-          </p>
-          <form onSubmit={handleAssign} className="mt-6 space-y-4">
+        <AdminSection
+          title="Invite admin"
+          description="The person must already have a DuaPrayer account (same email they use to sign in)."
+        >
+          <form onSubmit={handleAssign} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="admin-email">Email</Label>
               <Input
@@ -176,15 +175,14 @@ export function RolesAccessSettings({ currentUser, admins, canManageAdmins }: Ro
               )}
             </Button>
           </form>
-        </section>
+        </AdminSection>
       )}
 
-      <section className="rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
-        <h2 className="text-lg font-semibold tracking-tight">Admin team</h2>
+      <AdminSection title="Admin team">
         {admins.length === 0 ? (
-          <p className="mt-4 text-sm text-muted-foreground">No admins listed yet.</p>
+          <AdminEmptyState title="No admins listed yet" description="Invite a teammate above to grant admin access." />
         ) : (
-          <ul className="mt-4 divide-y divide-border/60">
+          <ul className="divide-y divide-border/60">
             {admins.map((admin) => (
               <li key={admin.id} className="flex flex-wrap items-start justify-between gap-4 py-4 first:pt-0 last:pb-0">
                 <div className="min-w-0 flex-1">
@@ -230,7 +228,7 @@ export function RolesAccessSettings({ currentUser, admins, canManageAdmins }: Ro
             ))}
           </ul>
         )}
-      </section>
+      </AdminSection>
 
       {!canManageAdmins && (
         <p className="text-sm text-muted-foreground">

@@ -29,8 +29,11 @@ import {
 } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "@/components/ui/use-toast"
+import { AdminEmptyState } from "@/components/admin/admin-empty-state"
 import { AdminRowActionsMenu } from "@/components/admin/admin-row-actions-menu"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
+import { AdminTableShell } from "@/components/admin/admin-table-shell"
+import { AdminToolbar } from "@/components/admin/admin-toolbar"
 import {
   deleteVolunteerApplicant,
   listVolunteerApplicants,
@@ -171,12 +174,11 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          {filtered.length} application{filtered.length === 1 ? "" : "s"}
-        </p>
+      <AdminToolbar
+        count={`${filtered.length} application${filtered.length === 1 ? "" : "s"}`}
+      >
         <Select value={filter} onValueChange={handleFilterChange}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="h-9 w-full sm:w-[200px]" aria-label="Filter by status">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -186,12 +188,15 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
             <SelectItem value="rejected">{ACCOUNT_STATUS_LABELS.rejected}</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </AdminToolbar>
 
       {filtered.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">No volunteer applications yet.</p>
+        <AdminEmptyState
+          title="No applications in this view"
+          description="Try another status filter or check back when new volunteers apply."
+        />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border/70">
+        <AdminTableShell>
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -271,7 +276,7 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
               })}
             </TableBody>
           </Table>
-        </div>
+        </AdminTableShell>
       )}
 
       <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>

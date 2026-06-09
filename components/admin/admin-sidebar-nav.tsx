@@ -33,9 +33,11 @@ function AdminNavItem({
       href={link.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex w-full max-w-full items-center gap-3 rounded-full px-3 py-2.5 text-[14px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:px-4 lg:py-3",
-        "hover:bg-muted/60 lg:text-[18px]",
-        active ? "font-bold text-primary" : "font-normal text-foreground/85",
+        "group flex w-full max-w-full items-center gap-3 rounded-lg px-3 py-2 text-[14px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:px-3.5 lg:py-2.5 lg:text-[15px]",
+        "hover:bg-muted/50",
+        active
+          ? "bg-primary/8 font-semibold text-primary"
+          : "font-normal text-foreground/80 hover:text-foreground",
       )}
     >
       <Icon className="h-[24px] w-[24px] shrink-0" aria-hidden="true" />
@@ -57,10 +59,12 @@ export function AdminSidebarNav({
     <div className={cn("flex min-h-[calc(100vh-1.5rem)] flex-col", className)}>
       <div>
         <BrandLogo variant="icon" href="/admin" showWordmark priority className="h-9 w-9 shrink-0" />
-        <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Admin</p>
+        <p className="mt-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          Admin
+        </p>
       </div>
 
-      <nav aria-label="Admin sections" className="mt-4 flex-1 space-y-1">
+      <nav aria-label="Admin sections" className="mt-5 flex-1 space-y-0.5">
         {links.map((link) => (
           <AdminNavItem
             key={link.key}
@@ -70,10 +74,10 @@ export function AdminSidebarNav({
         ))}
       </nav>
 
-      <div className="mt-6 space-y-1 border-t border-border/70 pt-4">
+      <div className="mt-6 space-y-1 border-t border-border/60 pt-4">
         <Link
           href="/"
-          className="group flex w-full max-w-full items-center gap-3 rounded-full px-3 py-2.5 text-[14px] font-normal text-foreground/70 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:px-4 lg:py-3 lg:text-[16px]"
+          className="group flex w-full max-w-full items-center gap-3 rounded-lg px-3 py-2 text-[14px] font-normal text-foreground/70 transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:px-3.5 lg:py-2.5 lg:text-[15px]"
         >
           <Home className="h-[24px] w-[24px] shrink-0" aria-hidden="true" />
           <span>View public site</span>

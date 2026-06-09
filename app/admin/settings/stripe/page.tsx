@@ -2,6 +2,8 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { CreditCard } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
+import { AdminPageHeader } from "@/components/admin/admin-page-header"
+import { AdminSection } from "@/components/admin/admin-section"
 import { StripeSettingsForm } from "@/components/admin/stripe-settings"
 import { getStripeSettingsAdminView } from "@/app/actions/stripe-settings"
 import { getAdminContext, hasPermission } from "@/lib/auth"
@@ -19,30 +21,33 @@ export default async function AdminStripeSettingsPage() {
   if (!stripeSettings) redirect(signInHref({ error: "not_admin" }))
 
   return (
-    <InnerPageLayout activePath="/admin/settings/stripe" contentClassName="max-w-[691px]">
-      <div className="mb-2 flex items-center gap-2">
-        <CreditCard className="h-6 w-6 text-primary" aria-hidden="true" />
-        <h1 className="text-2xl font-semibold">Stripe donations</h1>
-      </div>
-      <p className="mb-6 text-sm text-muted-foreground">
-        Connect the masjidweb.com Stripe account so visitors can give on{" "}
-        <Link href="/donate" className="text-primary underline-offset-2 hover:underline">
-          /donate
-        </Link>
-        .
-      </p>
+    <InnerPageLayout activePath="/admin/settings/stripe">
+      <AdminPageHeader
+        icon={CreditCard}
+        title="Stripe donations"
+        backHref="/admin/settings"
+        description={
+          <>
+            Connect the masjidweb.com Stripe account so visitors can give on{" "}
+            <Link href="/donate" className="text-primary underline-offset-2 hover:underline">
+              /donate
+            </Link>
+            .
+          </>
+        }
+      />
 
-      <section className="rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
-        <h2 className="text-lg font-semibold tracking-tight">API keys &amp; product</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {stripeSettings.donationsReady
+      <AdminSection
+        title="API keys & product"
+        description={
+          stripeSettings.donationsReady
             ? "Donations are configured. Update keys below if you rotate them in Stripe."
-            : "Add your secret key to enable checkout. Publishable key and webhook secret are optional."}
-        </p>
-        <div className="mt-6">
-          <StripeSettingsForm initial={stripeSettings} />
-        </div>
-      </section>
+            : "Add your secret key to enable checkout. Publishable key and webhook secret are optional."
+        }
+        contentClassName="pt-0"
+      >
+        <StripeSettingsForm initial={stripeSettings} />
+      </AdminSection>
     </InnerPageLayout>
   )
 }
