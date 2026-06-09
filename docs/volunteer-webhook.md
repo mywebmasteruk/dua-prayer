@@ -1,5 +1,7 @@
 # Volunteer registration webhook
 
+> **Agent context:** Architecture, env vars, admin flow, and common mistakes are in [`AGENTS.md`](../AGENTS.md) (webhook runbook + DO NOT list). This doc is the Fillout/integration reference.
+
 Volunteer applications from external forms (Fillout, Zapier, etc.) create a **pending** row in `profiles` linked to `auth.users`.
 
 ## Endpoint
