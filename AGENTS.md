@@ -23,3 +23,12 @@ Never run any of these unless the **user explicitly** asks to restart dev:
 5. **Start dev** (only when down or user asks): `npm run dev:persistent` once — idempotent, detached supervisor with auto-restart.
 
 See `.cursor/rules/local-ui-iteration.mdc` for the full policy.
+
+## Deploy to production
+
+**Never** run `vercel deploy` from this iCloud path — use one of:
+
+1. **`git push origin main`** — GitHub Actions deploys to Vercel (preferred; see `DEPLOY.md` for one-time secrets).
+2. **`npm run deploy:prod`** — clones to `/tmp/dua-prayer-deploy`, prebuilt Vercel deploy (~30–90s).
+
+Full details: [DEPLOY.md](./DEPLOY.md)

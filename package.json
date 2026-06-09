@@ -13,7 +13,8 @@
     "test:e2e": "playwright test",
     "test:e2e:prod": "PLAYWRIGHT_BASE_URL=https://dua-prayer.vercel.app playwright test",
     "dev:stable": "NEXT_DIST_DIR=/tmp/dua-prayer-next WATCHPACK_POLLING=2000 CHOKIDAR_USEPOLLING=true next dev -p 3000",
-    "dev:persistent": "bash scripts/dev-persistent.sh"
+    "dev:persistent": "bash scripts/dev-persistent.sh",
+    "deploy:prod": "bash scripts/deploy-prod.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

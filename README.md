@@ -114,16 +114,25 @@ Sign-in options on `/auth`:
 
 If sign-ups stay disabled, magic link only works for emails that already exist in Supabase Auth.
 
-## Deploy (Vercel)
+## Deploy to production
 
-1. Import the repo, set root directory to `apps/dua-prayer`
-2. Add all env vars from `.env.example`
-3. Set `NEXT_PUBLIC_APP_URL` to your production URL (e.g. `https://dua-prayer.vercel.app`)
-4. For live donations on `/donate`, also set in Vercel **Environment Variables** (Production):
-   - `STRIPE_SECRET_KEY` — from [Stripe Dashboard → API keys](https://dashboard.stripe.com/apikeys) (use live `sk_live_…` or restricted `rk_live_…`)
-   - `STRIPE_PRICE_DONATION_5`, `_10`, `_25`, `_50`, `_100` — live price IDs (see `.env.example`)
-   - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is **not** required for hosted Checkout redirect flow
-5. Deploy
+**Do not** run `vercel deploy` from the iCloud-synced folder — uploads hang or fail.
+
+| Method | Command | When |
+|--------|---------|------|
+| **GitHub Actions** (preferred) | `git push origin main` | After one-time secrets in repo Settings → Actions |
+| **Local script** | `npm run deploy:prod` | Immediate deploy; clones to `/tmp`, prebuilt upload (~30–90s) |
+
+One-time GitHub secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` — see [DEPLOY.md](./DEPLOY.md).
+
+Production: **https://dua-prayer.vercel.app**
+
+### Vercel env vars (dashboard)
+
+1. Add all vars from `.env.example`
+2. Set `NEXT_PUBLIC_APP_URL` to `https://dua-prayer.vercel.app`
+3. For live donations on `/donate`:
+   - `STRIPE_SECRET_KEY`, `STRIPE_PRICE_DONATION_5` … `_100` (see `.env.example`)
 
 ## E2E tests
 
