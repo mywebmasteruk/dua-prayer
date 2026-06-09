@@ -1,8 +1,9 @@
+import { cache } from "react"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import type { Database } from "../types/database"
 
-export async function createServerSupabaseClient() {
+export const createServerSupabaseClient = cache(async () => {
   const cookieStore = await cookies()
 
   return createServerClient<Database>(
@@ -23,4 +24,4 @@ export async function createServerSupabaseClient() {
       },
     },
   )
-}
+})

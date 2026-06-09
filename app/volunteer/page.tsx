@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Code2, HandHeart, Palette, ShieldCheck } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { VolunteerApplySection } from "@/components/volunteer/volunteer-apply-section"
-import { getVolunteerFilloutEmbedSrc } from "@/app/actions/settings"
+import { getVolunteerFilloutEmbedSrc } from "@/lib/site-settings-server"
 
 export const metadata: Metadata = {
   title: "Volunteer — DuaPrayer",
@@ -31,9 +31,12 @@ const waysToHelp = [
   },
 ] as const
 
-export default async function VolunteerPage() {
+async function VolunteerApplyLoader() {
   const filloutSrc = await getVolunteerFilloutEmbedSrc()
+  return <VolunteerApplySection filloutSrc={filloutSrc} />
+}
 
+export default function VolunteerPage() {
   return (
     <InnerPageLayout activePath="/volunteer">
       <header className="border-b border-border/50 pb-8">
@@ -72,7 +75,7 @@ export default async function VolunteerPage() {
         </p>
       </section>
 
-      <VolunteerApplySection filloutSrc={filloutSrc} />
+      <VolunteerApplyLoader />
     </InnerPageLayout>
   )
 }

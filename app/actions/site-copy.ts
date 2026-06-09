@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { requirePermission } from "@/lib/auth"
 import { isMissingTableError } from "@/lib/db-errors"
@@ -69,5 +69,6 @@ export async function updateSiteCopy(input: Partial<SiteCopy>) {
   revalidatePath("/")
   revalidatePath("/about")
   revalidatePath("/admin/copy")
+  revalidateTag("site-copy")
   return { success: true as const }
 }

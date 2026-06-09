@@ -1,60 +1,130 @@
 import Stripe from "stripe"
+import { getStripeSettings } from "@/lib/stripe-settings-server"
 
-let stripeClient: Stripe | null = null
+let stripeClientCache: { key: string; client: Stripe } | null = null
 
-export function isStripeConfigured(): boolean {
-  return Boolean(process.env.STRIPE_SECRET_KEY?.trim())
+export async function resolveStripeSecretKey(): Promise<string | null> {
+  const settings = await getStripeSettings()
+  return settings.secretKey
 }
 
-export function getStripe(): Stripe | null {
-  const key = process.env.STRIPE_SECRET_KEY?.trim()
+export async function isStripeConfigured(): Promise<boolean> {
+  return Boolean(await resolveStripeSecretKey())
+}
+
+export async function getStripe(): Promise<Stripe | null> {
+  const key = await resolveStripeSecretKey()
   if (!key) return null
 
-  if (!stripeClient) {
-    stripeClient = new Stripe(key, {
-      apiVersion: "2026-05-27.dahlia",
-    })
+  if (!stripeClientCache || stripeClientCache.key !== key) {
+    stripeClientCache = {
+      key,
+      client: new Stripe(key, {
+        apiVersion: "2026-05-27.dahlia",
+      }),
+    }
   }
 
-  return stripeClient
+  return stripeClientCache.client
 }
 
-export const DONATION_AMOUNTS_USD = [5, 10, 25, 50, 100] as const
+export const DONATION_PACKAGE_IDS = ["hosting", "development", "operations"] as const
 
-export type DonationAmountUsd = (typeof DONATION_AMOUNTS_USD)[number]
+export type DonationPackageId = (typeof DONATION_PACKAGE_IDS)[number]
 
-const DONATION_PRICE_ENV_KEYS: Record<DonationAmountUsd, string> = {
-  5: "STRIPE_PRICE_DONATION_5",
-  10: "STRIPE_PRICE_DONATION_10",
-  25: "STRIPE_PRICE_DONATION_25",
-  50: "STRIPE_PRICE_DONATION_50",
-  100: "STRIPE_PRICE_DONATION_100",
+export type DonationPackage = {
+  id: DonationPackageId
+  title: string
+  description: string
+  suggestedAmountUsd: number
 }
 
-export function isValidDonationAmount(amount: number): amount is DonationAmountUsd {
-  return DONATION_AMOUNTS_USD.includes(amount as DonationAmountUsd)
+export const DONATION_PACKAGES: readonly DonationPackage[] = [
+  {
+    id: "hosting",
+    title: "Keep DuaPrayer online",
+    description: "Help cover servers, databases, and security so prayer requests stay available around the clock.",
+    suggestedAmountUsd: 25,
+  },
+  {
+    id: "development",
+    title: "Build what's next",
+    description: "Support new features, accessibility, and a smoother experience for the whole community.",
+    suggestedAmountUsd: 50,
+  },
+  {
+    id: "operations",
+    title: "Run the mission",
+    description: "Help with admin essentials — operations, compliance, and the work behind a free platform.",
+    suggestedAmountUsd: 15,
+  },
+] as const
+
+export const MIN_DONATION_USD = 1
+export const MAX_DONATION_USD = 10_000
+
+export function isDonationPackageId(value: unknown): value is DonationPackageId {
+  return typeof value === "string" && DONATION_PACKAGE_IDS.includes(value as DonationPackageId)
 }
 
-export function getDonationPriceId(amount: DonationAmountUsd): string | null {
-  const priceId = process.env[DONATION_PRICE_ENV_KEYS[amount]]?.trim()
-  return priceId || null
+export function getDonationPackage(id: DonationPackageId): DonationPackage {
+  const pkg = DONATION_PACKAGES.find((entry) => entry.id === id)
+  if (!pkg) {
+    throw new Error(`Unknown donation package: ${id}`)
+  }
+  return pkg
 }
 
-export function areDonationPricesConfigured(): boolean {
-  return DONATION_AMOUNTS_USD.every((amount) => Boolean(getDonationPriceId(amount)))
+export function isValidDonationAmount(amount: number): boolean {
+  return (
+    Number.isInteger(amount) &&
+    amount >= MIN_DONATION_USD &&
+    amount <= MAX_DONATION_USD
+  )
 }
 
 export function hasAppUrlConfigured(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_APP_URL?.trim())
 }
 
-/** True when server can create Stripe Checkout sessions for preset donation amounts. */
-export function isDonationsReady(): boolean {
-  return isStripeConfigured() && areDonationPricesConfigured() && hasAppUrlConfigured()
+export async function getDonationProductId(): Promise<string | null> {
+  const settings = await getStripeSettings()
+  return settings.donationProductId
 }
 
-/** Dev/admin-only hint when checkout env is incomplete — never shown to public visitors when ready. */
-export function shouldShowDonationSetupWarning(isAdmin: boolean): boolean {
-  if (isDonationsReady()) return false
-  return process.env.NODE_ENV === "development" || isAdmin
+export const DONATION_TYPES = ["monthly", "once"] as const
+
+export type DonationType = (typeof DONATION_TYPES)[number]
+
+export type DonationsUnavailableReason = "stripe_key" | "app_url"
+
+export function isDonationType(value: unknown): value is DonationType {
+  return typeof value === "string" && DONATION_TYPES.includes(value as DonationType)
+}
+
+export async function getDonationsStatus(): Promise<{
+  ready: boolean
+  reason?: DonationsUnavailableReason
+}> {
+  const stripeConfigured = await isStripeConfigured()
+
+  if (stripeConfigured && hasAppUrlConfigured()) {
+    return { ready: true }
+  }
+
+  if (!stripeConfigured) {
+    return { ready: false, reason: "stripe_key" }
+  }
+
+  if (!hasAppUrlConfigured()) {
+    return { ready: false, reason: "app_url" }
+  }
+
+  return { ready: false }
+}
+
+/** True when server can create Stripe Checkout sessions with dynamic amounts. */
+export async function isDonationsReady(): Promise<boolean> {
+  const status = await getDonationsStatus()
+  return status.ready
 }

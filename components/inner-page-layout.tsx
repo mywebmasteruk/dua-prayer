@@ -1,6 +1,5 @@
 import type { ReactNode } from "react"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
-import { requireAdmin } from "@/lib/auth"
+import { getServerUserAdminFlag } from "@/lib/layout-auth"
 import { getSiteCopy } from "@/lib/site-copy-server"
 import { cn } from "@/lib/utils"
 import { HomeSidebarNav } from "./home-sidebar-nav"
@@ -23,14 +22,7 @@ export async function InnerPageLayout({
   showFooter = true,
   contentClassName,
 }: InnerPageLayoutProps) {
-  const supabase = await createServerSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  const [{ isAdmin }, siteCopy] = await Promise.all([
-    user ? requireAdmin() : Promise.resolve({ isAdmin: false }),
-    getSiteCopy(),
-  ])
+  const [{ user, isAdmin }, siteCopy] = await Promise.all([getServerUserAdminFlag(), getSiteCopy()])
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/40 text-foreground">

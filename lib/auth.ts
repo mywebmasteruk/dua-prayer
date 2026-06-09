@@ -1,6 +1,6 @@
 import type { User } from "@supabase/supabase-js"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
+import { getServerUser } from "@/lib/server-user"
 import { signInHref } from "@/lib/auth-modal"
 import {
   type AdminPermission,
@@ -113,11 +113,7 @@ export function hasPermission(ctx: AdminContext, permission: AdminPermission): b
 }
 
 export async function getSession() {
-  const supabase = await createServerSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  return user
+  return getServerUser()
 }
 
 export async function isUserAdmin(userId: string, email?: string | null): Promise<boolean> {

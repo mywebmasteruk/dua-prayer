@@ -1,4 +1,6 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { cache } from "react"
+import { unstable_cache } from "next/cache"
+import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { isMissingTableError } from "@/lib/db-errors"
 import {
   SITE_COPY_DEFAULTS,
@@ -15,8 +17,8 @@ function withDefaults(values: Partial<SiteCopy>): SiteCopy {
   }
 }
 
-export async function getSiteCopy(): Promise<SiteCopy> {
-  const supabase = await createServerSupabaseClient()
+async function fetchSiteCopyFromDb(): Promise<SiteCopy> {
+  const supabase = createAdminSupabaseClient()
   const keys = Object.values(SITE_SETTING_KEY_MAP)
 
   const { data, error } = await supabase.from("site_settings").select("key, value").in("key", keys)
@@ -38,6 +40,14 @@ export async function getSiteCopy(): Promise<SiteCopy> {
 
   return withDefaults(partial)
 }
+
+const getSiteCopyCached = unstable_cache(fetchSiteCopyFromDb, ["site-copy"], {
+  revalidate: 300,
+  tags: ["site-copy"],
+})
+
+/** Per-request dedup + cross-request cache for public marketing copy. */
+export const getSiteCopy = cache(async (): Promise<SiteCopy> => getSiteCopyCached())
 
 export function getSiteCopyDefaults(): SiteCopy {
   return { ...SITE_COPY_DEFAULTS }

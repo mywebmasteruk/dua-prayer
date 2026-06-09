@@ -1,38 +1,15 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { getAdminContext, hasPermission, requirePermission } from "@/lib/auth"
 import { parseFilloutEmbed } from "@/lib/fillout"
-import { isMissingTableError } from "@/lib/db-errors"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
-
-async function getSettingValue(key: string): Promise<string | null> {
-  const supabase = await createServerSupabaseClient()
-  const { data, error } = await supabase.from("site_settings").select("value").eq("key", key).maybeSingle()
-
-  if (error) {
-    if (!isMissingTableError(error)) {
-      console.error(`Error fetching site setting ${key}:`, error)
-    }
-    return null
-  }
-
-  return data?.value ?? null
-}
 
 function canManageVolunteerSettings(ctx: NonNullable<Awaited<ReturnType<typeof getAdminContext>>>) {
   return hasPermission(ctx, "manage_settings") || hasPermission(ctx, "manage_volunteers")
 }
 
-export async function getVolunteerFilloutEmbedSrc(): Promise<string | null> {
-  const raw = await getSettingValue(SITE_SETTING_KEYS.volunteerFilloutEmbed)
-  if (!raw) return null
-
-  const parsed = parseFilloutEmbed(raw)
-  return parsed?.src ?? null
-}
 
 export async function getVolunteerFilloutSettingForAdmin(): Promise<string> {
   const ctx = await getAdminContext()
@@ -66,6 +43,7 @@ export async function updateVolunteerFilloutSetting(rawInput: string) {
 
     revalidatePath("/admin/settings")
     revalidatePath("/volunteer")
+    revalidateTag("site-setting-volunteer-fillout")
     return { success: true as const }
   }
 
@@ -91,6 +69,7 @@ export async function updateVolunteerFilloutSetting(rawInput: string) {
 
   revalidatePath("/admin/settings")
   revalidatePath("/volunteer")
+  revalidateTag("site-setting-volunteer-fillout")
   return { success: true as const }
 }
 

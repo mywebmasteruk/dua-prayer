@@ -55,7 +55,7 @@ if [[ -d "$DEPLOY_DIR/.git" ]]; then
   git -C "$DEPLOY_DIR" fetch origin "$BRANCH" --prune
   git -C "$DEPLOY_DIR" checkout "$BRANCH" 2>/dev/null || git -C "$DEPLOY_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
   git -C "$DEPLOY_DIR" reset --hard "origin/$BRANCH"
-  git -C "$DEPLOY_DIR" clean -fdx -e node_modules -e .next -e .vercel
+  git -C "$DEPLOY_DIR" clean -fdx
 else
   step "Cloning origin/$BRANCH"
   rm -rf "$DEPLOY_DIR"

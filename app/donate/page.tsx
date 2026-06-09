@@ -11,10 +11,8 @@ import {
 } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { DonateForm } from "@/components/donate-form"
-import { getPlatformStats } from "@/app/actions/stats"
-import { requireAdmin } from "@/lib/auth"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
-import { isDonationsReady, shouldShowDonationSetupWarning } from "@/lib/stripe"
+import { getPlatformStats } from "@/lib/platform-stats-server"
+import { getDonationsStatus } from "@/lib/stripe"
 
 export const metadata: Metadata = {
   title: "Donate — DuaPrayer",
@@ -26,15 +24,11 @@ export default async function DonatePage({
 }: {
   searchParams: Promise<{ success?: string; canceled?: string }>
 }) {
-  const params = await searchParams
-  const stats = await getPlatformStats()
-  const supabase = await createServerSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
-  const donationsReady = isDonationsReady()
-  const showSetupWarning = shouldShowDonationSetupWarning(isAdmin)
+  const [params, stats, donationsStatus] = await Promise.all([
+    searchParams,
+    getPlatformStats(),
+    getDonationsStatus(),
+  ])
 
   const showSuccess = params.success === "1"
   const showCanceled = params.canceled === "1"
@@ -112,10 +106,13 @@ export default async function DonatePage({
       <section className="border-b border-border/50 py-8">
         <h2 className="text-lg font-semibold tracking-tight">Make a donation</h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Pick a preset amount below. Checkout is handled securely by Stripe.
+          Choose an impact area that resonates with you, set your amount, and checkout securely with Stripe.
         </p>
         <div className="mt-5">
-          <DonateForm donationsReady={donationsReady} showSetupWarning={showSetupWarning} />
+          <DonateForm
+            donationsReady={donationsStatus.ready}
+            unavailableReason={donationsStatus.reason}
+          />
         </div>
       </section>
 

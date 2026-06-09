@@ -21,10 +21,16 @@ export default async function AboutPage() {
           Our mission
         </p>
         <h1 className="mt-4 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">About DuaPrayer</h1>
-        <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">{siteCopy.aboutMission}</p>
+        <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+          {siteCopy.aboutMission} DuaPrayer is part of{" "}
+          <Link href="https://masjidweb.com" className="font-medium text-primary underline-offset-2 hover:underline">
+            Masjidweb.com
+          </Link>
+          .
+        </p>
       </header>
 
-      <section className="border-b border-border/50 py-8">
+      <section className="py-8">
         <h2 className="text-lg font-semibold tracking-tight">What we believe</h2>
         <ul className="mt-4 space-y-4 text-sm leading-6 text-muted-foreground">
           <li className="flex gap-3">
@@ -57,16 +63,6 @@ export default async function AboutPage() {
           page for guidelines and tips, or learn how we handle{" "}
           <Link href="/safety" className="font-medium text-primary underline-offset-2 hover:underline">
             safety and privacy
-          </Link>
-          .
-        </p>
-      </section>
-
-      <section className="py-8">
-        <p className="text-sm leading-6 text-muted-foreground">
-          DuaPrayer is part of{" "}
-          <Link href="https://masjidweb.com" className="font-medium text-primary underline-offset-2 hover:underline">
-            Masjidweb.com
           </Link>
           .
         </p>

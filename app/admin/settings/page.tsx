@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { ArrowLeft, Settings2, Shield } from "lucide-react"
+import { ArrowLeft, CreditCard, Settings2, Shield } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { AdminNav } from "@/components/admin/admin-nav"
 import { VolunteerFormSettings } from "@/components/admin/volunteer-form-settings"
@@ -17,6 +17,7 @@ export default async function AdminSettingsPage() {
   const canVolunteer =
     hasPermission(ctx, "manage_settings") || hasPermission(ctx, "manage_volunteers")
   const canManageAdmins = ctx.isFoundingAdmin || hasPermission(ctx, "manage_admins")
+  const canManageStripe = ctx.isFoundingAdmin || hasPermission(ctx, "manage_settings")
 
   if (!canVolunteer && !canManageAdmins) redirect(signInHref({ error: "not_admin" }))
 
@@ -69,6 +70,29 @@ export default async function AdminSettingsPage() {
             </div>
             <Button variant="outline" size="sm" asChild className="rounded-full">
               <Link href="/admin/copy">Edit copy</Link>
+            </Button>
+          </div>
+        </section>
+      )}
+
+      {canManageStripe && (
+        <section className="mb-6 rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">Stripe donations</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Paste API keys from the masjidweb.com Stripe account to enable{" "}
+                <Link href="/donate" className="text-primary underline-offset-2 hover:underline">
+                  /donate
+                </Link>
+                .
+              </p>
+            </div>
+            <Button variant="outline" size="sm" asChild className="rounded-full">
+              <Link href="/admin/settings/stripe">
+                <CreditCard className="h-4 w-4" aria-hidden="true" />
+                Stripe settings
+              </Link>
             </Button>
           </div>
         </section>
