@@ -8,6 +8,7 @@ import { AdminFilters } from "@/components/admin/admin-filters"
 import { AdminNav } from "@/components/admin/admin-nav"
 import { getCategories, getAdminDuas } from "../actions/duas"
 import { getAdminContext, hasPermission } from "@/lib/auth"
+import { signInHref } from "@/lib/auth-modal"
 
 function defaultAdminRedirect(ctx: NonNullable<Awaited<ReturnType<typeof getAdminContext>>>) {
   if (hasPermission(ctx, "manage_duas")) return null
@@ -16,7 +17,7 @@ function defaultAdminRedirect(ctx: NonNullable<Awaited<ReturnType<typeof getAdmi
   if (hasPermission(ctx, "manage_settings")) return "/admin/copy"
   if (hasPermission(ctx, "manage_volunteers")) return "/admin/settings"
   if (hasPermission(ctx, "manage_admins")) return "/admin/settings/roles"
-  return "/auth?error=not_admin"
+  return signInHref({ error: "not_admin" })
 }
 
 export default async function AdminPage({
@@ -27,12 +28,12 @@ export default async function AdminPage({
   const params = await searchParams
   const ctx = await getAdminContext()
 
-  if (!ctx) redirect("/auth?next=/admin")
+  if (!ctx) redirect(signInHref({ next: "/admin" }))
 
   const redirectTo = defaultAdminRedirect(ctx)
   if (redirectTo) redirect(redirectTo)
 
-  if (!hasPermission(ctx, "manage_duas")) redirect("/auth?error=not_admin")
+  if (!hasPermission(ctx, "manage_duas")) redirect(signInHref({ error: "not_admin" }))
 
   const categories = await getCategories({ includeInactive: true })
   const duas = await getAdminDuas({

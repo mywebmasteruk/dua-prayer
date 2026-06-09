@@ -1,0 +1,7 @@
+*.log
+.dev-server.stale-test
+.git/
+.next/
+docs/
+node_modules/
+tmp/

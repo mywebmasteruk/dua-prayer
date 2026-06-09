@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { resolveAdminLandingPath, userHasAdminAccess } from "@/lib/auth"
+import { signInHref } from "@/lib/auth-modal"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
@@ -8,16 +9,14 @@ export async function GET(request: Request) {
   const next = requestUrl.searchParams.get("next") ?? "/"
 
   if (!code) {
-    return NextResponse.redirect(new URL("/auth", requestUrl.origin))
+    return NextResponse.redirect(new URL(signInHref(), requestUrl.origin))
   }
 
   const supabase = await createServerSupabaseClient()
   const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error) {
-    const authUrl = new URL("/auth", requestUrl.origin)
-    authUrl.searchParams.set("error", error.message)
-    return NextResponse.redirect(authUrl)
+    return NextResponse.redirect(new URL(signInHref({ error: error.message }), requestUrl.origin))
   }
 
   const user = { id: data.user.id, email: data.user.email }
@@ -26,7 +25,7 @@ export async function GET(request: Request) {
   if (wantsAdmin) {
     const hasAccess = await userHasAdminAccess(user)
     if (!hasAccess) {
-      return NextResponse.redirect(new URL("/auth?error=not_admin", requestUrl.origin))
+      return NextResponse.redirect(new URL(signInHref({ error: "not_admin" }), requestUrl.origin))
     }
     if (next === "/admin" || next === "/admin/") {
       const landing = await resolveAdminLandingPath(user)

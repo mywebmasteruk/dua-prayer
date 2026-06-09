@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react"
+import { signInHref } from "@/lib/auth-modal"
 import { HomeSearchInput } from "./home-search-input"
 import { HOME_FEED_TAB_BAR_HEIGHT_PX } from "./home-feed-tab-bar"
 import { TrendingInfoTooltip } from "./trending-info-tooltip"
@@ -113,7 +114,7 @@ export function HomeRightRail({
           </div>
         </div>
         <Link
-          href="/auth"
+          href={signInHref()}
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-border/70 bg-background/60 px-4 py-2 text-sm font-medium text-foreground/85 transition hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           Create a channel

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { isFoundingAdminUser, resolveAdminLandingPath, userHasAdminAccess } from "@/lib/auth"
 import { mapAuthErrorMessage } from "@/lib/auth-errors"
+import { signInHref } from "@/lib/auth-modal"
 
 function getAppUrl() {
   return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
@@ -22,7 +23,7 @@ async function resolvePostAuthRedirect(next: string, userId: string, email?: str
 
   if (wantsAdmin) {
     const hasAccess = await userHasAdminAccess(user)
-    if (!hasAccess) return "/auth?error=not_admin"
+    if (!hasAccess) return signInHref({ error: "not_admin" })
     if (next === "/admin" || next === "/admin/") return resolveAdminLandingPath(user)
     return next
   }
@@ -96,5 +97,5 @@ export async function updatePassword(formData: FormData) {
   const { error } = await supabase.auth.updateUser({ password })
   if (error) return { error: error.message }
 
-  redirect("/auth?reset=success")
+  redirect(signInHref({ reset: "success" }))
 }

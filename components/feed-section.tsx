@@ -6,13 +6,17 @@ import { detectLanguage, type DuaLanguage } from "@/lib/detect-language"
 import { FeedFilters, type LangFilter, type LangPill } from "@/components/feed-filters"
 import { DuaList } from "@/components/dua-list"
 import { FeedPagination } from "@/components/feed-pagination"
+import { NewDuasBanner } from "@/components/new-duas-banner"
 import { useHomeSearch } from "@/components/home-search-provider"
+import { useNewDuasPoll } from "@/hooks/use-new-duas-poll"
+import { useNavigationRouter } from "@/hooks/use-navigation-router"
 
 interface FeedSectionProps {
   duas: Dua[]
   categories: Category[]
   topCategories: Category[]
   pageSize: number
+  feedActive?: boolean
 }
 
 function resolveVisibleCategories(topCategories: Category[], allCategories: Category[], activeCategory: string) {
@@ -77,8 +81,9 @@ function matchesSearch(dua: Dua, searchQuery: string, categories: Category[]) {
   return dua.text.toLowerCase().includes(trimmed) || categoryName.toLowerCase().includes(trimmed)
 }
 
-export function FeedSection({ duas, categories, topCategories, pageSize }: FeedSectionProps) {
+export function FeedSection({ duas, categories, topCategories, pageSize, feedActive = true }: FeedSectionProps) {
   const { query: searchQuery } = useHomeSearch()
+  const router = useNavigationRouter()
   const [category, setCategory] = useState("all")
   const [lang, setLang] = useState<LangFilter>("all")
   const [page, setPage] = useState(1)
@@ -148,6 +153,31 @@ export function FeedSection({ duas, categories, topCategories, pageSize }: FeedS
     [category, lang, updateFilters],
   )
 
+  const isDefaultFeedView =
+    feedActive &&
+    currentPage === 1 &&
+    category === "all" &&
+    lang === "all" &&
+    searchQuery.trim() === ""
+
+  const newestSeenId = filteredDuas[0]?.id ?? 0
+
+  const { count: newDuasCount, dismiss: dismissNewDuasBanner } = useNewDuasPoll({
+    enabled: isDefaultFeedView,
+    sinceId: newestSeenId,
+  })
+
+  const handleShowNewDuas = useCallback(() => {
+    dismissNewDuasBanner()
+
+    if (page !== 1) {
+      updateFilters(category, lang, 1)
+    }
+
+    window.scrollTo({ top: 0, behavior: "smooth" })
+    router.refresh()
+  }, [category, dismissNewDuasBanner, lang, page, router, updateFilters])
+
   return (
     <>
       <FeedFilters
@@ -157,6 +187,8 @@ export function FeedSection({ duas, categories, topCategories, pageSize }: FeedS
         onCategoryChange={handleCategoryChange}
         onLangChange={handleLangChange}
       />
+
+      <NewDuasBanner count={newDuasCount} onShow={handleShowNewDuas} />
 
       <section className="min-h-[280px]">
         <DuaList duas={paginatedDuas} />

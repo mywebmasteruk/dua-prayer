@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { BrandLogo } from "./brand-logo"
+import { signInHref } from "@/lib/auth-modal"
 
 const footerLinkClassName =
   "text-muted-foreground transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
@@ -36,7 +37,7 @@ export function Footer({
             <Link href="/volunteer" className={footerLinkClassName}>
               Volunteer
             </Link>
-            <Link href="/auth" className={footerLinkClassName}>
+            <Link href={signInHref()} className={footerLinkClassName}>
               Sign in
             </Link>
           </nav>

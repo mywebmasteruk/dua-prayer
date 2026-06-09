@@ -1,0 +1,27 @@
+# Merge these sections into supabase/config.toml for local Supabase CLI email previews.
+# Hosted projects: paste HTML + subjects in Dashboard → Authentication → Email Templates.
+# See docs/supabase-email-templates/README.md
+
+[auth.email.template.confirmation]
+subject = "Confirm your DuaPrayer account"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.invite]
+subject = "You're invited to DuaPrayer"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.magic_link]
+subject = "Your DuaPrayer sign-in link"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.recovery]
+subject = "Reset your DuaPrayer password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new DuaPrayer email"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.reauthentication]
+subject = "{{ .Token }} is your DuaPrayer verification code"
+content_path = "./supabase/templates/reauthentication.html"

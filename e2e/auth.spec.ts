@@ -1,9 +1,13 @@
 import { expect, test } from "@playwright/test"
 
-test.describe("Auth page", () => {
+async function openSignInModal(page: import("@playwright/test").Page) {
+  await page.goto("/?signin=1")
+  await page.waitForLoadState("networkidle")
+}
+
+test.describe("Auth modal", () => {
   test("shows clean sign-in with password and magic link tabs", async ({ page }) => {
-    await page.goto("/auth")
-    await page.waitForLoadState("networkidle")
+    await openSignInModal(page)
 
     await expect(page.getByText("User sign in")).toBeVisible()
     await expect(
@@ -17,8 +21,8 @@ test.describe("Auth page", () => {
     ).toBeVisible()
   })
 
-  test("does not show inline forgot-password form on sign-in page", async ({ page }) => {
-    await page.goto("/auth")
+  test("does not show inline forgot-password form on sign-in modal", async ({ page }) => {
+    await openSignInModal(page)
 
     await expect(page.getByRole("link", { name: "Forgot password?" })).toBeVisible()
     await expect(page.getByRole("button", { name: "Reset" })).toHaveCount(0)
@@ -26,7 +30,7 @@ test.describe("Auth page", () => {
   })
 
   test("forgot password link points to dedicated page", async ({ page }) => {
-    await page.goto("/auth?next=/admin")
+    await page.goto("/?signin=1&next=/admin")
     await page.waitForLoadState("networkidle")
 
     const forgotLink = page
@@ -45,12 +49,20 @@ test.describe("Auth page", () => {
   })
 
   test("magic link tab shows send form without visible password fields", async ({ page }) => {
-    await page.goto("/auth")
+    await openSignInModal(page)
 
     await page.getByRole("tab", { name: "Magic link" }).click()
     await expect(page.getByRole("tabpanel", { name: "Magic link" })).toBeVisible()
     await expect(page.getByRole("button", { name: "Send magic link" })).toBeVisible()
     await expect(page.getByRole("tabpanel", { name: "Password" })).toBeHidden()
+  })
+
+  test("/auth redirects to homepage sign-in modal", async ({ page }) => {
+    await page.goto("/auth?next=/admin")
+    await page.waitForLoadState("networkidle")
+
+    await expect(page).toHaveURL(/signin=1&next=%2Fadmin/)
+    await expect(page.getByText("User sign in")).toBeVisible()
   })
 })
 
@@ -58,7 +70,7 @@ test.describe("Admin access", () => {
   test("redirects unauthenticated users to sign in", async ({ page }) => {
     await page.goto("/admin")
 
-    await expect(page).toHaveURL(/\/auth\?next=\/admin/)
+    await expect(page).toHaveURL(/signin=1&next=%2Fadmin/)
     await expect(page.getByText("User sign in")).toBeVisible()
   })
 })

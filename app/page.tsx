@@ -1,7 +1,11 @@
+import { Suspense } from "react"
+import { redirect } from "next/navigation"
 import { getFeedDuas, getCategories, getTopCategories } from "./actions/duas"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { requireAdmin } from "@/lib/auth"
-import { getSiteCopy } from "@/lib/site-copy"
+import { isSignInOpen, type SignInSearchParams } from "@/lib/auth-modal"
+import { getSiteCopy } from "@/lib/site-copy-server"
+import { HomeAuthModal } from "@/components/auth/home-auth-modal"
 import { HomeSearchProvider } from "@/components/home-search-provider"
 import { HomeSearchInput } from "@/components/home-search-input"
 import { HomeSidebarNav } from "@/components/home-sidebar-nav"
@@ -81,11 +85,21 @@ function getChannels(categories: Category[], duas: Dua[]): ChannelItem[] {
     .map(({ sortOrder: _sortOrder, ...channel }) => channel)
 }
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<SignInSearchParams & { category?: string }>
+}) {
+  const params = await searchParams
   const supabase = await createServerSupabaseClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
+  if (user && isSignInOpen(params)) {
+    redirect(params.next === "/admin" ? "/admin" : "/")
+  }
+
   const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
 
   const [{ duas, total, pageSize }, categories, topCategories, siteCopy] = await Promise.all([
@@ -102,6 +116,14 @@ export default async function Home() {
 
   return (
     <HomeSearchProvider>
+      <Suspense fallback={null}>
+        <HomeAuthModal
+          initiallyOpen={isSignInOpen(params)}
+          error={params.error}
+          resetSuccess={params.reset === "success"}
+          next={params.next}
+        />
+      </Suspense>
       <div className="min-h-screen bg-muted/40 text-foreground">
         <div className="mx-auto grid w-full max-w-[1280px] lg:grid-cols-[minmax(0,240px)_minmax(0,600px)_minmax(0,350px)] lg:justify-center">
           <aside

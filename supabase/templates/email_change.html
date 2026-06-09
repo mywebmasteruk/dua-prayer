@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Confirm your new DuaPrayer email</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f9f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f9f6;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background-color:#ffffff;border-radius:12px;border:1px solid #e2ebe5;">
+          <tr>
+            <td align="center" style="padding:32px 32px 24px;background-color:#edf7f0;border-bottom:1px solid #e2ebe5;">
+              <a href="https://dua-prayer.vercel.app" style="text-decoration:none;">
+                <img src="https://dua-prayer.vercel.app/logo-wide.png" width="200" height="44" alt="DuaPrayer" style="display:block;border:0;outline:none;max-width:200px;height:auto;">
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;color:#121619;font-size:16px;line-height:1.6;">
+              <h1 style="margin:0 0 16px;font-size:24px;line-height:1.3;font-weight:600;color:#121619;">Confirm your new email</h1>
+              <p style="margin:0 0 16px;">You requested to change your DuaPrayer account email to <strong>{{ .NewEmail }}</strong>. Confirm this change with the button below.</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0;">
+                <tr>
+                  <td align="center" bgcolor="#1a9f47" style="border-radius:8px;">
+                    <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;background-color:#1a9f47;">Confirm new email</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0;color:#5c6b63;font-size:14px;">If you didn't request this change, you can safely ignore this email.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 32px;background-color:#fafbfa;border-top:1px solid #e2ebe5;color:#5c6b63;font-size:13px;line-height:1.5;text-align:center;">
+              <p style="margin:0 0 8px;"><strong style="color:#121619;">DuaPrayer</strong> — a community space to share and discover prayers</p>
+              <p style="margin:0;"><a href="https://dua-prayer.vercel.app" style="color:#1a9f47;text-decoration:none;">dua-prayer.vercel.app</a></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

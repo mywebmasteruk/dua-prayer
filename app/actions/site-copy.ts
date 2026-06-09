@@ -10,8 +10,8 @@ import {
   SITE_COPY_LABELS,
   type SiteCopy,
   type SiteCopyKey,
-  getSiteCopyDefaults,
 } from "@/lib/site-copy"
+import { getSiteCopyDefaults } from "@/lib/site-copy-server"
 
 const COPY_SETTING_KEYS: Record<SiteCopyKey, string> = {
   sidebarTagline: SITE_SETTING_KEYS.copySidebarTagline,

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "@/components/ui/use-toast"
 import { resetPassword } from "@/app/actions/auth"
+import { signInHref } from "@/lib/auth-modal"
 
 interface ForgotPasswordFormProps {
   next?: string
@@ -37,7 +38,7 @@ export function ForgotPasswordForm({ next }: ForgotPasswordFormProps) {
             If an account exists for that address, we sent a password reset link.
           </p>
           <Button asChild variant="outline" className="w-full">
-            <Link href={next ? `/auth?next=${encodeURIComponent(next)}` : "/auth"}>
+            <Link href={next ? signInHref({ next }) : signInHref()}>
               Back to sign in
             </Link>
           </Button>
@@ -65,7 +66,7 @@ export function ForgotPasswordForm({ next }: ForgotPasswordFormProps) {
             {loading ? "Sending..." : "Send reset link"}
           </Button>
           <Button asChild variant="ghost" className="w-full">
-            <Link href={next ? `/auth?next=${encodeURIComponent(next)}` : "/auth"}>
+            <Link href={next ? signInHref({ next }) : signInHref()}>
               Back to sign in
             </Link>
           </Button>

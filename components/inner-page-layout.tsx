@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { requireAdmin } from "@/lib/auth"
-import { getSiteCopy } from "@/lib/site-copy"
+import { getSiteCopy } from "@/lib/site-copy-server"
 import { cn } from "@/lib/utils"
 import { HomeSidebarNav } from "./home-sidebar-nav"
 import { HomeMobileBottomNav } from "./home-mobile-bottom-nav"

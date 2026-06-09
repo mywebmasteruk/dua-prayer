@@ -1,8 +1,6 @@
-import { Suspense } from "react"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { AuthLayout } from "@/components/auth-layout"
-import { AuthForm } from "@/components/auth/auth-form"
+import { signInHref } from "@/lib/auth-modal"
 
 export default async function AuthPage({
   searchParams,
@@ -18,11 +16,11 @@ export default async function AuthPage({
   if (user && params.next === "/admin") redirect("/admin")
   if (user) redirect("/")
 
-  return (
-    <AuthLayout>
-      <Suspense fallback={null}>
-        <AuthForm error={params.error} resetSuccess={params.reset === "success"} next={params.next} />
-      </Suspense>
-    </AuthLayout>
+  redirect(
+    signInHref({
+      next: params.next,
+      error: params.error,
+      reset: params.reset === "success" ? "success" : undefined,
+    }),
   )
 }

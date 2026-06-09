@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { getSiteCopy } from "@/lib/site-copy"
+import { getSiteCopy } from "@/lib/site-copy-server"
 import { BrandLogo } from "./brand-logo"
 import { Footer } from "./footer"
 

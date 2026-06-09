@@ -6,11 +6,12 @@ import { AdminNav } from "@/components/admin/admin-nav"
 import { AdminChannelsSettings } from "@/components/admin/admin-channels-settings"
 import { listAdminChannels } from "@/app/actions/admin-channels"
 import { getAdminContext, hasPermission } from "@/lib/auth"
+import { signInHref } from "@/lib/auth-modal"
 
 export default async function AdminChannelsPage() {
   const ctx = await getAdminContext()
-  if (!ctx) redirect("/auth?next=/admin/channels")
-  if (!hasPermission(ctx, "manage_channels")) redirect("/auth?error=not_admin")
+  if (!ctx) redirect(signInHref({ next: "/admin/channels" }))
+  if (!hasPermission(ctx, "manage_channels")) redirect(signInHref({ error: "not_admin" }))
 
   const result = await listAdminChannels()
   const channels = "channels" in result ? result.channels : []

@@ -6,11 +6,12 @@ import { AdminNav } from "@/components/admin/admin-nav"
 import { SiteCopySettings } from "@/components/admin/site-copy-settings"
 import { getSiteCopyForAdmin } from "@/app/actions/site-copy"
 import { getAdminContext, hasPermission } from "@/lib/auth"
+import { signInHref } from "@/lib/auth-modal"
 
 export default async function AdminCopyPage() {
   const ctx = await getAdminContext()
-  if (!ctx) redirect("/auth?next=/admin/copy")
-  if (!hasPermission(ctx, "manage_settings")) redirect("/auth?error=not_admin")
+  if (!ctx) redirect(signInHref({ next: "/admin/copy" }))
+  if (!hasPermission(ctx, "manage_settings")) redirect(signInHref({ error: "not_admin" }))
 
   const copy = await getSiteCopyForAdmin()
 

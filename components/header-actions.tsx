@@ -5,6 +5,7 @@ import { HandCoins, ShieldAlert, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AuthButton } from "./auth/auth-button"
 import { ActionIconTooltip } from "./action-icon-tooltip"
+import { signInHref } from "@/lib/auth-modal"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 interface HeaderActionsProps {
@@ -25,7 +26,7 @@ export function HeaderActions({ user, isAdmin = false }: HeaderActionsProps) {
         </ActionIconTooltip>
       ) : (
         <ActionIconTooltip label={user ? "Account" : "Sign in"}>
-          <Link href="/auth">
+          <Link href={signInHref()}>
             <Button
               variant="ghost"
               size="icon"

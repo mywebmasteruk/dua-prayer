@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { HandCoins, HandHeart, Home, ShieldAlert, User } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { signInHref } from "@/lib/auth-modal"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 interface HomeMobileBottomNavProps {
@@ -58,10 +59,10 @@ export function HomeMobileBottomNav({ user, isAdmin = false }: HomeMobileBottomN
           <BottomNavItem href="/admin" label="Admin" icon={ShieldAlert} active={isActive("/admin")} />
         ) : (
           <BottomNavItem
-            href="/auth"
+            href={signInHref()}
             label={user ? "Account" : "Sign in"}
             icon={User}
-            active={isActive("/auth")}
+            active={false}
           />
         )}
       </div>

@@ -6,6 +6,7 @@ import { BrandLogo } from "./brand-logo"
 import { HomeSearchInput } from "./home-search-input"
 import { ActionIconTooltip } from "./action-icon-tooltip"
 import { Button } from "./ui/button"
+import { signInHref } from "@/lib/auth-modal"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 interface HomeMobileHeaderProps {
@@ -30,7 +31,7 @@ export function HomeMobileHeader({ user, isAdmin = false }: HomeMobileHeaderProp
           </ActionIconTooltip>
         ) : (
           <ActionIconTooltip label={user ? "Account" : "Sign in"}>
-            <Link href="/auth">
+            <Link href={signInHref()}>
               <Button
                 variant="ghost"
                 size="icon"

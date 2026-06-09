@@ -38,7 +38,13 @@ export function HomeStreamTabs({
         className={activeTab === "feed" ? undefined : "hidden"}
       >
         <HomeComposer categories={categories} turnstileSiteKey={turnstileSiteKey} />
-        <FeedSection duas={duas} categories={categories} topCategories={topCategories} pageSize={pageSize} />
+        <FeedSection
+          duas={duas}
+          categories={categories}
+          topCategories={topCategories}
+          pageSize={pageSize}
+          feedActive={activeTab === "feed"}
+        />
       </div>
 
       <div

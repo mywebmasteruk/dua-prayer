@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
+import { signInHref } from "@/lib/auth-modal"
 import {
   type AdminPermission,
   type AdminPermissionOverrides,
@@ -174,7 +175,7 @@ export async function resolveAdminLandingPath(user: { id: string; email?: string
     .eq("id", user.id)
     .single()
 
-  if (!profile?.is_admin) return "/auth?error=not_admin"
+  if (!profile?.is_admin) return signInHref({ error: "not_admin" })
 
   const overrides: AdminPermissionOverrides = {}
   if (profile.admin_permissions && typeof profile.admin_permissions === "object") {
@@ -192,5 +193,5 @@ export async function resolveAdminLandingPath(user: { id: string; email?: string
   if (permissions.includes("manage_settings")) return "/admin/copy"
   if (permissions.includes("manage_volunteers")) return "/admin/settings"
   if (permissions.includes("manage_admins")) return "/admin/settings/roles"
-  return "/auth?error=not_admin"
+  return signInHref({ error: "not_admin" })
 }

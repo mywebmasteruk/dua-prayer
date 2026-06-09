@@ -6,18 +6,19 @@ import { AdminNav } from "@/components/admin/admin-nav"
 import { VolunteerFormSettings } from "@/components/admin/volunteer-form-settings"
 import { getVolunteerFilloutSettingForAdmin } from "@/app/actions/settings"
 import { getAdminContext, hasPermission } from "@/lib/auth"
+import { signInHref } from "@/lib/auth-modal"
 import { Button } from "@/components/ui/button"
 
 export default async function AdminSettingsPage() {
   const ctx = await getAdminContext()
 
-  if (!ctx) redirect("/auth?next=/admin/settings")
+  if (!ctx) redirect(signInHref({ next: "/admin/settings" }))
 
   const canVolunteer =
     hasPermission(ctx, "manage_settings") || hasPermission(ctx, "manage_volunteers")
   const canManageAdmins = ctx.isFoundingAdmin || hasPermission(ctx, "manage_admins")
 
-  if (!canVolunteer && !canManageAdmins) redirect("/auth?error=not_admin")
+  if (!canVolunteer && !canManageAdmins) redirect(signInHref({ error: "not_admin" }))
 
   const volunteerFilloutValue = canVolunteer ? await getVolunteerFilloutSettingForAdmin() : ""
 

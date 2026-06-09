@@ -6,11 +6,12 @@ import { AdminNav } from "@/components/admin/admin-nav"
 import { AdminUsersList } from "@/components/admin/admin-users-list"
 import { listAppUsers } from "@/app/actions/admin-users"
 import { getAdminContext, hasPermission } from "@/lib/auth"
+import { signInHref } from "@/lib/auth-modal"
 
 export default async function AdminUsersPage() {
   const ctx = await getAdminContext()
-  if (!ctx) redirect("/auth?next=/admin/users")
-  if (!hasPermission(ctx, "manage_users")) redirect("/auth?error=not_admin")
+  if (!ctx) redirect(signInHref({ next: "/admin/users" }))
+  if (!hasPermission(ctx, "manage_users")) redirect(signInHref({ error: "not_admin" }))
 
   const result = await listAppUsers()
   const users = "users" in result ? result.users : []

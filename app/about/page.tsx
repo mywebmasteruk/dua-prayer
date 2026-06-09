@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowLeft, HeartHandshake, Info, Sparkles } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
-import { getSiteCopy } from "@/lib/site-copy"
+import { getSiteCopy } from "@/lib/site-copy-server"
 
 export const metadata: Metadata = {
   title: "About — DuaPrayer",

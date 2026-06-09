@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { BookOpen, HandCoins, HandHeart, Home, Info, Shield, ShieldAlert, User } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { signInHref } from "@/lib/auth-modal"
 import { BrandLogo } from "./brand-logo"
 import { AuthButton } from "./auth/auth-button"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
@@ -60,7 +61,7 @@ export function HomeSidebarNav({
   className,
   sidebarTagline = "Share duas, support one another, and grow together in faith.",
 }: HomeSidebarNavProps) {
-  const accountHref = "/auth"
+  const accountHref = signInHref()
   const accountLabel = user ? "Account" : "Sign in"
 
   return (
@@ -93,7 +94,6 @@ export function HomeSidebarNav({
           href={accountHref}
           label={accountLabel}
           icon={User}
-          active={isActivePath(activePath, "/auth")}
           variant={user ? "default" : "cta"}
         />
         {isAdmin ? (
