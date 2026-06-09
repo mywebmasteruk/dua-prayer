@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 
-export default function AdminStripeSettingsRedirectPage({
+export default async function AdminStripeSettingsRedirectPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
