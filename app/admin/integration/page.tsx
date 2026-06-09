@@ -25,8 +25,10 @@ const INTEGRATION_TAB_IDS: IntegrationTabId[] = [
   "stripe",
   "fillout",
   "volunteer-webhook",
+  "webhooks",
   "supabase",
   "auth",
+  "api-keys",
 ]
 
 function resolveInitialTab(tab: string | undefined): IntegrationTabId {

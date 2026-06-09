@@ -2,15 +2,19 @@ export type IntegrationTabId =
   | "stripe"
   | "fillout"
   | "volunteer-webhook"
+  | "webhooks"
   | "supabase"
   | "auth"
+  | "api-keys"
 
 export const INTEGRATION_TABS: { id: IntegrationTabId; label: string }[] = [
   { id: "stripe", label: "Stripe" },
   { id: "fillout", label: "Fillout" },
   { id: "volunteer-webhook", label: "Volunteer webhook" },
+  { id: "webhooks", label: "Webhooks" },
   { id: "supabase", label: "Supabase" },
   { id: "auth", label: "Email & Auth" },
+  { id: "api-keys", label: "API keys & MCP" },
 ]
 
 export function isIntegrationTabId(value: string | undefined): value is IntegrationTabId {

@@ -9,6 +9,8 @@ import { IntegrationFilloutTab } from "@/components/admin/integration-fillout-ta
 import { IntegrationStripeTab } from "@/components/admin/integration-stripe-tab"
 import { IntegrationSupabaseTab } from "@/components/admin/integration-supabase-tab"
 import { IntegrationVolunteerWebhookTab } from "@/components/admin/integration-volunteer-webhook-tab"
+import { IntegrationWebhooksTab } from "@/components/admin/integration-webhooks-tab"
+import { IntegrationApiKeysMcpTab } from "@/components/admin/integration-api-keys-mcp-tab"
 import type { StripeSettingsAdminView } from "@/lib/stripe-settings-server"
 import type { IntegrationEnvStatus } from "@/lib/integration-env-status"
 
@@ -66,9 +68,24 @@ export function IntegrationHub({
             webhookConfigured={envStatus.volunteerWebhookConfigured}
           />
         ) : null}
+        {activeTab === "webhooks" ? (
+          <IntegrationWebhooksTab
+            appUrl={envStatus.appUrl}
+            volunteerWebhookConfigured={envStatus.volunteerWebhookConfigured}
+            channelWebhookConfigured={envStatus.channelWebhookConfigured}
+            stripeSettings={stripeSettings}
+          />
+        ) : null}
         {activeTab === "supabase" ? <IntegrationSupabaseTab status={envStatus.supabase} /> : null}
         {activeTab === "auth" ? (
           <IntegrationAuthTab status={envStatus.auth} appUrl={envStatus.appUrl} />
+        ) : null}
+        {activeTab === "api-keys" ? (
+          <IntegrationApiKeysMcpTab
+            envStatus={envStatus}
+            stripeSettings={stripeSettings}
+            filloutConfigured={Boolean(filloutValue.trim())}
+          />
         ) : null}
       </div>
     </div>
