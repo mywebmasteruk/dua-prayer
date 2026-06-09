@@ -34,8 +34,8 @@ export function IntegrationHub({
 }: IntegrationHubProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const tabParam = searchParams?.get("tab")
-  const activeTab = isIntegrationTabId(tabParam ?? undefined) ? tabParam : initialTab
+  const tabParam = searchParams?.get("tab") ?? undefined
+  const activeTab: IntegrationTabId = isIntegrationTabId(tabParam) ? tabParam : initialTab
 
   const handleTabChange = useCallback(
     (tab: IntegrationTabId) => {

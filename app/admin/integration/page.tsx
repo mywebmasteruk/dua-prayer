@@ -5,7 +5,7 @@ import { InnerPageLayout } from "@/components/inner-page-layout"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import { IntegrationHub } from "@/components/admin/integration-hub"
 import { isIntegrationTabId } from "@/components/admin/admin-integration-tab-bar"
-import { getStripeSettingsAdminView } from "@/app/actions/stripe-settings"
+import { getStripeSettingsForAdmin } from "@/lib/stripe-settings-server"
 import { getVolunteerFilloutSettingForAdmin } from "@/app/actions/settings"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
@@ -30,11 +30,9 @@ export default async function AdminIntegrationPage({ searchParams }: PageProps) 
   const initialTab = isIntegrationTabId(params.tab) ? params.tab : "stripe"
 
   const [stripeSettings, filloutValue] = await Promise.all([
-    canManageSettings ? getStripeSettingsAdminView() : Promise.resolve(null),
+    canManageSettings ? getStripeSettingsForAdmin() : Promise.resolve(null),
     canVolunteer ? getVolunteerFilloutSettingForAdmin() : Promise.resolve(""),
   ])
-
-  if (canManageSettings && !stripeSettings) redirect(signInHref({ error: "not_admin" }))
 
   const envStatus = getIntegrationEnvStatus()
 

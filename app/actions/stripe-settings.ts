@@ -88,23 +88,30 @@ async function deleteSetting(key: string) {
   return admin.from("site_settings").delete().eq("key", key)
 }
 
-const LIVE_KEYS = {
+type StripeSettingKeySet = {
+  secretKey: string
+  publishableKey: string
+  webhookSecret: string
+  donationProductId: string
+}
+
+const LIVE_KEYS: StripeSettingKeySet = {
   secretKey: SITE_SETTING_KEYS.stripeSecretKey,
   publishableKey: SITE_SETTING_KEYS.stripePublishableKey,
   webhookSecret: SITE_SETTING_KEYS.stripeWebhookSecret,
   donationProductId: SITE_SETTING_KEYS.stripeDonationProductId,
-} as const
+}
 
-const TEST_KEYS = {
+const TEST_KEYS: StripeSettingKeySet = {
   secretKey: SITE_SETTING_KEYS.stripeTestSecretKey,
   publishableKey: SITE_SETTING_KEYS.stripeTestPublishableKey,
   webhookSecret: SITE_SETTING_KEYS.stripeTestWebhookSecret,
   donationProductId: SITE_SETTING_KEYS.stripeTestDonationProductId,
-} as const
+}
 
 async function persistCredentialSet(
   mode: StripeMode,
-  keys: typeof LIVE_KEYS,
+  keys: StripeSettingKeySet,
   input: StripeCredentialInput | undefined,
   current: { hasSecretKey: boolean },
 ) {
