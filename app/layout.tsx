@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/toaster"
 import { NavigationProvider } from "@/components/navigation-provider"
 import { AppTooltipProvider } from "@/components/app-tooltip-provider"
+import { FollowedChannelsProvider } from "@/components/followed-channels-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -32,7 +33,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <AppTooltipProvider>
             <Suspense fallback={null}>
-              <NavigationProvider>{children}</NavigationProvider>
+              <NavigationProvider>
+                <FollowedChannelsProvider>{children}</FollowedChannelsProvider>
+              </NavigationProvider>
             </Suspense>
             <Toaster />
           </AppTooltipProvider>

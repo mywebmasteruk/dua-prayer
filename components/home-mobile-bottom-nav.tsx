@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { HandCoins, HandHeart, Home, ShieldAlert, User } from "lucide-react"
+import { HandCoins, HandHeart, Home, LayoutGrid, ShieldAlert, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signInHref } from "@/lib/auth-modal"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
@@ -53,6 +53,7 @@ export function HomeMobileBottomNav({ user, isAdmin = false }: HomeMobileBottomN
     >
       <div className="mx-auto flex max-w-lg items-stretch justify-around px-2 py-1.5">
         <BottomNavItem href="/" label="Home" icon={Home} active={isActive("/")} />
+        <BottomNavItem href="/channels" label="Channels" icon={LayoutGrid} active={isActive("/channels")} />
         <BottomNavItem href="/donate" label="Donate" icon={HandCoins} active={isActive("/donate")} />
         <BottomNavItem href="/volunteer" label="Volunteer" icon={HandHeart} active={isActive("/volunteer")} />
         {isAdmin ? (

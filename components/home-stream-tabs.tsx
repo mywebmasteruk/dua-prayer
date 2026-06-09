@@ -1,15 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import type { Category, Dua } from "@/lib/types/dua"
 import { HomeComposer } from "@/components/home-composer"
 import { FeedSection } from "@/components/feed-section"
 import { HomeFeedTabBar, type HomeStreamTab } from "@/components/home-feed-tab-bar"
-import { ChannelList, type ChannelItem } from "@/components/channel-list"
+import { FollowingSection } from "@/components/following-section"
 
 interface HomeStreamTabsProps {
   categories: Category[]
-  channels: ChannelItem[]
   turnstileSiteKey?: string
   duas: Dua[]
   topCategories: Category[]
@@ -18,7 +17,6 @@ interface HomeStreamTabsProps {
 
 export function HomeStreamTabs({
   categories,
-  channels,
   turnstileSiteKey,
   duas,
   topCategories,
@@ -26,12 +24,50 @@ export function HomeStreamTabs({
 }: HomeStreamTabsProps) {
   const [activeTab, setActiveTab] = useState<HomeStreamTab>("feed")
 
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const params = new URLSearchParams(window.location.search)
+
+    if (params.get("tab") === "channels") {
+      params.delete("tab")
+      const query = params.toString()
+      window.location.replace(query ? `/channels?${query}` : "/channels")
+      return
+    }
+
+    if (params.get("tab") === "following") setActiveTab("following")
+  }, [])
+
+  const handleTabChange = useCallback((tab: HomeStreamTab) => {
+    setActiveTab(tab)
+
+    if (typeof window === "undefined") return
+
+    const params = new URLSearchParams(window.location.search)
+    if (tab === "following") {
+      params.set("tab", "following")
+    } else {
+      params.delete("tab")
+      params.delete("page")
+    }
+
+    const query = params.toString()
+    const nextUrl = query ? `/?${query}` : "/"
+    const currentUrl = `${window.location.pathname}${window.location.search}`
+
+    if (currentUrl !== nextUrl) {
+      window.history.replaceState(window.history.state, "", nextUrl)
+    }
+  }, [])
+
   return (
     <>
-      <HomeFeedTabBar activeTab={activeTab} onTabChange={setActiveTab} />
+      <HomeFeedTabBar activeTab={activeTab} onTabChange={handleTabChange} />
 
-      <div
-        id="home-stream-panel-feed"
+      <div className="min-h-[280px]">
+        <div
+          id="home-stream-panel-feed"
         role="tabpanel"
         aria-labelledby="home-stream-tab-feed"
         hidden={activeTab !== "feed"}
@@ -48,13 +84,19 @@ export function HomeStreamTabs({
       </div>
 
       <div
-        id="home-stream-panel-channels"
+        id="home-stream-panel-following"
         role="tabpanel"
-        aria-labelledby="home-stream-tab-channels"
-        hidden={activeTab !== "channels"}
-        className={activeTab === "channels" ? undefined : "hidden"}
+        aria-labelledby="home-stream-tab-following"
+        hidden={activeTab !== "following"}
+        className={activeTab === "following" ? undefined : "hidden"}
       >
-        <ChannelList channels={channels} />
+        <FollowingSection
+          duas={duas}
+          categories={categories}
+          pageSize={pageSize}
+          followingActive={activeTab === "following"}
+        />
+      </div>
       </div>
     </>
   )

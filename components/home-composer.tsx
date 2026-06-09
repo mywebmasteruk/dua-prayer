@@ -51,7 +51,7 @@ export function HomeComposer({ categories, turnstileSiteKey }: HomeComposerProps
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="flex min-w-0 flex-1 items-center rounded-full border border-border/70 bg-muted/35 px-4 py-2.5 text-[15px] font-medium text-muted-foreground shadow-inner transition hover:border-primary/25 hover:bg-white hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:text-base"
+          className="flex min-w-0 flex-1 items-center rounded-full border border-border/70 bg-muted/35 px-4 py-2.5 text-[15px] font-normal text-muted-foreground shadow-inner transition hover:border-primary/25 hover:bg-white hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-haspopup="dialog"
           aria-expanded={isOpen}
           aria-label="Open composer to share a dua request"

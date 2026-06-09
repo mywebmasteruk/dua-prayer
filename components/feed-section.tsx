@@ -52,10 +52,16 @@ function readFiltersFromUrl() {
 }
 
 function syncFiltersToUrl(category: string, lang: LangFilter, page: number) {
-  const params = new URLSearchParams()
+  const params = new URLSearchParams(window.location.search)
+
   if (category !== "all") params.set("category", category)
+  else params.delete("category")
+
   if (lang !== "all") params.set("lang", lang)
+  else params.delete("lang")
+
   if (page > 1) params.set("page", String(page))
+  else params.delete("page")
 
   const query = params.toString()
   const nextUrl = query ? `/?${query}` : "/"
@@ -160,11 +166,11 @@ export function FeedSection({ duas, categories, topCategories, pageSize, feedAct
     lang === "all" &&
     searchQuery.trim() === ""
 
-  const newestSeenId = filteredDuas[0]?.id ?? 0
+  const newestSeenCreatedAt = filteredDuas[0]?.created_at ?? null
 
   const { count: newDuasCount, dismiss: dismissNewDuasBanner } = useNewDuasPoll({
     enabled: isDefaultFeedView,
-    sinceId: newestSeenId,
+    sinceCreatedAt: newestSeenCreatedAt,
   })
 
   const handleShowNewDuas = useCallback(() => {

@@ -31,7 +31,7 @@ export function VolunteerApplySection({ filloutSrc }: VolunteerApplySectionProps
 
   return (
     <>
-      <section className="mt-6 rounded-[2rem] border border-border/70 bg-white/95 p-6 shadow-[0_18px_70px_rgba(15,23,42,0.07)] backdrop-blur-xl">
+      <section className="py-8">
         <h2 className="text-lg font-semibold tracking-tight">Get in touch</h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           Tell us how you&apos;d like to contribute — your skills, availability, and time zone. We&apos;ll reply with

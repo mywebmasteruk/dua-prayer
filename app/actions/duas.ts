@@ -197,15 +197,16 @@ async function enrichDuas(
   }))
 }
 
-export async function countNewDuasSince(sinceId: number) {
-  if (!Number.isFinite(sinceId) || sinceId < 0) return 0
+/** Count published duas newer than the feed watermark (matches getFeedDuas sort: created_at DESC). */
+export async function countNewDuasSince(sinceCreatedAt: string | null) {
+  if (!sinceCreatedAt) return 0
 
   const supabase = await createServerSupabaseClient()
   const { count, error } = await supabase
     .from("duas")
     .select("id", { count: "exact", head: true })
     .eq("published", true)
-    .gt("id", sinceId)
+    .gt("created_at", sinceCreatedAt)
 
   if (error) {
     console.error("Error counting new duas:", error)

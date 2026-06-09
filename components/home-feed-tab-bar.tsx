@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils"
 
-export type HomeStreamTab = "feed" | "channels"
+export type HomeStreamTab = "feed" | "following"
 
 /** Matches sticky tab bar height for right-rail alignment. */
 export const HOME_FEED_TAB_BAR_HEIGHT_PX = 53
@@ -14,7 +14,7 @@ interface HomeFeedTabBarProps {
 
 const TABS: { id: HomeStreamTab; label: string }[] = [
   { id: "feed", label: "Feed" },
-  { id: "channels", label: "Channels" },
+  { id: "following", label: "Following" },
 ]
 
 export function HomeFeedTabBar({ activeTab, onTabChange }: HomeFeedTabBarProps) {
@@ -38,8 +38,8 @@ export function HomeFeedTabBar({ activeTab, onTabChange }: HomeFeedTabBarProps) 
             id={`home-stream-tab-${tab.id}`}
             onClick={() => onTabChange(tab.id)}
             className={cn(
-              "relative flex flex-1 items-center justify-center px-4 text-[15px] transition hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-              isActive ? "font-bold text-foreground" : "font-medium text-muted-foreground",
+              "relative flex flex-1 items-center justify-center px-4 text-[15px] transition hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset lg:text-[20px]",
+              isActive ? "font-bold text-foreground" : "font-normal text-muted-foreground",
             )}
           >
             {tab.label}

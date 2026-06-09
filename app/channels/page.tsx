@@ -1,21 +1,23 @@
-import { Suspense } from "react"
-import { redirect } from "next/navigation"
-import { getFeedDuas, getCategories, getTopCategories } from "./actions/duas"
+import type { Metadata } from "next"
+import { getFeedDuas, getCategories } from "@/app/actions/duas"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { requireAdmin } from "@/lib/auth"
-import { isSignInOpen, type SignInSearchParams } from "@/lib/auth-modal"
 import { getSiteCopy } from "@/lib/site-copy-server"
-import { HomeAuthModal } from "@/components/auth/home-auth-modal"
+import { getChannels } from "@/lib/channels"
 import { HomeSearchProvider } from "@/components/home-search-provider"
 import { HomeSearchInput } from "@/components/home-search-input"
 import { HomeSidebarNav } from "@/components/home-sidebar-nav"
 import { HomeRightRail } from "@/components/home-right-rail"
 import { HomeMobileBottomNav } from "@/components/home-mobile-bottom-nav"
-import { HomeStreamTabs } from "@/components/home-stream-tabs"
+import { ChannelSection } from "@/components/channel-section"
 import { BrandLogo } from "@/components/brand-logo"
 import { NavigationContentLoader } from "@/components/navigation-content-loader"
-import { isTurnstileEnabled } from "@/lib/turnstile"
-import type { Dua, Category } from "@/lib/types/dua"
+import type { Category, Dua } from "@/lib/types/dua"
+
+export const metadata: Metadata = {
+  title: "Channels — DuaPrayer",
+  description: "Browse community channels and follow the duas that matter most to you.",
+}
 
 function compactNumber(value: number) {
   return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value)
@@ -51,44 +53,25 @@ function getTopSupportedDuas(duas: Dua[]) {
     }))
 }
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<SignInSearchParams & { category?: string }>
-}) {
-  const params = await searchParams
+export default async function ChannelsPage() {
   const supabase = await createServerSupabaseClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-
-  if (user && isSignInOpen(params)) {
-    redirect(params.next === "/admin" ? "/admin" : "/")
-  }
-
-  const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
-
-  const [{ duas, total, pageSize }, categories, topCategories, siteCopy] = await Promise.all([
+  const [{ isAdmin }, { duas, total }, categories, siteCopy] = await Promise.all([
+    user ? requireAdmin() : Promise.resolve({ isAdmin: false }),
     getFeedDuas(),
     getCategories(),
-    getTopCategories(3),
     getSiteCopy(),
   ])
-  const turnstileSiteKey = isTurnstileEnabled() ? process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY : undefined
+
+  const channels = getChannels(categories, duas)
   const categoryLeaderboard = getCategoryLeaderboard(categories, duas)
   const supportedRequests = getTopSupportedDuas(duas)
   const totalAmeens = duas.reduce((sum, dua) => sum + dua.likes, 0)
 
   return (
     <HomeSearchProvider>
-      <Suspense fallback={null}>
-        <HomeAuthModal
-          initiallyOpen={isSignInOpen(params)}
-          error={params.error}
-          resetSuccess={params.reset === "success"}
-          next={params.next}
-        />
-      </Suspense>
       <div className="min-h-screen bg-muted/40 text-foreground">
         <div className="mx-auto grid w-full max-w-[1265px] lg:grid-cols-[minmax(0,275px)_minmax(0,600px)_minmax(0,350px)] lg:justify-center">
           <aside
@@ -98,14 +81,14 @@ export default async function Home({
             <HomeSidebarNav
               user={user}
               isAdmin={isAdmin}
-              activePath="/"
+              activePath="/channels"
               sidebarTagline={siteCopy.sidebarTagline}
             />
           </aside>
 
           <main
             className="min-w-0 bg-white pb-20 lg:col-start-2 lg:border-x lg:border-border/70 lg:pb-0"
-            aria-label="Prayer request composer and feed"
+            aria-label="Community channels"
           >
             <div className="border-b border-border/70 px-4 py-3 lg:hidden">
               <BrandLogo variant="icon" href="/" showWordmark priority className="h-8 w-8 shrink-0" />
@@ -115,15 +98,14 @@ export default async function Home({
             </div>
 
             <NavigationContentLoader className="min-h-0">
-              <section id="requests" className="overflow-hidden">
-                <HomeStreamTabs
-                  categories={categories}
-                  turnstileSiteKey={turnstileSiteKey}
-                  duas={duas}
-                  topCategories={topCategories}
-                  pageSize={pageSize}
-                />
-              </section>
+              <header className="border-b border-border/70 px-4 py-4 sm:px-5">
+                <h1 className="text-xl font-bold tracking-tight text-foreground">Channels</h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Follow channels to personalize your Following feed on Home.
+                </p>
+              </header>
+
+              <ChannelSection channels={channels} />
             </NavigationContentLoader>
           </main>
 

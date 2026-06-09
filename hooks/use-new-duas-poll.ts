@@ -7,20 +7,20 @@ const DEFAULT_POLL_INTERVAL_MS = 45_000
 
 export function useNewDuasPoll({
   enabled,
-  sinceId,
+  sinceCreatedAt,
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
 }: {
   enabled: boolean
-  sinceId: number
+  sinceCreatedAt: string | null
   pollIntervalMs?: number
 }) {
   const [count, setCount] = useState(0)
-  const sinceIdRef = useRef(sinceId)
+  const sinceCreatedAtRef = useRef(sinceCreatedAt)
 
   useEffect(() => {
-    sinceIdRef.current = sinceId
+    sinceCreatedAtRef.current = sinceCreatedAt
     setCount(0)
-  }, [sinceId])
+  }, [sinceCreatedAt])
 
   useEffect(() => {
     if (!enabled) {
@@ -32,7 +32,7 @@ export function useNewDuasPoll({
 
     const runCheck = async () => {
       if (cancelled || document.hidden) return
-      const newCount = await countNewDuasSince(sinceIdRef.current)
+      const newCount = await countNewDuasSince(sinceCreatedAtRef.current)
       if (!cancelled) setCount(newCount)
     }
 

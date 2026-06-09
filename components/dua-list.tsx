@@ -214,19 +214,19 @@ export function DuaList({ duas }: DuaListProps) {
               className={cn("flex flex-wrap items-center gap-x-2 gap-y-1", isRtl && "justify-end text-right")}
             >
               {dua.category_name ? (
-                <span className={cn("text-xs font-semibold text-primary", getArabicOnlyFontClassName(dua.category_name))}>
+                <span className={cn("text-xs font-bold text-primary lg:text-[15px]", getArabicOnlyFontClassName(dua.category_name))}>
                   {renderWithArabicFont(dua.category_name)}
                 </span>
               ) : null}
               {dua.category_name ? <span className="text-muted-foreground/45" aria-hidden="true">·</span> : null}
-              <span className="text-xs font-medium text-muted-foreground">{formatRelativeTime(dua.created_at)}</span>
+              <span className="text-xs font-normal text-muted-foreground lg:text-[15px]">{formatRelativeTime(dua.created_at)}</span>
             </div>
 
             <p
               dir={textDirection}
               className={cn(
-                "mt-2.5 whitespace-pre-wrap break-words text-[15px] text-slate-800 sm:text-base",
-                isRtl ? "text-right font-medium leading-8 sm:leading-8" : "leading-7 sm:leading-7",
+                "mt-2.5 whitespace-pre-wrap break-words text-[15px] leading-normal text-slate-800",
+                isRtl ? "text-right font-medium leading-8" : "",
                 getArabicOnlyFontClassName(dua.text),
               )}
             >
@@ -241,12 +241,12 @@ export function DuaList({ duas }: DuaListProps) {
             >
               <div
                 dir={textDirection}
-                className={cn("flex min-w-0 items-center gap-2 text-xs font-semibold text-muted-foreground", isRtl && "text-right")}
+                className={cn("flex min-w-0 items-center gap-2 text-xs text-muted-foreground lg:text-[15px]", isRtl && "text-right")}
               >
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/5 text-primary">
                   <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
                 </span>
-                <span className="truncate">{sourceLabel}</span>
+                <span className="truncate font-bold text-foreground">{sourceLabel}</span>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">

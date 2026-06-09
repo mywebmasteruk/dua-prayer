@@ -114,8 +114,3 @@
     @apply mt-auto w-full bg-muted/45 shadow-[0_-1px_3px_hsl(var(--foreground)/0.04)] backdrop-blur-md;
   }
 }
-
-body[data-navigating] main {
-  opacity: 0.97;
-  transition: opacity 200ms ease;
-}

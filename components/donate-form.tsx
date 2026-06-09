@@ -7,20 +7,22 @@ import { DONATION_AMOUNTS_USD } from "@/lib/stripe"
 import { useToast } from "@/hooks/use-toast"
 
 interface DonateFormProps {
-  stripeConfigured: boolean
+  donationsReady: boolean
+  showSetupWarning: boolean
 }
 
-export function DonateForm({ stripeConfigured }: DonateFormProps) {
+export function DonateForm({ donationsReady, showSetupWarning }: DonateFormProps) {
   const [selectedAmount, setSelectedAmount] = useState<number>(25)
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
 
   async function handleDonate() {
-    if (!stripeConfigured) {
+    if (!donationsReady) {
       toast({
         title: "Donations unavailable",
-        description:
-          "Stripe is not configured yet. Set STRIPE_SECRET_KEY in your environment to enable checkout.",
+        description: showSetupWarning
+          ? "Add STRIPE_SECRET_KEY, STRIPE_PRICE_DONATION_* price IDs, and NEXT_PUBLIC_APP_URL to server env."
+          : "Donations are temporarily unavailable. Please try again later.",
         variant: "destructive",
       })
       return
@@ -57,16 +59,15 @@ export function DonateForm({ stripeConfigured }: DonateFormProps) {
 
   return (
     <div className="space-y-5">
-      {!stripeConfigured ? (
-        <div
+      {showSetupWarning ? (
+        <p
           role="status"
-          className="rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"
+          className="rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950"
         >
-          Donations are not live in this environment yet. Add{" "}
-          <code className="rounded bg-amber-100 px-1.5 py-0.5 text-xs">STRIPE_SECRET_KEY</code> on the server and{" "}
-          <code className="rounded bg-amber-100 px-1.5 py-0.5 text-xs">NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code> for
-          client-side Stripe features.
-        </div>
+          Checkout not enabled here — set{" "}
+          <code className="rounded bg-amber-100 px-1 py-0.5">STRIPE_SECRET_KEY</code> plus donation price IDs and{" "}
+          <code className="rounded bg-amber-100 px-1 py-0.5">NEXT_PUBLIC_APP_URL</code> in server env.
+        </p>
       ) : null}
 
       <div>

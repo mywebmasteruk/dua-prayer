@@ -22,8 +22,8 @@ export function HomeSearchInput({ className }: HomeSearchInputProps) {
         placeholder="Search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        aria-label="Search duas"
-        className="w-full rounded-full border border-primary bg-muted/50 py-2 pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+        aria-label="Search feed and channels"
+        className="w-full rounded-full border border-primary bg-muted/50 py-2 pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 lg:text-[15px]"
       />
     </label>
   )

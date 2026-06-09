@@ -30,6 +30,10 @@ Open [http://localhost:3000](http://localhost:3000).
 | `PLATFORM_FOUNDER_EMAIL` | Server | Founding super-admin email (full access, env-based) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Client | Optional Cloudflare Turnstile |
 | `TURNSTILE_SECRET_KEY` | Server | Optional Turnstile secret |
+| `STRIPE_SECRET_KEY` | Server only | Stripe secret/restricted key for Checkout (`/donate`) |
+| `STRIPE_PRICE_DONATION_5` … `_100` | Server only | Preset one-time donation price IDs (see `.env.example`) |
+| `STRIPE_DONATION_PRODUCT_ID` | Server only | Optional reference; prices are wired via `STRIPE_PRICE_DONATION_*` |
+| `STRIPE_WEBHOOK_SECRET` | Server only | Optional webhook signing secret |
 
 > **Security:** If API keys were shared in chat or committed, rotate them in the [Supabase dashboard](https://supabase.com/dashboard) immediately. Never commit `.env.local`.
 
@@ -114,8 +118,12 @@ If sign-ups stay disabled, magic link only works for emails that already exist i
 
 1. Import the repo, set root directory to `apps/dua-prayer`
 2. Add all env vars from `.env.example`
-3. Set `NEXT_PUBLIC_APP_URL` to your production URL
-4. Deploy
+3. Set `NEXT_PUBLIC_APP_URL` to your production URL (e.g. `https://dua-prayer.vercel.app`)
+4. For live donations on `/donate`, also set in Vercel **Environment Variables** (Production):
+   - `STRIPE_SECRET_KEY` — from [Stripe Dashboard → API keys](https://dashboard.stripe.com/apikeys) (use live `sk_live_…` or restricted `rk_live_…`)
+   - `STRIPE_PRICE_DONATION_5`, `_10`, `_25`, `_50`, `_100` — live price IDs (see `.env.example`)
+   - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is **not** required for hosted Checkout redirect flow
+5. Deploy
 
 ## E2E tests
 

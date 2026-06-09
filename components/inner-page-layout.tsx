@@ -7,12 +7,13 @@ import { HomeSidebarNav } from "./home-sidebar-nav"
 import { HomeMobileBottomNav } from "./home-mobile-bottom-nav"
 import { PageLogoLink } from "./page-logo-link"
 import { Footer } from "./footer"
+import { NavigationContentLoader } from "./navigation-content-loader"
 
 interface InnerPageLayoutProps {
   children: ReactNode
   activePath: string
   showFooter?: boolean
-  /** Narrow centered column; defaults to max-w-3xl */
+  /** Optional max-width constraint inside the center+right content area */
   contentClassName?: string
 }
 
@@ -20,7 +21,7 @@ export async function InnerPageLayout({
   children,
   activePath,
   showFooter = true,
-  contentClassName = "max-w-3xl",
+  contentClassName,
 }: InnerPageLayoutProps) {
   const supabase = await createServerSupabaseClient()
   const {
@@ -33,7 +34,7 @@ export async function InnerPageLayout({
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/40 text-foreground">
-      <div className="mx-auto grid w-full max-w-[1280px] flex-1 lg:grid-cols-[minmax(0,240px)_minmax(0,1fr)] lg:justify-center">
+      <div className="mx-auto grid w-full max-w-[1265px] flex-1 lg:grid-cols-[minmax(0,275px)_minmax(0,600px)_minmax(0,350px)] lg:justify-center">
         <aside
           aria-label="Site navigation"
           className="hidden lg:sticky lg:top-0 lg:col-start-1 lg:block lg:self-start lg:px-4 lg:py-3"
@@ -46,12 +47,20 @@ export async function InnerPageLayout({
           />
         </aside>
 
-        <div className="flex min-w-0 flex-col lg:col-start-2">
-          <main className={cn("mx-auto w-full flex-1 px-4 py-6 pb-24 lg:px-6 lg:py-10 lg:pb-10", contentClassName)}>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white pb-20 lg:col-span-2 lg:col-start-2 lg:border-l lg:border-border/70 lg:pb-0">
+          <main
+            className={cn(
+              "w-full flex-1 px-4 py-6 lg:px-6 lg:py-10",
+              contentClassName,
+              contentClassName?.includes("max-w") && "mx-auto",
+            )}
+          >
             <PageLogoLink className="mb-6 lg:hidden" />
-            {children}
+            <NavigationContentLoader>{children}</NavigationContentLoader>
           </main>
-          {showFooter ? <Footer footerTagline={siteCopy.footerTagline} /> : null}
+          {showFooter ? (
+            <Footer footerTagline={siteCopy.footerTagline} layout="column" />
+          ) : null}
         </div>
       </div>
 

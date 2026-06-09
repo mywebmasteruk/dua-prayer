@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server"
-import { DONATION_AMOUNTS_USD, getStripe, isValidDonationAmount } from "@/lib/stripe"
+import {
+  DONATION_AMOUNTS_USD,
+  getDonationPriceId,
+  getStripe,
+  isDonationsReady,
+  isValidDonationAmount,
+} from "@/lib/stripe"
 
 export async function POST(request: Request) {
   const stripe = getStripe()
-  if (!stripe) {
+  if (!stripe || !isDonationsReady()) {
     return NextResponse.json(
       {
-        error:
-          "Donations are temporarily unavailable. Add STRIPE_SECRET_KEY to your server environment to enable Stripe Checkout.",
+        error: "Donations are temporarily unavailable. Please try again later.",
       },
       { status: 503 },
     )
@@ -28,20 +33,21 @@ export async function POST(request: Request) {
     )
   }
 
+  const priceId = getDonationPriceId(amount)
+  if (!priceId) {
+    return NextResponse.json(
+      { error: `No Stripe price configured for $${amount}. Set STRIPE_PRICE_DONATION_${amount} in your environment.` },
+      { status: 503 },
+    )
+  }
+
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? new URL(request.url).origin
 
   try {
     const session = await stripe.checkout.sessions.create({
       line_items: [
         {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: "DuaPrayer Donation",
-              description: "Voluntary support for the DuaPrayer community prayer platform",
-            },
-            unit_amount: amount * 100,
-          },
+          price: priceId,
           quantity: 1,
         },
       ],
@@ -50,6 +56,8 @@ export async function POST(request: Request) {
       cancel_url: `${baseUrl}/donate?canceled=1`,
       metadata: {
         donation_amount_usd: String(amount),
+        product_name: "DuaPrayer Donation",
+        source: "duaprayer_donate_page",
       },
     })
 

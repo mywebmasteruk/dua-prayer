@@ -19,7 +19,7 @@ const LANG_OPTIONS: Array<{ id: LangPill; label: string }> = [
   { id: "ar", label: "AR" },
 ]
 
-function FilterPill({
+export function FilterPill({
   label,
   isActive,
   onSelect,

@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { getSiteCopy } from "@/lib/site-copy-server"
 import { BrandLogo } from "./brand-logo"
 import { Footer } from "./footer"
+import { NavigationContentLoader } from "./navigation-content-loader"
 
 interface AuthLayoutProps {
   children: ReactNode
@@ -23,7 +24,9 @@ export async function AuthLayout({ children }: AuthLayoutProps) {
       </header>
 
       <main className="site-container flex flex-1 flex-col items-center px-4 pb-10">
-        <div className="flex w-full max-w-md flex-1 flex-col justify-center py-6">{children}</div>
+        <NavigationContentLoader className="flex w-full max-w-md flex-1 flex-col justify-center py-6">
+          {children}
+        </NavigationContentLoader>
       </main>
 
       <Footer footerTagline={siteCopy.footerTagline} />

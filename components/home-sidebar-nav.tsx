@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { BookOpen, HandCoins, HandHeart, Home, Info, Shield, ShieldAlert, User } from "lucide-react"
+import { BookOpen, HandCoins, HandHeart, Home, Info, LayoutGrid, Shield, ShieldAlert, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signInHref } from "@/lib/auth-modal"
 import { BrandLogo } from "./brand-logo"
@@ -33,16 +33,16 @@ function NavItem({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex w-full max-w-full items-center gap-3 rounded-full px-3 py-3 text-[15px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group flex w-full max-w-full items-center gap-3 rounded-full px-3 py-2.5 text-[14px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:px-4 lg:py-3",
         variant === "cta"
-          ? "justify-center -translate-x-1 gap-2 bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
+          ? "justify-center -translate-x-1 gap-2 bg-primary text-[14px] font-bold text-primary-foreground hover:bg-primary/90 lg:text-[15px]"
           : cn(
-              "hover:bg-muted/60",
-              active ? "font-semibold text-foreground" : "font-medium text-foreground/85",
+              "hover:bg-muted/60 lg:text-[18px]",
+              active ? "font-bold text-foreground" : "font-normal text-foreground/85",
             ),
       )}
     >
-      <Icon className="h-[26px] w-[26px] shrink-0" aria-hidden="true" />
+      <Icon className="h-[24px] w-[24px] shrink-0" aria-hidden="true" />
       <span>{label}</span>
     </Link>
   )
@@ -76,6 +76,12 @@ export function HomeSidebarNav({
       <nav aria-label="Primary" className={cn("space-y-1", showLogo && "mt-4")}>
         <NavItem href="/" label="Home" icon={Home} active={isActivePath(activePath, "/")} />
         <NavItem
+          href="/channels"
+          label="Channels"
+          icon={LayoutGrid}
+          active={isActivePath(activePath, "/channels")}
+        />
+        <NavItem
           href="/resources"
           label="Resources"
           icon={BookOpen}
@@ -99,11 +105,7 @@ export function HomeSidebarNav({
         {isAdmin ? (
           <NavItem href="/admin" label="Admin" icon={ShieldAlert} active={isActivePath(activePath, "/admin")} />
         ) : null}
-        {user ? (
-          <div className="px-3 pt-1">
-            <AuthButton user={user} />
-          </div>
-        ) : null}
+        {user ? <AuthButton user={user} variant="cta" /> : null}
       </nav>
     </div>
   )

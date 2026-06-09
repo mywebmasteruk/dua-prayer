@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useNavigation } from "@/components/navigation-provider"
+import { shouldStartNavigation } from "@/lib/navigation"
 
 type NavigationRouter = ReturnType<typeof useRouter>
 
@@ -12,7 +13,7 @@ export function useNavigationRouter(): NavigationRouter {
 
   const push = useCallback<NavigationRouter["push"]>(
     (href, options) => {
-      startNavigation()
+      if (shouldStartNavigation(href)) startNavigation()
       return router.push(href, options)
     },
     [router, startNavigation],
@@ -20,7 +21,7 @@ export function useNavigationRouter(): NavigationRouter {
 
   const replace = useCallback<NavigationRouter["replace"]>(
     (href, options) => {
-      startNavigation()
+      if (shouldStartNavigation(href)) startNavigation()
       return router.replace(href, options)
     },
     [router, startNavigation],
