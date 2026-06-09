@@ -83,6 +83,21 @@ log "Vercel project: $VERCEL_PROJECT_ID (org $VERCEL_ORG_ID)"
 step "npm ci --legacy-peer-deps"
 npm ci --legacy-peer-deps
 
+
+step "vercel pull --environment=production"
+npx vercel pull --yes --environment=production
+
+PROD_ENV=".vercel/.env.production.local"
+if [[ -f "$PROD_ENV" ]]; then
+  step "Linking .env.local from Vercel production env"
+  ln -sf "$PROD_ENV" .env.local
+elif [[ -f "$ROOT/.env.local" ]]; then
+  step "Copying .env.local from project root"
+  cp "$ROOT/.env.local" .env.local
+else
+  die "No $PROD_ENV after vercel pull and no $ROOT/.env.local"
+fi
+
 step "vercel build --prod"
 npx vercel build --prod --yes
 
