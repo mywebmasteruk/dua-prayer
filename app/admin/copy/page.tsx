@@ -2,7 +2,6 @@ import Link from "next/link"
 import { CreditCard, Type } from "lucide-react"
 import { redirect } from "next/navigation"
 import { InnerPageLayout } from "@/components/inner-page-layout"
-import { AdminNav } from "@/components/admin/admin-nav"
 import { SiteCopySettings } from "@/components/admin/site-copy-settings"
 import { getSiteCopyForAdmin } from "@/app/actions/site-copy"
 import { getAdminContext, hasPermission } from "@/lib/auth"
@@ -17,7 +16,7 @@ export default async function AdminCopyPage() {
   const copy = await getSiteCopyForAdmin()
 
   return (
-    <InnerPageLayout activePath="/admin" contentClassName="max-w-[691px]">
+    <InnerPageLayout activePath="/admin/copy" contentClassName="max-w-[691px]">
       <div className="mb-2 flex items-center gap-2">
         <Type className="h-6 w-6 text-primary" aria-hidden="true" />
         <h1 className="text-2xl font-semibold">Site copy</h1>
@@ -25,8 +24,6 @@ export default async function AdminCopyPage() {
       <p className="mb-6 text-sm text-muted-foreground">
         Edit public-facing text on the sidebar, footer, and About page.
       </p>
-
-      <AdminNav permissions={ctx.permissions} isFoundingAdmin={ctx.isFoundingAdmin} active="copy" />
 
       <section className="mb-6 rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">

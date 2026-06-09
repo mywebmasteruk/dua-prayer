@@ -2,7 +2,6 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { CreditCard, Settings2, Shield } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
-import { AdminNav } from "@/components/admin/admin-nav"
 import { VolunteerFormSettings } from "@/components/admin/volunteer-form-settings"
 import { getVolunteerFilloutSettingForAdmin } from "@/app/actions/settings"
 import { getAdminContext, hasPermission } from "@/lib/auth"
@@ -24,14 +23,12 @@ export default async function AdminSettingsPage() {
   const volunteerFilloutValue = canVolunteer ? await getVolunteerFilloutSettingForAdmin() : ""
 
   return (
-    <InnerPageLayout activePath="/admin" contentClassName="max-w-[691px]">
+    <InnerPageLayout activePath="/admin/settings" contentClassName="max-w-[691px]">
       <div className="mb-2 flex items-center gap-2">
         <Settings2 className="h-6 w-6 text-primary" aria-hidden="true" />
         <h1 className="text-2xl font-semibold">Settings</h1>
       </div>
       <p className="mb-6 text-sm text-muted-foreground">Configure site-wide options for public pages.</p>
-
-      <AdminNav permissions={ctx.permissions} isFoundingAdmin={ctx.isFoundingAdmin} active="settings" />
 
       {canManageStripe && (
         <section className="mb-6 rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
@@ -98,6 +95,13 @@ export default async function AdminSettingsPage() {
             Connect a Fillout form for the &quot;Apply to Volunteer&quot; button on{" "}
             <Link href="/volunteer" className="text-primary underline-offset-2 hover:underline">
               /volunteer
+            </Link>
+            . Point Fillout&apos;s webhook to{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">/api/webhooks/volunteer</code> (see{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">docs/volunteer-webhook.md</code>). Review
+            submissions in{" "}
+            <Link href="/admin/volunteers" className="text-primary underline-offset-2 hover:underline">
+              Admin → Volunteers
             </Link>
             .
           </p>

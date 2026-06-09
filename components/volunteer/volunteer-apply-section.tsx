@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { HandHeart, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,6 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { toast } from "@/components/ui/use-toast"
+import { createFilloutEmbedSession, FILLOUT_EMBED_ORIGIN } from "@/lib/fillout"
 
 const VOLUNTEER_EMAIL = "volunteers@duaprayer.app"
 
@@ -20,6 +22,42 @@ type VolunteerApplySectionProps = {
 export function VolunteerApplySection({ filloutSrc }: VolunteerApplySectionProps) {
   const [open, setOpen] = useState(false)
   const volunteerMailto = `mailto:${VOLUNTEER_EMAIL}?subject=${encodeURIComponent("DuaPrayer volunteer inquiry")}`
+
+  const filloutEmbed = useMemo(
+    () => (filloutSrc ? createFilloutEmbedSession(filloutSrc) : null),
+    [filloutSrc],
+  )
+
+  const handleFilloutSubmit = useCallback(() => {
+    setOpen(false)
+    toast({
+      title: "Application submitted",
+      description: "Thanks — we'll be in touch by email.",
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!open || !filloutEmbed?.listensForSubmit) return
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== FILLOUT_EMBED_ORIGIN) return
+
+      const data = event.data
+      if (
+        data &&
+        typeof data === "object" &&
+        "type" in data &&
+        "embedId" in data &&
+        data.type === "form_submit" &&
+        data.embedId === filloutEmbed.embedId
+      ) {
+        handleFilloutSubmit()
+      }
+    }
+
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  }, [open, filloutEmbed, handleFilloutSubmit])
 
   const handleApplyClick = () => {
     if (filloutSrc) {
@@ -67,7 +105,7 @@ export function VolunteerApplySection({ filloutSrc }: VolunteerApplySectionProps
           {filloutSrc ? (
             <div className="relative min-h-[420px] w-full bg-muted/20">
               <iframe
-                src={filloutSrc}
+                src={filloutEmbed?.iframeSrc ?? filloutSrc}
                 title="DuaPrayer volunteer application"
                 className="h-[min(70vh,640px)] w-full border-0"
                 loading="lazy"

@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { isFoundingAdminUser, resolveAdminLandingPath, userHasAdminAccess } from "@/lib/auth"
+import { accountStatusSignInMessage, getProfileAccessState } from "@/lib/account-status"
 import { mapAuthErrorMessage } from "@/lib/auth-errors"
 import { signInHref } from "@/lib/auth-modal"
 
@@ -42,6 +43,12 @@ export async function signIn(formData: FormData) {
   const supabase = await createServerSupabaseClient()
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) return { error: error.message }
+
+  const access = await getProfileAccessState(data.user.id)
+  if (access && access.accountStatus !== "active") {
+    await supabase.auth.signOut()
+    return { error: accountStatusSignInMessage(access.accountStatus) }
+  }
 
   const destination = await resolvePostAuthRedirect(next, data.user.id, data.user.email)
   revalidatePath("/")

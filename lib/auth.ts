@@ -187,7 +187,7 @@ export async function resolveAdminLandingPath(user: { id: string; email?: string
   if (permissions.includes("manage_channels")) return "/admin/channels"
   if (permissions.includes("manage_users")) return "/admin/users"
   if (permissions.includes("manage_settings")) return "/admin/copy"
-  if (permissions.includes("manage_volunteers")) return "/admin/settings"
+  if (permissions.includes("manage_volunteers")) return "/admin/volunteers"
   if (permissions.includes("manage_admins")) return "/admin/settings/roles"
   return signInHref({ error: "not_admin" })
 }

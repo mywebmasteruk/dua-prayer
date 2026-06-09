@@ -39,6 +39,11 @@ export interface Database {
           is_admin: boolean
           admin_role: "admin" | "moderator" | null
           admin_permissions: Json
+          account_status: "active" | "pending_review" | "rejected"
+          member_role: "volunteer" | "moderator" | "admin" | null
+          volunteer_application: Json | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           created_at: string
           updated_at: string
         }
@@ -48,6 +53,11 @@ export interface Database {
           is_admin?: boolean
           admin_role?: "admin" | "moderator" | null
           admin_permissions?: Json
+          account_status?: "active" | "pending_review" | "rejected"
+          member_role?: "volunteer" | "moderator" | "admin" | null
+          volunteer_application?: Json | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -57,6 +67,11 @@ export interface Database {
           is_admin?: boolean
           admin_role?: "admin" | "moderator" | null
           admin_permissions?: Json
+          account_status?: "active" | "pending_review" | "rejected"
+          member_role?: "volunteer" | "moderator" | "admin" | null
+          volunteer_application?: Json | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           updated_at?: string
         }
         Relationships: []

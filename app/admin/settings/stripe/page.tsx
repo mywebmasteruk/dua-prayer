@@ -2,7 +2,6 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { CreditCard } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
-import { AdminNav } from "@/components/admin/admin-nav"
 import { StripeSettingsForm } from "@/components/admin/stripe-settings"
 import { getStripeSettingsAdminView } from "@/app/actions/stripe-settings"
 import { getAdminContext, hasPermission } from "@/lib/auth"
@@ -20,7 +19,7 @@ export default async function AdminStripeSettingsPage() {
   if (!stripeSettings) redirect(signInHref({ error: "not_admin" }))
 
   return (
-    <InnerPageLayout activePath="/admin" contentClassName="max-w-[691px]">
+    <InnerPageLayout activePath="/admin/settings/stripe" contentClassName="max-w-[691px]">
       <div className="mb-2 flex items-center gap-2">
         <CreditCard className="h-6 w-6 text-primary" aria-hidden="true" />
         <h1 className="text-2xl font-semibold">Stripe donations</h1>
@@ -32,8 +31,6 @@ export default async function AdminStripeSettingsPage() {
         </Link>
         .
       </p>
-
-      <AdminNav permissions={ctx.permissions} isFoundingAdmin={ctx.isFoundingAdmin} active="settings" />
 
       <section className="rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
         <h2 className="text-lg font-semibold tracking-tight">API keys &amp; product</h2>
