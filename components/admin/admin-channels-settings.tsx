@@ -21,7 +21,6 @@ import {
 import { AdminBulkActionsBar } from "@/components/admin/admin-bulk-actions-bar"
 import { AdminEmptyState } from "@/components/admin/admin-empty-state"
 import { AdminRowActionsMenu } from "@/components/admin/admin-row-actions-menu"
-import { AdminSection } from "@/components/admin/admin-section"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
 import { AdminTableShell } from "@/components/admin/admin-table-shell"
 import { useAdminSelection } from "@/components/admin/use-admin-selection"
@@ -53,11 +52,22 @@ function truncateText(text: string, max = 60) {
 
 export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettingsProps) {
   const [channels, setChannels] = useState(initialChannels)
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [newName, setNewName] = useState("")
   const [newDescription, setNewDescription] = useState("")
   const [savingId, setSavingId] = useState<number | "new" | "reorder" | "bulk" | null>(null)
   const [editingChannel, setEditingChannel] = useState<AdminChannelRecord | null>(null)
   const [editDraft, setEditDraft] = useState<DraftChannel | null>(null)
+
+  const resetAddForm = () => {
+    setNewName("")
+    setNewDescription("")
+  }
+
+  const closeAddDialog = () => {
+    setAddDialogOpen(false)
+    resetAddForm()
+  }
 
   const orderedChannels = useMemo(
     () => [...channels].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
@@ -85,8 +95,7 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
     }
 
     toast({ title: "Channel created" })
-    setNewName("")
-    setNewDescription("")
+    closeAddDialog()
     window.location.reload()
   }
 
@@ -282,59 +291,28 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
 
   return (
     <div className="space-y-6">
-      <AdminSection
-        title="Add channel"
-        description="Channels group duas on the home feed and channel browser."
-      >
-        <form onSubmit={handleCreate} className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5 sm:col-span-1">
-            <Label htmlFor="new-channel-name">Name</Label>
-            <Input
-              id="new-channel-name"
-              value={newName}
-              onChange={(event) => setNewName(event.target.value)}
-              placeholder="e.g. Ramadan"
-              required
-            />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="new-channel-description">Description</Label>
-            <Textarea
-              id="new-channel-description"
-              value={newDescription}
-              onChange={(event) => setNewDescription(event.target.value)}
-              rows={2}
-              required
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Button type="submit" size="sm" disabled={savingId === "new"}>
-              {savingId === "new" ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Creating…
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  Add channel
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
-      </AdminSection>
-
       <section>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">All channels</h2>
-          <span className="text-xs font-medium text-muted-foreground">{orderedChannels.length} total</span>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">All channels</h2>
+            <span className="text-xs font-medium text-muted-foreground">{orderedChannels.length} total</span>
+          </div>
+          <Button type="button" size="sm" onClick={() => setAddDialogOpen(true)} disabled={isBusy}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Add channel
+          </Button>
         </div>
 
         {orderedChannels.length === 0 ? (
           <AdminEmptyState
             title="No channels yet"
-            description="Add your first channel above to organize duas on the home feed."
+            description="Create a channel to organize duas on the home feed and channel browser."
+            action={
+              <Button type="button" size="sm" onClick={() => setAddDialogOpen(true)}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Add channel
+              </Button>
+            }
           />
         ) : (
           <>
@@ -434,6 +412,58 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
           </>
         )}
       </section>
+
+      <Dialog
+        open={addDialogOpen}
+        onOpenChange={(open) => {
+          if (open) setAddDialogOpen(true)
+          else closeAddDialog()
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add channel</DialogTitle>
+          </DialogHeader>
+          <form id="add-channel-form" onSubmit={handleCreate} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-channel-name">Name</Label>
+              <Input
+                id="new-channel-name"
+                value={newName}
+                onChange={(event) => setNewName(event.target.value)}
+                placeholder="e.g. Ramadan"
+                required
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-channel-description">Description</Label>
+              <Textarea
+                id="new-channel-description"
+                value={newDescription}
+                onChange={(event) => setNewDescription(event.target.value)}
+                rows={3}
+                required
+              />
+            </div>
+          </form>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeAddDialog} disabled={savingId === "new"}>
+              Cancel
+            </Button>
+            <Button type="submit" form="add-channel-form" disabled={savingId === "new"}>
+              {savingId === "new" ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Creating…
+                </>
+              ) : (
+                "Create channel"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={!!editingChannel}
