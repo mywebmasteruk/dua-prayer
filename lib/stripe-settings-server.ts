@@ -1,7 +1,12 @@
 import { unstable_cache } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { isMissingTableError } from "@/lib/db-errors"
-import { SITE_SETTING_KEYS, STRIPE_SITE_SETTING_KEYS } from "@/lib/settings-keys"
+import {
+  isStripeMode,
+  SITE_SETTING_KEYS,
+  STRIPE_SITE_SETTING_KEYS,
+  type StripeMode,
+} from "@/lib/settings-keys"
 
 export type StripeSettings = {
   secretKey: string | null
@@ -10,7 +15,7 @@ export type StripeSettings = {
   donationProductId: string | null
 }
 
-export type StripeSettingsAdminView = {
+export type StripeCredentialAdminView = {
   hasSecretKey: boolean
   secretKeyLast4: string | null
   secretKeySource: "db" | "env" | null
@@ -21,7 +26,36 @@ export type StripeSettingsAdminView = {
   webhookSecretSource: "db" | "env" | null
   donationProductId: string
   donationProductIdSource: "db" | "env" | null
+  ready: boolean
+}
+
+export type StripeSettingsAdminView = {
+  mode: StripeMode
+  live: StripeCredentialAdminView
+  test: StripeCredentialAdminView
   donationsReady: boolean
+  activeModeReady: boolean
+}
+
+type StripeKeySet = {
+  secretKey: string
+  publishableKey: string
+  webhookSecret: string
+  donationProductId: string
+}
+
+const LIVE_DB_KEYS: StripeKeySet = {
+  secretKey: SITE_SETTING_KEYS.stripeSecretKey,
+  publishableKey: SITE_SETTING_KEYS.stripePublishableKey,
+  webhookSecret: SITE_SETTING_KEYS.stripeWebhookSecret,
+  donationProductId: SITE_SETTING_KEYS.stripeDonationProductId,
+}
+
+const TEST_DB_KEYS: StripeKeySet = {
+  secretKey: SITE_SETTING_KEYS.stripeTestSecretKey,
+  publishableKey: SITE_SETTING_KEYS.stripeTestPublishableKey,
+  webhookSecret: SITE_SETTING_KEYS.stripeTestWebhookSecret,
+  donationProductId: SITE_SETTING_KEYS.stripeTestDonationProductId,
 }
 
 function trimOrNull(value: string | undefined | null): string | null {
@@ -33,7 +67,7 @@ function lastFour(value: string): string {
   return value.length <= 4 ? value : value.slice(-4)
 }
 
-function envStripeSettings(): StripeSettings {
+function envLiveSettings(): StripeSettings {
   return {
     secretKey: trimOrNull(process.env.STRIPE_SECRET_KEY),
     publishableKey: trimOrNull(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY),
@@ -42,7 +76,46 @@ function envStripeSettings(): StripeSettings {
   }
 }
 
-async function fetchStripeSettingsFromDb(): Promise<Partial<StripeSettings>> {
+function envTestSettings(): StripeSettings {
+  return {
+    secretKey: trimOrNull(process.env.STRIPE_TEST_SECRET_KEY),
+    publishableKey: trimOrNull(process.env.NEXT_PUBLIC_STRIPE_TEST_PUBLISHABLE_KEY),
+    webhookSecret: trimOrNull(process.env.STRIPE_TEST_WEBHOOK_SECRET),
+    donationProductId: trimOrNull(process.env.STRIPE_TEST_DONATION_PRODUCT_ID),
+  }
+}
+
+function readCredentialSet(
+  byKey: Map<string, string>,
+  dbKeys: StripeKeySet,
+  envValues: StripeSettings,
+): StripeSettings {
+  return {
+    secretKey: trimOrNull(byKey.get(dbKeys.secretKey)) ?? envValues.secretKey,
+    publishableKey: trimOrNull(byKey.get(dbKeys.publishableKey)) ?? envValues.publishableKey,
+    webhookSecret: trimOrNull(byKey.get(dbKeys.webhookSecret)) ?? envValues.webhookSecret,
+    donationProductId:
+      trimOrNull(byKey.get(dbKeys.donationProductId)) ?? envValues.donationProductId,
+  }
+}
+
+function readDbCredentialSet(
+  byKey: Map<string, string>,
+  dbKeys: StripeKeySet,
+): Partial<StripeSettings> {
+  return {
+    secretKey: trimOrNull(byKey.get(dbKeys.secretKey)),
+    publishableKey: trimOrNull(byKey.get(dbKeys.publishableKey)),
+    webhookSecret: trimOrNull(byKey.get(dbKeys.webhookSecret)),
+    donationProductId: trimOrNull(byKey.get(dbKeys.donationProductId)),
+  }
+}
+
+async function fetchStripeSettingsFromDb(): Promise<{
+  mode: StripeMode
+  live: StripeSettings
+  test: StripeSettings
+}> {
   const supabase = createAdminSupabaseClient()
   const { data, error } = await supabase
     .from("site_settings")
@@ -53,16 +126,21 @@ async function fetchStripeSettingsFromDb(): Promise<Partial<StripeSettings>> {
     if (!isMissingTableError(error)) {
       console.error("Error fetching Stripe settings:", error)
     }
-    return {}
+    return {
+      mode: "live",
+      live: envLiveSettings(),
+      test: envTestSettings(),
+    }
   }
 
   const byKey = new Map((data ?? []).map((row) => [row.key, row.value]))
+  const modeRaw = trimOrNull(byKey.get(SITE_SETTING_KEYS.stripeMode))
+  const mode = isStripeMode(modeRaw) ? modeRaw : "live"
 
   return {
-    secretKey: trimOrNull(byKey.get(SITE_SETTING_KEYS.stripeSecretKey)),
-    publishableKey: trimOrNull(byKey.get(SITE_SETTING_KEYS.stripePublishableKey)),
-    webhookSecret: trimOrNull(byKey.get(SITE_SETTING_KEYS.stripeWebhookSecret)),
-    donationProductId: trimOrNull(byKey.get(SITE_SETTING_KEYS.stripeDonationProductId)),
+    mode,
+    live: readCredentialSet(byKey, LIVE_DB_KEYS, envLiveSettings()),
+    test: readCredentialSet(byKey, TEST_DB_KEYS, envTestSettings()),
   }
 }
 
@@ -78,40 +156,73 @@ function pickSource(dbValue: string | null | undefined, envValue: string | null)
   return null
 }
 
-export async function getStripeSettings(): Promise<StripeSettings> {
-  const fromDb = await getStripeSettingsFromDbCached()
-  const fromEnv = envStripeSettings()
-
-  return {
-    secretKey: fromDb.secretKey ?? fromEnv.secretKey,
-    publishableKey: fromDb.publishableKey ?? fromEnv.publishableKey,
-    webhookSecret: fromDb.webhookSecret ?? fromEnv.webhookSecret,
-    donationProductId: fromDb.donationProductId ?? fromEnv.donationProductId,
-  }
-}
-
-export async function getStripeSettingsForAdmin(): Promise<StripeSettingsAdminView> {
-  const fromDb = await fetchStripeSettingsFromDb()
-  const fromEnv = envStripeSettings()
-  const merged = await getStripeSettings()
-
-  const secretKeySource = pickSource(fromDb.secretKey, fromEnv.secretKey)
-  const publishableKeySource = pickSource(fromDb.publishableKey, fromEnv.publishableKey)
-  const webhookSecretSource = pickSource(fromDb.webhookSecret, fromEnv.webhookSecret)
-  const donationProductIdSource = pickSource(fromDb.donationProductId, fromEnv.donationProductId)
-
+function buildCredentialAdminView(
+  merged: StripeSettings,
+  fromDb: Partial<StripeSettings>,
+  fromEnv: StripeSettings,
+): StripeCredentialAdminView {
   return {
     hasSecretKey: Boolean(merged.secretKey),
     secretKeyLast4: merged.secretKey ? lastFour(merged.secretKey) : null,
-    secretKeySource,
+    secretKeySource: pickSource(fromDb.secretKey, fromEnv.secretKey),
     publishableKey: fromDb.publishableKey ?? fromEnv.publishableKey ?? "",
-    publishableKeySource,
+    publishableKeySource: pickSource(fromDb.publishableKey, fromEnv.publishableKey),
     hasWebhookSecret: Boolean(merged.webhookSecret),
     webhookSecretLast4: merged.webhookSecret ? lastFour(merged.webhookSecret) : null,
-    webhookSecretSource,
+    webhookSecretSource: pickSource(fromDb.webhookSecret, fromEnv.webhookSecret),
     donationProductId: fromDb.donationProductId ?? fromEnv.donationProductId ?? "",
-    donationProductIdSource,
-    donationsReady: Boolean(merged.secretKey),
+    donationProductIdSource: pickSource(fromDb.donationProductId, fromEnv.donationProductId),
+    ready: Boolean(merged.secretKey),
+  }
+}
+
+export async function getStripeMode(): Promise<StripeMode> {
+  const settings = await getStripeSettingsFromDbCached()
+  return settings.mode
+}
+
+export async function getStripeSettings(): Promise<StripeSettings & { mode: StripeMode }> {
+  const { mode, live, test } = await getStripeSettingsFromDbCached()
+  const active = mode === "test" ? test : live
+  return { ...active, mode }
+}
+
+export async function getStripeSettingsForAdmin(): Promise<StripeSettingsAdminView> {
+  const supabase = createAdminSupabaseClient()
+  const { data, error } = await supabase
+    .from("site_settings")
+    .select("key, value")
+    .in("key", [...STRIPE_SITE_SETTING_KEYS])
+
+  const byKey = new Map<string, string>()
+  if (!error) {
+    for (const row of data ?? []) {
+      byKey.set(row.key, row.value)
+    }
+  } else if (!isMissingTableError(error)) {
+    console.error("Error fetching Stripe settings for admin:", error)
+  }
+
+  const modeRaw = trimOrNull(byKey.get(SITE_SETTING_KEYS.stripeMode))
+  const mode = isStripeMode(modeRaw) ? modeRaw : "live"
+
+  const liveEnv = envLiveSettings()
+  const testEnv = envTestSettings()
+  const liveDb = readDbCredentialSet(byKey, LIVE_DB_KEYS)
+  const testDb = readDbCredentialSet(byKey, TEST_DB_KEYS)
+  const liveMerged = readCredentialSet(byKey, LIVE_DB_KEYS, liveEnv)
+  const testMerged = readCredentialSet(byKey, TEST_DB_KEYS, testEnv)
+
+  const live = buildCredentialAdminView(liveMerged, liveDb, liveEnv)
+  const test = buildCredentialAdminView(testMerged, testDb, testEnv)
+  const activeModeReady = mode === "test" ? test.ready : live.ready
+
+  return {
+    mode,
+    live,
+    test,
+    donationsReady: activeModeReady,
+    activeModeReady,
   }
 }
 

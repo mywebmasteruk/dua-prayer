@@ -1,11 +1,17 @@
 import Stripe from "stripe"
 import { getStripeSettings } from "@/lib/stripe-settings-server"
+import type { StripeMode } from "@/lib/settings-keys"
 
 let stripeClientCache: { key: string; client: Stripe } | null = null
 
 export async function resolveStripeSecretKey(): Promise<string | null> {
   const settings = await getStripeSettings()
   return settings.secretKey
+}
+
+export async function resolveStripeMode(): Promise<StripeMode> {
+  const settings = await getStripeSettings()
+  return settings.mode
 }
 
 export async function isStripeConfigured(): Promise<boolean> {
@@ -104,23 +110,25 @@ export function isDonationType(value: unknown): value is DonationType {
 
 export async function getDonationsStatus(): Promise<{
   ready: boolean
+  mode: StripeMode
   reason?: DonationsUnavailableReason
 }> {
-  const stripeConfigured = await isStripeConfigured()
+  const settings = await getStripeSettings()
+  const stripeConfigured = Boolean(settings.secretKey)
 
   if (stripeConfigured && hasAppUrlConfigured()) {
-    return { ready: true }
+    return { ready: true, mode: settings.mode }
   }
 
   if (!stripeConfigured) {
-    return { ready: false, reason: "stripe_key" }
+    return { ready: false, mode: settings.mode, reason: "stripe_key" }
   }
 
   if (!hasAppUrlConfigured()) {
-    return { ready: false, reason: "app_url" }
+    return { ready: false, mode: settings.mode, reason: "app_url" }
   }
 
-  return { ready: false }
+  return { ready: false, mode: settings.mode }
 }
 
 /** True when server can create Stripe Checkout sessions with dynamic amounts. */
