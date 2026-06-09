@@ -17,6 +17,7 @@ import {
   ADMIN_ROLE_LABELS,
   PERMISSION_LABELS,
   ROLE_PERMISSIONS,
+  SUPER_ADMIN_ROLE_LABEL,
   type AdminPermission,
   type AdminRoleType,
 } from "@/lib/admin-permissions"
@@ -90,7 +91,7 @@ export function RolesAccessSettings({ currentUser, admins, canManageAdmins }: Ro
               <dt className="text-muted-foreground">Role</dt>
               <dd className="font-medium">
                 {currentUser.isFoundingAdmin
-                  ? "Founding admin (super admin)"
+                  ? SUPER_ADMIN_ROLE_LABEL
                   : currentUser.role
                     ? ADMIN_ROLE_LABELS[currentUser.role]
                     : "Admin"}
@@ -124,9 +125,9 @@ export function RolesAccessSettings({ currentUser, admins, canManageAdmins }: Ro
             </li>
           ))}
           <li>
-            <span className="font-medium text-foreground">Founding admin</span>
+            <span className="font-medium text-foreground">{SUPER_ADMIN_ROLE_LABEL}</span>
             {" — "}
-            All permissions (env-based, not assignable)
+            All permissions via SUPER_ADMIN_EMAIL (not assignable)
           </li>
         </ul>
       </section>

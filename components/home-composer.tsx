@@ -42,7 +42,7 @@ export function HomeComposer({ categories, turnstileSiteKey }: HomeComposerProps
   return (
     <>
       <div
-        className="group flex w-full cursor-pointer items-center gap-3 border-b feed-divider px-4 py-3 text-left transition hover:bg-muted/25 sm:px-5"
+        className="group flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition hover:bg-muted/25 sm:px-5"
         onClick={() => setIsOpen(true)}
       >
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/10">
@@ -92,7 +92,7 @@ export function HomeComposer({ categories, turnstileSiteKey }: HomeComposerProps
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby={titleId}
-                  className="max-h-[calc(100svh-1rem)] w-full overflow-y-auto rounded-t-[2rem] border border-primary/15 bg-white p-4 shadow-[0_35px_120px_rgba(15,23,42,0.24)] sm:max-h-[calc(100svh-10rem)] sm:rounded-[2rem] sm:p-5"
+                  className="scrollbar-hide max-h-[calc(100svh-1rem)] w-full overflow-y-auto rounded-t-[2rem] border border-primary/15 bg-white p-4 shadow-[0_35px_120px_rgba(15,23,42,0.24)] sm:max-h-[calc(100svh-10rem)] sm:rounded-[2rem] sm:p-5"
                 >
                   <div className="rounded-[1.7rem] border border-primary/15 bg-gradient-to-br from-primary/[0.08] via-white to-muted/50 p-4 sm:p-5">
                     <div className="flex items-start justify-between gap-3">

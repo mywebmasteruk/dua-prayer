@@ -8,8 +8,11 @@ import { requirePermission } from "@/lib/auth"
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
 import { verifyTurnstile } from "@/lib/turnstile"
 import { randomBytes } from "crypto"
+import { isMissingColumnError } from "@/lib/db-errors"
+import type { Category } from "@/lib/types/dua"
 
 const PAGE_SIZE = 10
+const FEED_BATCH_SIZE = 100
 
 async function getVoterHash(): Promise<string> {
   const cookieStore = await cookies()
@@ -50,32 +53,8 @@ export async function getDuas(options: { category?: string; page?: number } = {}
     return { duas: [], total: 0, page, pageSize: PAGE_SIZE }
   }
 
-  const { data: categories } = await supabase.from("categories").select("id, name")
-  const categoryMap = new Map(categories?.map((c) => [c.id, c.name]) ?? [])
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  let prayedIds = new Set<number>()
-  if (user) {
-    const { data: prayers } = await supabase.from("dua_prayers").select("dua_id").eq("user_id", user.id)
-    prayedIds = new Set(prayers?.map((p) => p.dua_id) ?? [])
-  } else {
-    const voterHash = (await cookies()).get("dua_voter")?.value
-    if (voterHash) {
-      const admin = createAdminSupabaseClient()
-      const { data: prayers } = await admin.from("dua_prayers").select("dua_id").eq("voter_hash", voterHash)
-      prayedIds = new Set(prayers?.map((p) => p.dua_id) ?? [])
-    }
-  }
-
   return {
-    duas: (duas ?? []).map((dua) => ({
-      ...dua,
-      category_name: dua.category_id ? categoryMap.get(dua.category_id) : undefined,
-      user_has_prayed: prayedIds.has(dua.id),
-    })),
+    duas: await enrichDuas(duas ?? []),
     total: count ?? 0,
     page,
     pageSize: PAGE_SIZE,
@@ -115,14 +94,154 @@ export async function getAdminDuas(filters: { search?: string; status?: string; 
   }))
 }
 
-export async function getCategories() {
-  const supabase = await createServerSupabaseClient()
-  const { data, error } = await supabase.from("categories").select("*").order("name")
-  if (error) {
+function normalizeCategoryRow(row: {
+  id: number
+  name: string
+  description?: string | null
+  is_active?: boolean | null
+  sort_order?: number | null
+  created_at?: string
+  updated_at?: string
+}): Category {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description ?? "",
+    is_active: row.is_active ?? true,
+    sort_order: row.sort_order ?? 0,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
+
+async function fetchCategoriesFromDb(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  options: { includeInactive?: boolean } = {},
+): Promise<Category[]> {
+  let query = supabase
+    .from("categories")
+    .select("id, name, description, is_active, sort_order, created_at, updated_at")
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true })
+
+  if (!options.includeInactive) {
+    query = query.eq("is_active", true)
+  }
+
+  const { data, error } = await query
+  if (!error) {
+    return (data ?? []).map(normalizeCategoryRow)
+  }
+
+  if (!isMissingColumnError(error)) {
     console.error("Error fetching categories:", error)
     return []
   }
-  return data ?? []
+
+  let legacyQuery = supabase
+    .from("categories")
+    .select("id, name, created_at")
+    .order("name", { ascending: true })
+
+  const { data: legacy, error: legacyError } = await legacyQuery
+  if (legacyError) {
+    console.error("Error fetching categories:", legacyError)
+    return []
+  }
+
+  return (legacy ?? []).map(normalizeCategoryRow)
+}
+
+export async function getCategories(options: { includeInactive?: boolean } = {}) {
+  const supabase = await createServerSupabaseClient()
+  return fetchCategoriesFromDb(supabase, options)
+}
+
+async function enrichDuas(
+  duas: Array<{
+    id: number
+    text: string
+    user_id: string | null
+    category_id: number | null
+    likes: number
+    created_at: string
+    published: boolean
+    flagged: boolean
+  }>,
+) {
+  const supabase = await createServerSupabaseClient()
+  const { data: categories } = await supabase.from("categories").select("id, name")
+  const categoryMap = new Map(categories?.map((c) => [c.id, c.name]) ?? [])
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  let prayedIds = new Set<number>()
+  if (user) {
+    const { data: prayers } = await supabase.from("dua_prayers").select("dua_id").eq("user_id", user.id)
+    prayedIds = new Set(prayers?.map((p) => p.dua_id) ?? [])
+  } else {
+    const voterHash = (await cookies()).get("dua_voter")?.value
+    if (voterHash) {
+      const admin = createAdminSupabaseClient()
+      const { data: prayers } = await admin.from("dua_prayers").select("dua_id").eq("voter_hash", voterHash)
+      prayedIds = new Set(prayers?.map((p) => p.dua_id) ?? [])
+    }
+  }
+
+  return duas.map((dua) => ({
+    ...dua,
+    category_name: dua.category_id ? categoryMap.get(dua.category_id) : undefined,
+    user_has_prayed: prayedIds.has(dua.id),
+  }))
+}
+
+export async function getFeedDuas() {
+  const supabase = await createServerSupabaseClient()
+
+  const { data: duas, error, count } = await supabase
+    .from("duas")
+    .select("id, text, user_id, category_id, likes, created_at, published, flagged", { count: "exact" })
+    .eq("published", true)
+    .order("created_at", { ascending: false })
+    .range(0, FEED_BATCH_SIZE - 1)
+
+  if (error) {
+    console.error("Error fetching feed duas:", error)
+    return { duas: [], total: 0, pageSize: PAGE_SIZE }
+  }
+
+  return {
+    duas: await enrichDuas(duas ?? []),
+    total: count ?? 0,
+    pageSize: PAGE_SIZE,
+  }
+}
+
+export async function getTopCategories(limit = 3) {
+  const supabase = await createServerSupabaseClient()
+  const [{ data: duas, error: duasError }, categories] = await Promise.all([
+    supabase.from("duas").select("category_id").eq("published", true).not("category_id", "is", null),
+    fetchCategoriesFromDb(supabase),
+  ])
+
+  if (duasError) console.error("Error fetching category usage:", duasError)
+
+  const counts = new Map<number, number>()
+  for (const dua of duas ?? []) {
+    if (!dua.category_id) continue
+    counts.set(dua.category_id, (counts.get(dua.category_id) ?? 0) + 1)
+  }
+
+  return categories
+    .map((category) => ({
+      ...category,
+      duaCount: counts.get(category.id) ?? 0,
+    }))
+    .sort((a, b) => b.duaCount - a.duaCount || a.name.localeCompare(b.name))
+    .slice(0, limit)
+    .map(({ duaCount: _duaCount, ...category }) => category)
 }
 
 export async function createDua(formData: FormData) {

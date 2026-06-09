@@ -11,7 +11,10 @@ import {
 } from "@/lib/admin-permissions"
 
 export function getFoundingAdminEmail(): string | null {
-  const email = process.env.PLATFORM_FOUNDER_EMAIL?.trim()
+  const email =
+    process.env.SUPER_ADMIN_EMAIL?.trim() ??
+    process.env.PLATFORM_FOUNDER_EMAIL?.trim() ??
+    process.env.SETUP_ADMIN_EMAIL?.trim()
   return email ? email.toLowerCase() : null
 }
 
@@ -184,9 +187,10 @@ export async function resolveAdminLandingPath(user: { id: string; email?: string
 
   const permissions = resolvePermissions(profile.admin_role ?? "admin", overrides)
   if (permissions.includes("manage_duas")) return "/admin"
-  if (permissions.includes("manage_settings") || permissions.includes("manage_volunteers")) {
-    return "/admin/settings"
-  }
+  if (permissions.includes("manage_channels")) return "/admin/channels"
+  if (permissions.includes("manage_users")) return "/admin/users"
+  if (permissions.includes("manage_settings")) return "/admin/copy"
+  if (permissions.includes("manage_volunteers")) return "/admin/settings"
   if (permissions.includes("manage_admins")) return "/admin/settings/roles"
   return "/auth?error=not_admin"
 }

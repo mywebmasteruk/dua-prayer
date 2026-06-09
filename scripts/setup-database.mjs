@@ -31,7 +31,10 @@ loadEnvLocal()
 
 const DATABASE_URL = process.env.DATABASE_URL
 const FOUNDER_EMAIL =
-  process.env.PLATFORM_FOUNDER_EMAIL ?? process.env.SETUP_ADMIN_EMAIL ?? "webmaster@duaprayer.com"
+  process.env.SUPER_ADMIN_EMAIL ??
+  process.env.PLATFORM_FOUNDER_EMAIL ??
+  process.env.SETUP_ADMIN_EMAIL ??
+  "webmaster@duaprayer.com"
 
 if (!DATABASE_URL) {
   console.error(

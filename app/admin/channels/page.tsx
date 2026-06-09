@@ -1,0 +1,40 @@
+import Link from "next/link"
+import { ArrowLeft, LayoutGrid } from "lucide-react"
+import { redirect } from "next/navigation"
+import { InnerPageLayout } from "@/components/inner-page-layout"
+import { AdminNav } from "@/components/admin/admin-nav"
+import { AdminChannelsSettings } from "@/components/admin/admin-channels-settings"
+import { listAdminChannels } from "@/app/actions/admin-channels"
+import { getAdminContext, hasPermission } from "@/lib/auth"
+
+export default async function AdminChannelsPage() {
+  const ctx = await getAdminContext()
+  if (!ctx) redirect("/auth?next=/admin/channels")
+  if (!hasPermission(ctx, "manage_channels")) redirect("/auth?error=not_admin")
+
+  const result = await listAdminChannels()
+  const channels = "channels" in result ? result.channels : []
+
+  return (
+    <InnerPageLayout activePath="/admin" contentClassName="max-w-[691px]">
+      <Link
+        href="/admin"
+        className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Back to dashboard
+      </Link>
+      <div className="mb-2 flex items-center gap-2">
+        <LayoutGrid className="h-6 w-6 text-primary" aria-hidden="true" />
+        <h1 className="text-2xl font-semibold">Channels</h1>
+      </div>
+      <p className="mb-6 text-sm text-muted-foreground">
+        Create and organize community channels. Active channels appear in the feed, composer, and channel browser.
+      </p>
+
+      <AdminNav permissions={ctx.permissions} isFoundingAdmin={ctx.isFoundingAdmin} active="channels" />
+
+      <AdminChannelsSettings initialChannels={channels} />
+    </InnerPageLayout>
+  )
+}

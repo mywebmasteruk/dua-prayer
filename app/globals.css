@@ -56,6 +56,11 @@
 @layer base {
   * {
     @apply border-border;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  *::-webkit-scrollbar {
+    display: none;
   }
   body {
     @apply bg-background text-foreground antialiased;
@@ -106,12 +111,8 @@
   }
 
   .site-shell-footer {
-    @apply mt-auto w-full border-t feed-divider bg-muted/45 shadow-[0_-1px_3px_hsl(var(--foreground)/0.04)] backdrop-blur-md;
+    @apply mt-auto w-full bg-muted/45 shadow-[0_-1px_3px_hsl(var(--foreground)/0.04)] backdrop-blur-md;
   }
-}
-
-body[data-navigating] {
-  cursor: progress;
 }
 
 body[data-navigating] main {

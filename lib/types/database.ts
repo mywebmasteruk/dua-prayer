@@ -4,9 +4,32 @@ export interface Database {
   public: {
     Tables: {
       categories: {
-        Row: { id: number; name: string; created_at: string }
-        Insert: { id?: number; name: string; created_at?: string }
-        Update: { id?: number; name?: string; created_at?: string }
+        Row: {
+          id: number
+          name: string
+          description: string
+          is_active: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          name: string
+          description?: string
+          is_active?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          name?: string
+          description?: string
+          is_active?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
         Relationships: []
       }
       profiles: {

@@ -3,14 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "NEXT_DIST_DIR=/tmp/dua-prayer-next WATCHPACK_POLLING=1000 CHOKIDAR_USEPOLLING=true next dev -p 3000",
+    "dev": "bash scripts/dev-persistent.sh",
+    "dev:foreground": "NEXT_DIST_DIR=/tmp/dua-prayer-next WATCHPACK_POLLING=2000 CHOKIDAR_USEPOLLING=true next dev -p 3000",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "setup:db": "node scripts/setup-database.mjs",
+    "auth:magic-link": "node scripts/generate-magic-link.mjs",
     "test:e2e": "playwright test",
     "test:e2e:prod": "PLAYWRIGHT_BASE_URL=https://dua-prayer.vercel.app playwright test",
-    "dev:stable": "NEXT_DIST_DIR=/tmp/dua-prayer-next WATCHPACK_POLLING=1000 CHOKIDAR_USEPOLLING=true next dev -p 3000",
+    "dev:stable": "NEXT_DIST_DIR=/tmp/dua-prayer-next WATCHPACK_POLLING=2000 CHOKIDAR_USEPOLLING=true next dev -p 3000",
     "dev:persistent": "bash scripts/dev-persistent.sh"
   },
   "dependencies": {

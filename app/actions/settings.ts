@@ -5,6 +5,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { getAdminContext, hasPermission, requirePermission } from "@/lib/auth"
 import { parseFilloutEmbed } from "@/lib/fillout"
+import { isMissingTableError } from "@/lib/db-errors"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
 
 async function getSettingValue(key: string): Promise<string | null> {
@@ -12,7 +13,9 @@ async function getSettingValue(key: string): Promise<string | null> {
   const { data, error } = await supabase.from("site_settings").select("value").eq("key", key).maybeSingle()
 
   if (error) {
-    console.error(`Error fetching site setting ${key}:`, error)
+    if (!isMissingTableError(error)) {
+      console.error(`Error fetching site setting ${key}:`, error)
+    }
     return null
   }
 

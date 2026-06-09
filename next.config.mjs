@@ -15,9 +15,21 @@ const nextConfig = {
   webpack: (config, { dev }) => {
     if (dev) {
       config.watchOptions = {
-        poll: 1000,
-        aggregateTimeout: 300,
-        ignored: ["**/node_modules/**", "**/.git/**"],
+        // iCloud/OneDrive fire rapid duplicate events; slow polling + debounce avoids recompile death spirals.
+        poll: 2000,
+        aggregateTimeout: 2000,
+        // Do not watch dist output or pid/log files — prevents restart loops when supervisor writes metadata.
+        ignored: [
+          "**/node_modules/**",
+          "**/.git/**",
+          "**/.DS_Store",
+          "**/._*",
+          "**/*.icloud",
+          "**/.dev-server.pid",
+          "**/.dev-server.lock",
+          "**/.next/**",
+          "/tmp/dua-prayer-next/**",
+        ],
       }
     }
     return config

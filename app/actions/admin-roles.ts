@@ -145,7 +145,7 @@ export async function assignAdminRole(input: {
 
   const founderEmail = getFoundingAdminEmail()
   if (founderEmail && email === founderEmail) {
-    return { error: "The founding admin role is fixed by PLATFORM_FOUNDER_EMAIL and cannot be changed here." }
+    return { error: "The super admin role is fixed by SUPER_ADMIN_EMAIL and cannot be changed here." }
   }
 
   const admin = createAdminSupabaseClient()

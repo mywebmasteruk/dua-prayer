@@ -102,6 +102,14 @@ Sign-in options on `/auth`:
 - Forgot password: `/auth/forgot-password` → email → Supabase sends reset link → `/auth/reset-password`
 - Magic link and Google both return through `/auth/callback`, then redirect to `/admin` for admins.
 
+**Magic link sign-up (required for new community accounts):**
+
+1. [Authentication → Providers → Email](https://supabase.com/dashboard/project/itcoxbkhcwlsjpcwawyl/auth/providers) — enable **Email** and turn on **Allow new users to sign up**.
+2. Confirm **Confirm email** is enabled if you want verified addresses before first sign-in.
+3. [Authentication → URL Configuration](https://supabase.com/dashboard/project/itcoxbkhcwlsjpcwawyl/auth/url-configuration) — ensure redirect URLs include your app’s `/auth/callback` (see Google OAuth section above).
+
+If sign-ups stay disabled, magic link only works for emails that already exist in Supabase Auth.
+
 ## Deploy (Vercel)
 
 1. Import the repo, set root directory to `apps/dua-prayer`

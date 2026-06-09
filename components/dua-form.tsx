@@ -105,6 +105,9 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
     setDuaText(value)
   }
 
+  // HomeComposer modal uses z-[100]; portaled SelectContent must sit above it.
+  const selectContentClassName = "z-[110]"
+
   return (
     <form onSubmit={handleSubmit}>
       <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
@@ -146,7 +149,7 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
                 <SelectTrigger className="h-9 w-[160px] rounded-full border-primary/25 bg-muted/40 text-sm">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className={selectContentClassName}>
                   {categories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id.toString()}>
                       {cat.name}
@@ -165,7 +168,7 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
                 >
                   <span className="truncate">{languageTriggerLabel}</span>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className={selectContentClassName}>
                   <SelectItem value="auto">Auto</SelectItem>
                   <SelectItem value="en">English</SelectItem>
                   <SelectItem value="ar">العربية</SelectItem>

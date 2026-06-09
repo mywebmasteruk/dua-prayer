@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { isFoundingAdminUser, resolveAdminLandingPath, userHasAdminAccess } from "@/lib/auth"
+import { mapAuthErrorMessage } from "@/lib/auth-errors"
 
 function getAppUrl() {
   return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
@@ -58,11 +59,11 @@ export async function sendMagicLink(formData: FormData) {
     email,
     options: {
       emailRedirectTo: buildCallbackUrl(next),
-      shouldCreateUser: false,
+      shouldCreateUser: true,
     },
   })
 
-  if (error) return { error: error.message }
+  if (error) return { error: mapAuthErrorMessage(error.message) }
   return { success: true, message: "Check your email for the sign-in link." }
 }
 

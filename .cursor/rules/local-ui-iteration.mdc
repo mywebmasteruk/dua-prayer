@@ -7,34 +7,57 @@ alwaysApply: true
 
 During live UI and app iteration on DuaPrayer, the browser must stay on a working page. HMR must apply edits without downtime. Follow these rules unless the user explicitly overrides them.
 
+See also `AGENTS.md` in the project root.
+
 ## Managed dev server (`.dev-server.pid`)
 
-- A **persistent** dev process may be started via `npm run dev:persistent` or `scripts/dev-persistent.sh`.
-- Before **any** port operation, `kill`, `pkill`, or restart: **read** `.dev-server.pid` in the project root.
-- If that PID is alive (`kill -0 <pid>`), treat the server as **owned and running** — **do not stop or replace it**.
-- Log file (when using persistent script): `/tmp/dua-prayer-dev.log`
+- `.dev-server.pid` holds the **supervisor** bash PID (marker: `dua-prayer-dev-supervisor`), **not** the `next dev` listener PID.
+- Start or ensure dev with **`npm run dev`** or **`npm run dev:persistent`** — both run `scripts/dev-persistent.sh` (idempotent, detached, auto-restart).
+- Before **any** port operation, `kill`, `pkill`, or restart: **read** `.dev-server.pid` and run `kill -0 $(cat .dev-server.pid)`.
+- If that PID is alive, treat the server as **owned and running** — **do not stop or replace it**.
+- Log file: `/tmp/dua-prayer-dev.log`
 
 ## Dev server — ABSOLUTE do-not-disrupt
 
 - **One dev server only**, bound to **port 3000**: `http://localhost:3000/`
-- If `http://localhost:3000/` returns **200**, assume dev is running — **do not start another**.
-- **NEVER** during iteration:
-  - `kill`, `pkill`, `killall`, or `lsof -ti:3000 | xargs kill` (or any variant) on the dev server or port 3000
-  - `kill … && npm run dev`, `rm -rf .next`, or `npm run build` / `next build`
-  - Spawning a second `npm run dev` / `next dev` on **3001** or **3002** (competing listeners break HMR and blank the page)
-- **ONLY** acceptable port cleanup: stop **duplicate/stray** `next dev` listeners on **3001** or **3002** — never touch the single listener on **3000** unless the user explicitly asks.
+- If `http://localhost:3000/` returns **200** (or **3xx**), assume dev is running — **do not start another**.
+- **NEVER** during iteration (these cause `ERR_CONNECTION_REFUSED` and corrupt chunks on iCloud/OneDrive paths):
+  - `kill`, `pkill`, `killall`, or `lsof -ti:3000 | xargs kill` (or **any** variant) on port **3000**
+  - `kill … && npm run dev`, `rm -rf .next`, `rm -rf /tmp/dua-prayer-next`
+  - `npm run build`, `next build`, or running build to “check types”
+  - Foreground `npm run dev:foreground` / `next dev` in a disposable agent terminal
+  - Spawning a second `next dev` on **3001** or **3002** (competing listeners break HMR)
+- **ONLY** acceptable port cleanup: stop **duplicate/stray** `next dev` listeners on **3001** or **3002** — **never** touch the single listener on **3000** unless the user explicitly asks.
+
+### Common agent mistakes (do not do these)
+
+```bash
+# FORBIDDEN — kills the user's browser session
+lsof -ti:3000 | xargs kill -9
+kill $(lsof -ti:3000) && npm run dev
+rm -rf .next && npm run dev
+npm run build   # while dev is running
+```
+
+```bash
+# CORRECT — verify without disrupting
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/
+npx tsc --noEmit
+# edit files in place; HMR applies changes
+```
 
 ## If the server is down
 
-- Default for agents: **tell the user** dev is unreachable; **do not** auto-restart unless the user asks to start/restart dev.
-- When the user **does** ask to start dev (or a task explicitly says start when down): run **once** — `npm run dev:persistent` or `bash scripts/dev-persistent.sh` — not a foreground `npm run dev` in a disposable agent terminal.
+- Default for agents: **tell the user** dev is unreachable; **do not** auto-restart unless the user asks to start/restart dev **or** the task explicitly says to start dev when down.
+- When starting dev: run **once** — `npm run dev:persistent` (or `npm run dev`) — not foreground `next dev`.
 - Do not “verify” UI by restarting the server; use HTTP checks only.
 
 ## Builds and cache
 
-- **NEVER** run `npm run build` or `next build` during live local iteration. Production builds rewrite `.next` and cause CSS/chunk **500**s while dev is serving.
-- For type checks during iteration, use **`npx tsc --noEmit`** only (or the project’s lint script if appropriate).
-- **NEVER** delete or clear `.next` unless static assets return **404/500** for CSS/JS **and** the user approves, or clearing is the only documented fix after HMR failure.
+- **NEVER** run `npm run build` or `next build` during live local iteration. Production builds rewrite dist output and cause CSS/chunk **500**s while dev is serving.
+- Dev dist lives at **`/tmp/dua-prayer-next`** (`NEXT_DIST_DIR`) — not project `.next`. Do not delete it without user approval.
+- For type checks during iteration, use **`npx tsc --noEmit`** only (or `npm run lint`).
+- **NEVER** delete or clear `.next` or `/tmp/dua-prayer-next` unless static assets return **404/500** for CSS/JS **and** the user approves.
 
 ## How to change code
 
@@ -48,10 +71,10 @@ During live UI and app iteration on DuaPrayer, the browser must stay on a workin
 ## Health checks (when needed)
 
 - **Only** verification command: `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/`
-- Optional: `cat .dev-server.pid` and `kill -0 $(cat .dev-server.pid)` to confirm the managed process is alive.
+- Confirm supervisor: `kill -0 $(cat .dev-server.pid)` (expect success when managed dev is up)
 
 ## Starting dev (agents vs local shell)
 
-- **Everyone (agents and local):** use **`npm run dev:persistent`** only. It starts a detached supervisor (`setsid` + `/tmp/dua-prayer-dev.log`) that auto-restarts `next dev` on crash — never a foreground `npm run dev` in a disposable agent terminal.
-- **Never** run `kill … && npm run dev` or `rm -rf .next && npm run dev` to “refresh” during iteration; that causes `ERR_CONNECTION_REFUSED` gaps and corrupts `.next` chunks on iCloud/OneDrive paths.
-- If `/` returns **500** with `MODULE_NOT_FOUND` in `.next/server`, dev cache is corrupt (often after `next build` while dev ran or killing mid-compile): ask the user before stopping port-3000, clearing `.next`, and running `npm run dev:persistent` once — then **never** build during iteration again.
+- **Everyone:** use **`npm run dev`** or **`npm run dev:persistent`** — detached supervisor with crash + port watchdog (see `/tmp/dua-prayer-dev.log`).
+- **Never** run `kill … && npm run dev` or `rm -rf .next && npm run dev` to “refresh” during iteration.
+- If `/` returns **500** with `MODULE_NOT_FOUND` in server logs, dev cache is corrupt (often after `next build` while dev ran or killing mid-compile): **ask the user** before any port-3000 stop, cache clear, and single `npm run dev:persistent` — then **never** build during iteration again.

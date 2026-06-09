@@ -4,7 +4,11 @@ import { BrandLogo } from "./brand-logo"
 const footerLinkClassName =
   "text-muted-foreground transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
 
-export function Footer() {
+export function Footer({
+  footerTagline = "A nonprofit community platform for sharing duas and responding with ameen — free for the Ummah.",
+}: {
+  footerTagline?: string
+}) {
   const year = new Date().getFullYear()
 
   return (
@@ -19,9 +23,7 @@ export function Footer() {
               wordmarkClassName="text-base font-semibold leading-none tracking-tight text-foreground"
               className="h-8 w-8 shrink-0"
             />
-            <p className="max-w-sm text-sm leading-6 text-muted-foreground">
-              A nonprofit community platform for sharing duas and responding with ameen — free for the Ummah.
-            </p>
+            <p className="max-w-sm text-sm leading-6 text-muted-foreground">{footerTagline}</p>
           </div>
 
           <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium">

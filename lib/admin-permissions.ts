@@ -1,5 +1,6 @@
 export const ADMIN_PERMISSIONS = [
   "manage_duas",
+  "manage_channels",
   "manage_users",
   "manage_settings",
   "manage_admins",
@@ -16,8 +17,12 @@ export const ADMIN_ROLE_LABELS: Record<AdminRoleType, string> = {
   moderator: "Moderator",
 }
 
+export const USER_ROLE_LABEL = "User"
+export const SUPER_ADMIN_ROLE_LABEL = "Super Admin"
+
 export const PERMISSION_LABELS: Record<AdminPermission, string> = {
   manage_duas: "Manage duas",
+  manage_channels: "Manage channels",
   manage_users: "Manage users",
   manage_settings: "Site settings",
   manage_admins: "Manage admins & roles",
@@ -27,8 +32,15 @@ export const PERMISSION_LABELS: Record<AdminPermission, string> = {
 
 /** Role presets — `manage_admins` is founder-only and never included here. */
 export const ROLE_PERMISSIONS: Record<AdminRoleType, readonly AdminPermission[]> = {
-  moderator: ["manage_duas", "view_analytics"],
-  admin: ["manage_duas", "manage_users", "manage_settings", "manage_volunteers", "view_analytics"],
+  moderator: ["manage_duas", "manage_channels", "view_analytics"],
+  admin: [
+    "manage_duas",
+    "manage_channels",
+    "manage_users",
+    "manage_settings",
+    "manage_volunteers",
+    "view_analytics",
+  ],
 }
 
 export function isAdminPermission(value: string): value is AdminPermission {

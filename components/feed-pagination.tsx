@@ -9,9 +9,10 @@ interface FeedPaginationProps {
   page: number
   total: number
   pageSize: number
+  onPageChange?: (page: number) => void
 }
 
-export function FeedPagination({ page, total, pageSize }: FeedPaginationProps) {
+export function FeedPagination({ page, total, pageSize, onPageChange }: FeedPaginationProps) {
   const searchParams = useSearchParams()
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
@@ -23,6 +24,36 @@ export function FeedPagination({ page, total, pageSize }: FeedPaginationProps) {
     else params.set("page", String(p))
     const q = params.toString()
     return q ? `/?${q}` : "/"
+  }
+
+  if (onPageChange) {
+    return (
+      <div className="flex items-center justify-between gap-4">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+          className="rounded-full border-border/80 bg-background hover:bg-muted/60"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Previous
+        </Button>
+        <span className="rounded-full bg-background px-3 py-1 text-sm tabular-nums text-muted-foreground">
+          Page {page} of {totalPages}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(page + 1)}
+          className="rounded-full border-border/80 bg-background hover:bg-muted/60"
+        >
+          Next
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    )
   }
 
   return (
