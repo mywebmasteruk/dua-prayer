@@ -10,12 +10,15 @@ import {
 import type { AdminPermission } from "@/lib/admin-permissions"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
+/** Admin sidebar only — public site uses editable `copy.sidebar_tagline` site setting. */
+export const ADMIN_SIDEBAR_TAGLINE =
+  "Manage duas, channels, users, volunteers, and site settings."
+
 interface AdminSidebarNavProps {
   user: SupabaseUser
   permissions: AdminPermission[]
   isFoundingAdmin: boolean
   activePath: string
-  sidebarTagline: string
   className?: string
 }
 
@@ -38,14 +41,13 @@ export function AdminSidebarNav({
   permissions,
   isFoundingAdmin,
   activePath,
-  sidebarTagline,
   className,
 }: AdminSidebarNavProps) {
   const links = getAdminNavLinks(permissions, isFoundingAdmin)
 
   return (
     <div className={cn("flex flex-col", className)}>
-      <SidebarBranding tagline={sidebarTagline} />
+      <SidebarBranding tagline={ADMIN_SIDEBAR_TAGLINE} />
 
       <nav aria-label="Admin sections" className="mt-4 space-y-1">
         {links.map((link) => (
