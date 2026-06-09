@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,8 +30,10 @@ import {
 } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "@/components/ui/use-toast"
+import { AdminBulkActionsBar } from "@/components/admin/admin-bulk-actions-bar"
 import { AdminEmptyState } from "@/components/admin/admin-empty-state"
 import { AdminRowActionsMenu } from "@/components/admin/admin-row-actions-menu"
+import { useAdminSelection } from "@/components/admin/use-admin-selection"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
 import { AdminTableShell } from "@/components/admin/admin-table-shell"
 import { AdminToolbar } from "@/components/admin/admin-toolbar"
@@ -78,6 +81,9 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
   const [applicants, setApplicants] = useState(initialApplicants)
   const [filter, setFilter] = useState<AccountStatus | "all">(initialFilter)
   const [reviewing, setReviewing] = useState<VolunteerApplicantRecord | null>(null)
+  const [bulkActivateOpen, setBulkActivateOpen] = useState(false)
+  const [bulkRejectOpen, setBulkRejectOpen] = useState(false)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState<VolunteerApplicantRecord | null>(null)
   const [selectedRole, setSelectedRole] = useState<MemberRole>("volunteer")
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -86,6 +92,27 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
     if (filter === "all") return applicants
     return applicants.filter((item) => item.accountStatus === filter)
   }, [applicants, filter])
+
+  const applicantIds = useMemo(() => filtered.map((item) => item.id), [filtered])
+  const { selected, toggle, toggleAll, clear, allSelected, someSelected, selectedCount } =
+    useAdminSelection(applicantIds)
+
+  const selectedApplicants = useMemo(
+    () => filtered.filter((item) => selected.has(item.id)),
+    [filtered, selected],
+  )
+
+  const pendingSelected = useMemo(
+    () => selectedApplicants.filter((item) => item.accountStatus === "pending_review"),
+    [selectedApplicants],
+  )
+
+  const deletableSelected = useMemo(
+    () => selectedApplicants.filter((item) => item.accountStatus !== "active"),
+    [selectedApplicants],
+  )
+
+  const isBusy = busyId !== null
 
   const refresh = async (nextFilter: AccountStatus | "all") => {
     const result = await listVolunteerApplicants(
@@ -172,6 +199,128 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
     })
   }
 
+  const runBulk = async (
+    label: string,
+    items: VolunteerApplicantRecord[],
+    fn: (applicant: VolunteerApplicantRecord) => Promise<{ error?: string } | { success?: boolean }>,
+  ) => {
+    if (items.length === 0) return
+    setBusyId("bulk")
+    let failures = 0
+
+    for (const applicant of items) {
+      const result = await fn(applicant)
+      if ("error" in result && result.error) failures += 1
+    }
+
+    setBusyId(null)
+    clear()
+
+    if (failures > 0) {
+      toast({
+        title: `${label} completed with errors`,
+        description: `${failures} of ${items.length} applications could not be updated.`,
+        variant: "destructive",
+      })
+    } else {
+      toast({ title: `${label} completed`, description: `${items.length} application(s) updated.` })
+    }
+  }
+
+  const handleBulkActivate = async () => {
+    if (pendingSelected.length === 0) {
+      toast({
+        title: "Nothing to activate",
+        description: "No pending applications in selection.",
+      })
+      return
+    }
+
+    setBusyId("bulk")
+    let failures = 0
+
+    for (const applicant of pendingSelected) {
+      const result = await reviewVolunteerApplicant({
+        userId: applicant.id,
+        decision: "activate",
+        role: selectedRole,
+      })
+
+      if ("error" in result && result.error) {
+        failures += 1
+      } else {
+        updateLocal(applicant.id, {
+          accountStatus: "active",
+          memberRole: selectedRole,
+          reviewedAt: new Date().toISOString(),
+        })
+      }
+    }
+
+    setBusyId(null)
+    setBulkActivateOpen(false)
+    clear()
+
+    if (failures > 0) {
+      toast({
+        title: "Activate completed with errors",
+        description: `${failures} of ${pendingSelected.length} applications could not be activated.`,
+        variant: "destructive",
+      })
+    } else {
+      toast({
+        title: "Volunteers activated",
+        description: `${pendingSelected.length} application(s) set as ${MEMBER_ROLE_LABELS[selectedRole]}.`,
+      })
+    }
+  }
+
+  const handleBulkReject = async () => {
+    if (pendingSelected.length === 0) {
+      toast({
+        title: "Nothing to reject",
+        description: "No pending applications in selection.",
+      })
+      setBulkRejectOpen(false)
+      return
+    }
+
+    const now = new Date().toISOString()
+    await runBulk("Reject", pendingSelected, async (applicant) => {
+      const result = await reviewVolunteerApplicant({ userId: applicant.id, decision: "reject" })
+      if (!("error" in result && result.error)) {
+        updateLocal(applicant.id, {
+          accountStatus: "rejected",
+          memberRole: null,
+          reviewedAt: now,
+        })
+      }
+      return result
+    })
+    setBulkRejectOpen(false)
+  }
+
+  const handleBulkDelete = async () => {
+    if (deletableSelected.length === 0) {
+      toast({
+        title: "Nothing to delete",
+        description: "Activated volunteers cannot be deleted here. Manage them from Users instead.",
+        variant: "destructive",
+      })
+      setBulkDeleteOpen(false)
+      return
+    }
+
+    await runBulk("Delete", deletableSelected, async (applicant) => {
+      const result = await deleteVolunteerApplicant({ userId: applicant.id })
+      if (!("error" in result && result.error)) {
+        setApplicants((prev) => prev.filter((item) => item.id !== applicant.id))
+      }
+      return result
+    })
+    setBulkDeleteOpen(false)
+  }
+
   return (
     <>
       <AdminToolbar
@@ -196,10 +345,44 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
           description="Try another status filter or check back when new volunteers apply."
         />
       ) : (
-        <AdminTableShell>
+        <>
+          <AdminBulkActionsBar
+            selectedCount={selectedCount}
+            onClear={clear}
+            actions={[
+              {
+                label: "Activate",
+                onClick: () => {
+                  setSelectedRole("volunteer")
+                  setBulkActivateOpen(true)
+                },
+                disabled: isBusy || pendingSelected.length === 0,
+              },
+              {
+                label: "Reject",
+                onClick: () => setBulkRejectOpen(true),
+                disabled: isBusy || pendingSelected.length === 0,
+              },
+              {
+                label: "Delete",
+                onClick: () => setBulkDeleteOpen(true),
+                variant: "destructive",
+                disabled: isBusy || deletableSelected.length === 0,
+              },
+            ]}
+          />
+
+          <AdminTableShell>
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
+                <TableHead className="w-10 px-3 py-2">
+                  <Checkbox
+                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                    onCheckedChange={toggleAll}
+                    aria-label="Select all applications"
+                  />
+                </TableHead>
                 <TableHead className="py-2">Applicant</TableHead>
                 <TableHead className="py-2">Status</TableHead>
                 <TableHead className="hidden py-2 md:table-cell">Application</TableHead>
@@ -214,6 +397,14 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
 
                 return (
                   <TableRow key={applicant.id} className="text-sm">
+                    <TableCell className="px-3 py-2">
+                      <Checkbox
+                        checked={selected.has(applicant.id)}
+                        onCheckedChange={() => toggle(applicant.id)}
+                        aria-label={`Select ${applicant.email || applicant.id}`}
+                        disabled={isBusy}
+                      />
+                    </TableCell>
                     <TableCell className="py-2">
                       <p className="truncate font-medium" title={applicant.email || applicant.id}>
                         {applicant.email || applicant.id}
@@ -242,7 +433,7 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
                     <TableCell className="py-2 pr-3 text-right">
                       {isPending || applicant.accountStatus === "rejected" ? (
                         <AdminRowActionsMenu
-                          disabled={isBusy}
+                          disabled={isBusy && busyId !== applicant.id}
                           label={`Actions for ${applicant.email || applicant.id}`}
                           actions={[
                             ...(isPending
@@ -277,6 +468,7 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
             </TableBody>
           </Table>
         </AdminTableShell>
+        </>
       )}
 
       <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
@@ -300,6 +492,92 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
               }}
             >
               {busyId === deleting?.id ? "Removing…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={bulkActivateOpen} onOpenChange={setBulkActivateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Activate {pendingSelected.length} volunteer{pendingSelected.length === 1 ? "" : "s"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Assign the same role to all selected pending applications. Already-active or rejected
+              selections are skipped.
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-volunteer-role">Role</Label>
+              <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as MemberRole)}>
+                <SelectTrigger id="bulk-volunteer-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MEMBER_ROLES.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {MEMBER_ROLE_LABELS[role]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkActivateOpen(false)} disabled={busyId === "bulk"}>
+              Cancel
+            </Button>
+            <Button onClick={handleBulkActivate} disabled={busyId === "bulk" || pendingSelected.length === 0}>
+              {busyId === "bulk" ? "Activating…" : `Activate ${pendingSelected.length}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={bulkRejectOpen} onOpenChange={setBulkRejectOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject {pendingSelected.length} application{pendingSelected.length === 1 ? "" : "s"}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Reject the selected pending applications? Applicants will not gain access and can be
+              deleted later if needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busyId === "bulk"}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busyId === "bulk"}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleBulkReject()
+              }}
+            >
+              {busyId === "bulk" ? "Rejecting…" : "Reject"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {deletableSelected.length} application{deletableSelected.length === 1 ? "" : "s"}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Permanently delete the selected applications and their accounts? Activated volunteers
+              in the selection are skipped. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busyId === "bulk"}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={busyId === "bulk"}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleBulkDelete()
+              }}
+            >
+              {busyId === "bulk" ? "Removing…" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
