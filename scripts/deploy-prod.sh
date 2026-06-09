@@ -16,23 +16,6 @@ log() { echo "[deploy-prod] $(date -Iseconds) $*"; }
 die() { log "ERROR: $*"; exit 1; }
 step() { log "==> $*"; }
 
-run_with_timeout() {
-  local secs="$1"
-  shift
-  "$@" &
-  local cmd_pid=$!
-  (
-    sleep "$secs"
-    kill "$cmd_pid" 2>/dev/null
-  ) &
-  local timer_pid=$!
-  wait "$cmd_pid" 2>/dev/null
-  local status=$?
-  kill "$timer_pid" 2>/dev/null
-  wait "$timer_pid" 2>/dev/null
-  return $status
-}
-
 on_err() {
   local code=$?
   log "FAILED (exit $code) after $(( $(date +%s) - STARTED_AT ))s"
@@ -106,9 +89,13 @@ npx vercel build --prod --yes
 step "vercel deploy --prebuilt --prod"
 DEPLOY_OUT="$(mktemp)"
 trap 'rm -f "$DEPLOY_OUT"' EXIT
-DEPLOY_TIMEOUT="${DEPLOY_TIMEOUT:-180}"
-if ! run_with_timeout "$DEPLOY_TIMEOUT" env VERCEL_ORG_ID="$VERCEL_ORG_ID" VERCEL_PROJECT_ID="$VERCEL_PROJECT_ID" npx vercel deploy --prebuilt --prod --yes 2>&1 | tee "$DEPLOY_OUT"; then
-  die "vercel deploy failed or timed out after ${DEPLOY_TIMEOUT}s — see output above"
+if ! env VERCEL_ORG_ID="$VERCEL_ORG_ID" VERCEL_PROJECT_ID="$VERCEL_PROJECT_ID" \
+  npx vercel deploy --prebuilt --prod --yes 2>&1 | tee "$DEPLOY_OUT"; then
+  if grep -q '"readyState": "READY"' "$DEPLOY_OUT" || grep -q 'Aliased: https://dua-prayer.vercel.app' "$DEPLOY_OUT"; then
+    log "vercel deploy exited non-zero but deployment is READY — continuing"
+  else
+    die "vercel deploy failed — see output above"
+  fi
 fi
 
 DEPLOY_URL="$(grep -Eo 'https://[a-zA-Z0-9.-]+\.vercel\.app' "$DEPLOY_OUT" | tail -1 || true)"
