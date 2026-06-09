@@ -125,7 +125,11 @@ If sign-ups stay disabled, magic link only works for emails that already exist i
 
 One-time GitHub secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` — see [DEPLOY.md](./DEPLOY.md).
 
-Production: **https://dua-prayer.vercel.app**
+Production: **https://dua-prayer.vercel.app** only. Other Vercel URLs (e.g. `dua-prayer-deploy.vercel.app`, `*-git-main-*`) are not production.
+
+### Vercel project settings
+
+Repo root **is** the Next.js app (`mywebmasteruk/dua-prayer`). **Root Directory** in Vercel must be `.` — not a parent `apps/` folder. Git auto-deploy is disabled in `vercel.json`; use `git push origin main` (GitHub Actions) or `npm run deploy:prod`. See [DEPLOY.md](./DEPLOY.md).
 
 ### Vercel env vars (dashboard)
 

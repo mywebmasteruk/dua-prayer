@@ -66,6 +66,13 @@ export default async function AboutPage() {
           </Link>
           .
         </p>
+        <p className="mt-5 text-sm leading-6 text-muted-foreground">
+          Want to support DuaPrayer?{" "}
+          <Link href="/donate" className="font-medium text-primary underline-offset-2 hover:underline">
+            Donate
+          </Link>{" "}
+          — optional, and it helps keep the platform free for everyone.
+        </p>
       </section>
     </InnerPageLayout>
   )
