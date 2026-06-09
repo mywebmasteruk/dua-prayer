@@ -64,9 +64,10 @@ npx tsc --noEmit
 - Edit source files **in place**; rely on **Next.js Fast Refresh / HMR**.
 - Primary work target: full app at `http://localhost:3000/`, route `/`, unless the user names another route.
 
-## Deployment
+## Deployment (mid-iteration only)
 
-- **Do not** deploy to Vercel, production, or run production deploy commands unless the user explicitly approves deployment.
+- **Do not** deploy to Vercel or production **while** iterating locally (HMR active).
+- When an implementation task is **complete**, follow `deploy-on-complete.mdc` — commit and deploy automatically.
 
 ## Health checks (when needed)
 
