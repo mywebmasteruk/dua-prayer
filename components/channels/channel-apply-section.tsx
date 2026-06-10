@@ -20,6 +20,7 @@ const CHANNEL_CONTACT_EMAIL = "volunteers@duaprayer.app"
 type ChannelApplySectionProps = {
   filloutSrc: string | null
   isSignedIn: boolean
+  userEmail?: string | null
   pendingChannelName?: string | null
   /** When true, opens the form inline instead of behind a button + dialog. */
   inline?: boolean
@@ -28,6 +29,7 @@ type ChannelApplySectionProps = {
 export function ChannelApplySection({
   filloutSrc,
   isSignedIn,
+  userEmail,
   pendingChannelName,
   inline = false,
 }: ChannelApplySectionProps) {
@@ -36,8 +38,8 @@ export function ChannelApplySection({
   const contactMailto = `mailto:${CHANNEL_CONTACT_EMAIL}?subject=${encodeURIComponent("DuaPrayer channel application")}`
 
   const filloutEmbed = useMemo(
-    () => (filloutSrc ? createFilloutEmbedSession(filloutSrc) : null),
-    [filloutSrc],
+    () => (filloutSrc ? createFilloutEmbedSession(filloutSrc, { email: isSignedIn ? userEmail : null }) : null),
+    [filloutSrc, isSignedIn, userEmail],
   )
 
   const handleFilloutSubmit = useCallback(() => {
@@ -124,9 +126,12 @@ export function ChannelApplySection({
 
         {!isSignedIn ? (
           <div className="mt-6 rounded-2xl border border-border/60 bg-muted/20 p-5">
-            <p className="text-sm text-muted-foreground">Sign in to submit a channel application.</p>
+            <p className="text-sm font-medium text-foreground">Log in or create an account before applying.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              After you sign in, we&apos;ll bring you back here to complete the channel application form.
+            </p>
             <Button asChild className="mt-4 rounded-full">
-              <Link href={signInHref({ next: "/channels/apply" })}>Sign in to apply</Link>
+              <Link href={signInHref({ next: "/channels/apply" })}>Log in or create account</Link>
             </Button>
           </div>
         ) : pendingMessage ? (

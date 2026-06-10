@@ -19,9 +19,14 @@ export function extractFilloutFormId(src: string): string | null {
 }
 
 /** Build the embed URL Fillout uses to postMessage submission events to the parent page. */
-export function buildFilloutEmbedUrl(formId: string, embedId: string): string {
+export type FilloutPrefillParams = {
+  email?: string | null
+}
+
+export function buildFilloutEmbedUrl(formId: string, embedId: string, prefill?: FilloutPrefillParams): string {
   const url = new URL(`${FILLOUT_EMBED_ORIGIN}/t/${encodeURIComponent(formId)}`)
   url.searchParams.set("fillout-embed-id", embedId)
+  if (prefill?.email) url.searchParams.set("email", prefill.email)
   return url.toString()
 }
 
@@ -31,7 +36,10 @@ function generateFilloutEmbedId(): string {
   return String(Math.floor(Math.random() * (max - min + 1)) + min)
 }
 
-export function createFilloutEmbedSession(formSrc: string): {
+export function createFilloutEmbedSession(
+  formSrc: string,
+  prefill?: FilloutPrefillParams,
+): {
   iframeSrc: string
   embedId: string
   listensForSubmit: boolean
@@ -41,7 +49,7 @@ export function createFilloutEmbedSession(formSrc: string): {
 
   const embedId = generateFilloutEmbedId()
   return {
-    iframeSrc: buildFilloutEmbedUrl(formId, embedId),
+    iframeSrc: buildFilloutEmbedUrl(formId, embedId, prefill),
     embedId,
     listensForSubmit: true,
   }

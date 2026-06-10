@@ -29,12 +29,18 @@ test.describe("Homepage", () => {
     await expect(composer.getByRole("button", { name: "Make Dua" })).toBeDisabled()
   })
 
-  test("channel application page omits back-to-channels link", async ({ page }) => {
+  test("channel application page prompts logged-out users before showing Fillout", async ({ page }) => {
     await page.goto("/channels/apply")
 
     await expect(page.getByRole("heading", { name: "Apply to open a channel" })).toBeVisible()
     await expect(page.getByText("Community channels")).toBeVisible()
     await expect(page.getByRole("link", { name: /Back to channels?/i })).toHaveCount(0)
+    await expect(page.getByText("Log in or create an account before applying.")).toBeVisible()
+    await expect(page.getByRole("link", { name: "Log in or create account" })).toHaveAttribute(
+      "href",
+      "/?signin=1&next=%2Fchannels%2Fapply",
+    )
+    await expect(page.locator('iframe[title="DuaPrayer channel application"]')).toHaveCount(0)
   })
 
   test("submitted dua appears in feed without full reload", async ({ page }) => {

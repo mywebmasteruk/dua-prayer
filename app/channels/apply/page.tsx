@@ -30,6 +30,7 @@ async function ChannelApplyLoader() {
     <ChannelApplySection
       filloutSrc={filloutSrc}
       isSignedIn={!!user}
+      userEmail={user?.email ?? null}
       pendingChannelName={pendingChannelName}
       inline
     />
