@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createDua } from "@/app/actions/duas"
 import { useNavigationRouter } from "@/hooks/use-navigation-router"
 import type { Category } from "@/lib/types/dua"
-import type { ComposerCopy } from "@/lib/site-copy"
+import { getComposerCategoryLabel, type ComposerCopy } from "@/lib/site-copy"
 import { toast } from "@/components/ui/use-toast"
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/turnstile-widget"
 import { cn } from "@/lib/utils"
 import {
+  arabicFontClassName,
   detectLanguage,
   type LanguageMode,
   resolveFontClassName,
@@ -27,14 +28,6 @@ interface DuaFormProps {
   onLanguageChange?: (languageMode: LanguageMode) => void
   onSuccess?: () => void
 }
-
-const ARABIC_CATEGORY_COPY_BY_NAME = {
-  Family: "composerCategoryFamilyAr",
-  Forgiveness: "composerCategoryForgivenessAr",
-  General: "composerCategoryGeneralAr",
-  Health: "composerCategoryHealthAr",
-  Community: "composerCategoryCommunityAr",
-} as const satisfies Record<string, keyof ComposerCopy>
 
 export function DuaForm({ categories, turnstileSiteKey, copy, onLanguageChange, onSuccess }: DuaFormProps) {
   const [duaText, setDuaText] = useState("")
@@ -122,11 +115,7 @@ export function DuaForm({ categories, turnstileSiteKey, copy, onLanguageChange, 
   const submitAriaLabel = isArabicUi ? copy.composerSubmitAriaAr : copy.composerSubmitAriaEn
   const submittingLabel = isArabicUi ? copy.composerSubmittingAr : copy.composerSubmittingEn
 
-  const getCategoryLabel = (cat: Category) => {
-    if (!isArabicUi) return cat.name
-    const copyKey = ARABIC_CATEGORY_COPY_BY_NAME[cat.name as keyof typeof ARABIC_CATEGORY_COPY_BY_NAME]
-    return copyKey ? copy[copyKey] : cat.name
-  }
+  const getCategoryLabel = (cat: Category) => getComposerCategoryLabel(cat.name, copy, languageMode)
 
   const handleLanguageChange = (value: LanguageMode) => {
     setLanguageMode(value)
@@ -185,12 +174,23 @@ export function DuaForm({ categories, turnstileSiteKey, copy, onLanguageChange, 
           <div className="mt-3 pt-3 border-t feed-divider flex items-center justify-between flex-wrap gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="h-9 w-[160px] rounded-full border-primary/25 bg-muted/40 text-sm" dir={uiDirection}>
+                <SelectTrigger
+                  className={cn(
+                    "h-9 w-[160px] rounded-full border-primary/25 bg-muted/40 text-sm",
+                    isArabicUi && arabicFontClassName,
+                  )}
+                  dir={uiDirection}
+                >
                   <SelectValue placeholder={categoryPlaceholder} />
                 </SelectTrigger>
                 <SelectContent position="popper" className={selectContentClassName}>
                   {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id.toString()} dir={uiDirection}>
+                    <SelectItem
+                      key={cat.id}
+                      value={cat.id.toString()}
+                      dir={uiDirection}
+                      className={isArabicUi ? arabicFontClassName : undefined}
+                    >
                       {getCategoryLabel(cat)}
                     </SelectItem>
                   ))}
@@ -202,7 +202,10 @@ export function DuaForm({ categories, turnstileSiteKey, copy, onLanguageChange, 
                 onValueChange={(value) => handleLanguageChange(value as LanguageMode)}
               >
                 <SelectTrigger
-                  className="h-9 w-[148px] rounded-full border-primary/25 bg-muted/40 text-sm"
+                  className={cn(
+                    "h-9 w-[148px] rounded-full border-primary/25 bg-muted/40 text-sm",
+                    isArabicUi && arabicFontClassName,
+                  )}
                   aria-label="Language"
                 >
                   <span className="truncate">{languageTriggerLabel}</span>
@@ -210,7 +213,9 @@ export function DuaForm({ categories, turnstileSiteKey, copy, onLanguageChange, 
                 <SelectContent position="popper" className={selectContentClassName}>
                   <SelectItem value="auto">Auto</SelectItem>
                   <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="ar">العربية</SelectItem>
+                  <SelectItem value="ar" className={arabicFontClassName}>
+                    العربية
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -226,7 +231,10 @@ export function DuaForm({ categories, turnstileSiteKey, copy, onLanguageChange, 
               </div>
               <Button
                 type="submit"
-                className="rounded-full bg-primary px-5 text-primary-foreground hover:bg-primary/90"
+                className={cn(
+                  "rounded-full bg-primary px-5 text-primary-foreground hover:bg-primary/90",
+                  isArabicUi && arabicFontClassName,
+                )}
                 disabled={isSubmitting || duaText.trim().length < MIN_CHARS || (turnstileRequired && !turnstileToken)}
                 aria-label={submitAriaLabel}
                 dir={uiDirection}

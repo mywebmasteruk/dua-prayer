@@ -8,7 +8,8 @@ import { DuaForm } from "@/components/dua-form"
 import { ActionIconTooltip } from "@/components/action-icon-tooltip"
 import type { Category } from "@/lib/types/dua"
 import type { ComposerCopy } from "@/lib/site-copy"
-import type { LanguageMode } from "@/lib/detect-language"
+import { arabicFontClassName, type LanguageMode } from "@/lib/detect-language"
+import { cn } from "@/lib/utils"
 
 interface HomeComposerProps {
   categories: Category[]
@@ -108,10 +109,23 @@ export function HomeComposer({ categories, turnstileSiteKey, copy }: HomeCompose
                   <div className="rounded-[1.7rem] border border-border bg-white p-4 sm:p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div dir={isArabicComposer ? "rtl" : "ltr"} className={isArabicComposer ? "text-right" : undefined}>
-                        <h2 id={titleId} className="text-xl font-semibold tracking-tight text-foreground">
+                        <h2
+                          id={titleId}
+                          className={cn(
+                            "text-xl font-semibold tracking-tight text-foreground",
+                            isArabicComposer && arabicFontClassName,
+                          )}
+                        >
                           {modalTitle}
                         </h2>
-                        <p className="mt-1 text-sm leading-6 text-muted-foreground">{modalDescription}</p>
+                        <p
+                          className={cn(
+                            "mt-1 text-sm leading-6 text-muted-foreground",
+                            isArabicComposer && arabicFontClassName,
+                          )}
+                        >
+                          {modalDescription}
+                        </p>
                       </div>
                       <ActionIconTooltip label="Close">
                         <button
