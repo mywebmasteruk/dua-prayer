@@ -8,6 +8,7 @@ import { DuaList } from "@/components/dua-list"
 import { FeedPagination } from "@/components/feed-pagination"
 import { NewDuasBanner } from "@/components/new-duas-banner"
 import { useHomeSearch } from "@/components/home-search-provider"
+import { matchesHashtag, normalizeHashtag } from "@/lib/hashtags"
 import { useNewDuasPoll } from "@/hooks/use-new-duas-poll"
 import { useNavigationRouter } from "@/hooks/use-navigation-router"
 import type { HomeEmptyCopy } from "@/lib/site-copy"
@@ -39,7 +40,7 @@ function resolveVisibleCategories(topCategories: Category[], allCategories: Cate
 
 function readFiltersFromUrl() {
   if (typeof window === "undefined") {
-    return { category: "all", lang: "all" as LangFilter, page: 1 }
+    return { category: "all", lang: "all" as LangFilter, page: 1, tag: "" }
   }
 
   const params = new URLSearchParams(window.location.search)
@@ -50,10 +51,11 @@ function readFiltersFromUrl() {
     category: params.get("category") || "all",
     lang,
     page: Math.max(1, Number.parseInt(params.get("page") ?? "1") || 1),
+    tag: normalizeHashtag(params.get("tag") ?? ""),
   }
 }
 
-function syncFiltersToUrl(category: string, lang: LangFilter, page: number) {
+function syncFiltersToUrl(category: string, lang: LangFilter, page: number, tag: string) {
   const params = new URLSearchParams(window.location.search)
 
   if (category !== "all") params.set("category", category)
@@ -64,6 +66,9 @@ function syncFiltersToUrl(category: string, lang: LangFilter, page: number) {
 
   if (page > 1) params.set("page", String(page))
   else params.delete("page")
+
+  if (tag) params.set("tag", tag)
+  else params.delete("tag")
 
   const query = params.toString()
   const nextUrl = query ? `/?${query}` : "/"
@@ -102,12 +107,14 @@ export function FeedSection({
   const [category, setCategory] = useState("all")
   const [lang, setLang] = useState<LangFilter>("all")
   const [page, setPage] = useState(1)
+  const [tag, setTag] = useState("")
 
   useEffect(() => {
     const initial = readFiltersFromUrl()
     setCategory(initial.category)
     setLang(initial.lang)
     setPage(initial.page)
+    setTag(initial.tag)
   }, [])
 
   const visibleCategories = useMemo(
@@ -118,11 +125,12 @@ export function FeedSection({
   const filteredDuas = useMemo(() => {
     return duas.filter((dua) => {
       if (category !== "all" && dua.category_id?.toString() !== category) return false
+      if (tag && !matchesHashtag(dua.text, tag)) return false
       if (!matchesLanguage(dua.text, lang)) return false
       if (!matchesSearch(dua, searchQuery, categories)) return false
       return true
     })
-  }, [category, categories, duas, lang, searchQuery])
+  }, [category, categories, duas, lang, searchQuery, tag])
 
   const totalPages = Math.max(1, Math.ceil(filteredDuas.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -145,9 +153,9 @@ export function FeedSection({
       setCategory(nextCategory)
       setLang(nextLang)
       setPage(nextPage)
-      syncFiltersToUrl(nextCategory, nextLang, nextPage)
+      syncFiltersToUrl(nextCategory, nextLang, nextPage, tag)
     },
-    [],
+    [tag],
   )
 
   const handleCategoryChange = useCallback(
@@ -168,11 +176,18 @@ export function FeedSection({
     [category, lang, updateFilters],
   )
 
+  const clearTagFilter = useCallback(() => {
+    setTag("")
+    setPage(1)
+    syncFiltersToUrl(category, lang, 1, "")
+  }, [category, lang])
+
   const isDefaultFeedView =
     feedActive &&
     currentPage === 1 &&
     category === "all" &&
     lang === "all" &&
+    tag === "" &&
     searchQuery.trim() === ""
 
   const newestSeenCreatedAt = filteredDuas[0]?.created_at ?? null
@@ -202,6 +217,21 @@ export function FeedSection({
         onCategoryChange={handleCategoryChange}
         onLangChange={handleLangChange}
       />
+
+      {tag ? (
+        <div className="border-t border-border/60 bg-primary/5 px-4 py-2.5 text-sm text-foreground sm:px-5">
+          <div className="flex items-center justify-between gap-3">
+            <span className="min-w-0 truncate font-medium">Showing duas tagged #{tag}</span>
+            <button
+              type="button"
+              onClick={clearTagFilter}
+              className="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <NewDuasBanner count={newDuasCount} onShow={handleShowNewDuas} />
 

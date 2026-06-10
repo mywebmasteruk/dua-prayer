@@ -40,7 +40,7 @@ export function SidebarNavItem({
         variant === "cta"
           ? "justify-center -translate-x-1 gap-2 bg-primary/90 text-[14px] font-semibold text-primary-foreground shadow-sm hover:bg-primary lg:text-[15px]"
           : cn(
-              "hover:bg-white lg:text-[16px]",
+              "hover:bg-white/70 lg:text-[16px]",
               active ? "font-bold text-primary" : "font-normal text-foreground/55 hover:text-foreground/75",
             ),
       )}

@@ -40,3 +40,7 @@ test-results/
 # Local-only agent handoff (not on GitHub)
 AGENTS.md
 .cursor/rules/agent-handoff.mdc
+
+# Local/generated agent and build artifacts
+/tmp/
+/.superpowers/

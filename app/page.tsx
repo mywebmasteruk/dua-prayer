@@ -14,6 +14,7 @@ import { HomeMobileBottomNav } from "@/components/home-mobile-bottom-nav"
 import { HomeStreamTabs } from "@/components/home-stream-tabs"
 import { BrandLogo } from "@/components/brand-logo"
 import { NavigationContentLoader } from "@/components/navigation-content-loader"
+import { buildTrendingHashtags } from "@/lib/hashtags"
 import { isTurnstileEnabled } from "@/lib/turnstile"
 import type { Dua, Category } from "@/lib/types/dua"
 
@@ -54,7 +55,7 @@ function getTopSupportedDuas(duas: Dua[]) {
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<SignInSearchParams & { category?: string }>
+  searchParams: Promise<SignInSearchParams & { category?: string; tag?: string }>
 }) {
   const params = await searchParams
   const supabase = await createServerSupabaseClient()
@@ -76,6 +77,7 @@ export default async function Home({
   ])
   const turnstileSiteKey = isTurnstileEnabled() ? process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY : undefined
   const categoryLeaderboard = getCategoryLeaderboard(categories, duas)
+  const trendingHashtags = buildTrendingHashtags(duas)
   const supportedRequests = getTopSupportedDuas(duas)
   const totalAmeens = duas.reduce((sum, dua) => sum + dua.likes, 0)
 
@@ -140,6 +142,7 @@ export default async function Home({
           >
             <HomeRightRail
               categoryLeaderboard={categoryLeaderboard}
+              trendingHashtags={trendingHashtags}
               supportedRequests={supportedRequests}
               totalDuas={total}
               totalAmeens={totalAmeens}

@@ -111,6 +111,6 @@
   }
 
   .site-shell-footer {
-    @apply mt-auto w-full bg-muted/45 shadow-[0_-1px_3px_hsl(var(--foreground)/0.04)] backdrop-blur-md;
+    @apply mt-auto w-full bg-white/95 shadow-[0_-1px_2px_hsl(var(--foreground)/0.025)] backdrop-blur-md;
   }
 }

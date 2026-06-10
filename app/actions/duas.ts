@@ -9,7 +9,7 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
 import { verifyTurnstile } from "@/lib/turnstile"
 import { randomBytes } from "crypto"
 import { isMissingColumnError } from "@/lib/db-errors"
-import type { Category } from "@/lib/types/dua"
+import type { Category, Dua } from "@/lib/types/dua"
 
 const PAGE_SIZE = 10
 const FEED_BATCH_SIZE = 100
@@ -197,7 +197,7 @@ async function enrichDuas(
     published: boolean
     flagged: boolean
   }>,
-) {
+): Promise<Dua[]> {
   const supabase = await createServerSupabaseClient()
   const { data: categories } = await supabase.from("categories").select("id, name, channel_type")
   const categoryMap = new Map(categories?.map((c) => [c.id, c]) ?? [])

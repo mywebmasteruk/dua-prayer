@@ -5,6 +5,8 @@ import { AuthButton } from "./auth/auth-button"
 import { isSidebarPathActive, SidebarBranding, SidebarNavItem } from "./sidebar-nav-shared"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
+const SUPER_ADMIN_EMAIL = "webmaster@duaprayer.com"
+
 interface HomeSidebarNavProps {
   user: SupabaseUser | null
   isAdmin?: boolean
@@ -16,7 +18,6 @@ interface HomeSidebarNavProps {
 
 export function HomeSidebarNav({
   user,
-  isAdmin = false,
   activePath = "/",
   showLogo = true,
   className,
@@ -24,6 +25,7 @@ export function HomeSidebarNav({
 }: HomeSidebarNavProps) {
   const accountHref = signInHref()
   const accountLabel = user ? "Account" : "Sign in"
+  const showAdminLink = user?.email === SUPER_ADMIN_EMAIL
 
   return (
     <div className={cn("flex flex-col", className)}>
@@ -68,7 +70,7 @@ export function HomeSidebarNav({
           icon={User}
           variant={user ? "default" : "cta"}
         />
-        {isAdmin ? (
+        {showAdminLink ? (
           <SidebarNavItem
             href="/admin"
             label="Admin"

@@ -19,6 +19,7 @@ import {
   hasArabicText,
 } from "@/lib/detect-language"
 import { SITE_COPY_DEFAULTS } from "@/lib/site-copy"
+import { extractHashtags } from "@/lib/hashtags"
 
 interface DuaListProps {
   duas: Dua[]
@@ -150,7 +151,9 @@ export function DuaList({
       )
       toast({
         title: result.counted ? "Ameen" : "Already prayed",
-        description: result.counted ? "Your prayer has been counted" : "You already prayed for this dua",
+        description: result.counted
+          ? "Ameen, may Allah accept our prayers."
+          : "You already prayed for this dua",
       })
     }
     setLoadingPrays((prev) => ({ ...prev, [duaId]: false }))
@@ -210,6 +213,7 @@ export function DuaList({
         const sourceLabel = isChannelPost ? dua.category_name ?? "Community channel" : dua.user_id ? "Community member" : "Anonymous"
         const SourceIcon = isChannelPost ? Building2 : UserRound
         const loveCount = isLoved ? 1 : 0
+        const hashtags = extractHashtags(dua.text)
 
         return (
           <article
@@ -239,6 +243,21 @@ export function DuaList({
             >
               {renderWithArabicFont(dua.text)}
             </p>
+
+            {hashtags.length > 0 ? (
+              <div className={cn("mt-3 flex flex-wrap gap-2", isRtl && "justify-end")} dir="ltr">
+                {hashtags.map((hashtag) => (
+                  <a
+                    key={hashtag.tag}
+                    href={`/?tag=${encodeURIComponent(hashtag.tag)}`}
+                    className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary/80 transition hover:bg-primary/20 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label={`Show duas tagged ${hashtag.label}`}
+                  >
+                    {hashtag.label}
+                  </a>
+                ))}
+              </div>
+            ) : null}
 
             <div
               className={cn(

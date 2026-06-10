@@ -71,37 +71,37 @@ export function HomeStreamTabs({
       <div className="min-h-[280px]">
         <div
           id="home-stream-panel-feed"
-        role="tabpanel"
-        aria-labelledby="home-stream-tab-feed"
-        hidden={activeTab !== "feed"}
-        className={activeTab === "feed" ? undefined : "hidden"}
-      >
-        <HomeComposer categories={categories} turnstileSiteKey={turnstileSiteKey} />
-        <FeedSection
-          duas={duas}
-          categories={categories}
-          topCategories={topCategories}
-          pageSize={pageSize}
-          feedActive={activeTab === "feed"}
-          emptyCopy={emptyCopy}
-        />
-      </div>
+          role="tabpanel"
+          aria-labelledby="home-stream-tab-feed"
+          hidden={activeTab !== "feed"}
+          className={activeTab === "feed" ? undefined : "hidden"}
+        >
+          <HomeComposer categories={categories} turnstileSiteKey={turnstileSiteKey} />
+          <FeedSection
+            duas={duas}
+            categories={categories}
+            topCategories={topCategories}
+            pageSize={pageSize}
+            feedActive={activeTab === "feed"}
+            emptyCopy={emptyCopy}
+          />
+        </div>
 
-      <div
-        id="home-stream-panel-following"
-        role="tabpanel"
-        aria-labelledby="home-stream-tab-following"
-        hidden={activeTab !== "following"}
-        className={activeTab === "following" ? undefined : "hidden"}
-      >
-        <FollowingSection
-          duas={duas}
-          categories={categories}
-          pageSize={pageSize}
-          followingActive={activeTab === "following"}
-          emptyCopy={emptyCopy}
-        />
-      </div>
+        <div
+          id="home-stream-panel-following"
+          role="tabpanel"
+          aria-labelledby="home-stream-tab-following"
+          hidden={activeTab !== "following"}
+          className={activeTab === "following" ? undefined : "hidden"}
+        >
+          <FollowingSection
+            duas={duas}
+            categories={categories}
+            pageSize={pageSize}
+            followingActive={activeTab === "following"}
+            emptyCopy={emptyCopy}
+          />
+        </div>
       </div>
     </>
   )

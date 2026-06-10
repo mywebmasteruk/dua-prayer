@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils"
 import { signInHref } from "@/lib/auth-modal"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
+const SUPER_ADMIN_EMAIL = "webmaster@duaprayer.com"
+
 interface HomeMobileBottomNavProps {
   user: SupabaseUser | null
   isAdmin?: boolean
@@ -28,8 +30,8 @@ function BottomNavItem({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "tap-feedback flex min-w-0 flex-1 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active ? "text-foreground" : "text-muted-foreground",
+        "tap-feedback flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-2xl px-1 py-1 text-[10px] font-medium transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active ? "font-bold text-primary" : "text-muted-foreground",
       )}
     >
       <Icon className={cn("h-6 w-6", active && "stroke-[2.5]")} aria-hidden="true" />
@@ -38,8 +40,9 @@ function BottomNavItem({
   )
 }
 
-export function HomeMobileBottomNav({ user, isAdmin = false }: HomeMobileBottomNavProps) {
+export function HomeMobileBottomNav({ user }: HomeMobileBottomNavProps) {
   const pathname = usePathname() ?? "/"
+  const showAdminLink = user?.email === SUPER_ADMIN_EMAIL
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/"
@@ -56,7 +59,7 @@ export function HomeMobileBottomNav({ user, isAdmin = false }: HomeMobileBottomN
         <BottomNavItem href="/channels" label="Channels" icon={LayoutGrid} active={isActive("/channels")} />
         <BottomNavItem href="/donate" label="Donate" icon={HandCoins} active={isActive("/donate")} />
         <BottomNavItem href="/volunteer" label="Volunteer" icon={HandHeart} active={isActive("/volunteer")} />
-        {isAdmin ? (
+        {showAdminLink ? (
           <BottomNavItem href="/admin" label="Admin" icon={ShieldAlert} active={isActive("/admin")} />
         ) : (
           <BottomNavItem

@@ -158,5 +158,6 @@ export interface Database {
       channel_type: "category" | "user"
       channel_status: "approved" | "pending_review" | "rejected"
     }
+    CompositeTypes: Record<string, never>
   }
 }

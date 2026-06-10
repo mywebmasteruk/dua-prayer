@@ -3,7 +3,7 @@ import { BrandLogo } from "./brand-logo"
 import { signInHref } from "@/lib/auth-modal"
 
 const footerLinkClassName =
-  "text-muted-foreground transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+  "rounded-sm text-muted-foreground/75 transition hover:text-primary hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 
 type FooterLayout = "page" | "column"
 
@@ -50,7 +50,7 @@ export function Footer({
           </nav>
         </div>
 
-        <p className="mt-6 border-t border-border/60 pt-6 text-xs leading-5 text-muted-foreground">
+        <p className="mt-5 border-t border-border/25 pt-5 text-xs leading-5 text-muted-foreground/65">
           © {year} DuaPrayer. DuaPrayer is part of{" "}
           <Link href="https://masjidweb.com" className={footerLinkClassName}>
             Masjidweb.com
