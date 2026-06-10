@@ -1,6 +1,9 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 
-async function openSignInModal(page: import("@playwright/test").Page) {
+const realLoginEmail = process.env.E2E_LOGIN_EMAIL
+const realLoginPassword = process.env.E2E_LOGIN_PASSWORD
+
+async function openSignInModal(page: Page) {
   await page.goto("/?signin=1")
   await page.waitForLoadState("networkidle")
 }
@@ -63,6 +66,28 @@ test.describe("Auth modal", () => {
 
     await expect(page).toHaveURL(/signin=1&next=%2Fadmin/)
     await expect(page.getByText("User sign in")).toBeVisible()
+  })
+
+  test("signs in a normal user with password and shows signed-in sidebar", async ({ page }) => {
+    test.skip(
+      !realLoginEmail || !realLoginPassword,
+      "Set E2E_LOGIN_EMAIL and E2E_LOGIN_PASSWORD to run the real Supabase password login flow.",
+    )
+
+    await openSignInModal(page)
+
+    const passwordPanel = page.getByRole("tabpanel", { name: "Password" })
+    await passwordPanel.getByLabel("Email").fill(realLoginEmail!)
+    await passwordPanel.getByLabel("Password").fill(realLoginPassword!)
+    await passwordPanel.getByRole("button", { name: "Sign in" }).click()
+
+    await expect(page).toHaveURL(/^(?!.*signin=1).*/, { timeout: 15_000 })
+    await expect(page.getByText("User sign in")).toHaveCount(0)
+    await expect(page.getByText("Signed in")).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(realLoginEmail!)).toBeVisible()
+    await expect(page.getByRole("link", { name: "Following" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Logout" })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Sign in" })).toHaveCount(0)
   })
 })
 
