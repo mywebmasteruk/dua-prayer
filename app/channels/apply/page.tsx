@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
-import Link from "next/link"
-import { ArrowLeft, LayoutGrid } from "lucide-react"
+import { LayoutGrid } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { ChannelApplySection } from "@/components/channels/channel-apply-section"
 import { getMyPendingChannelApplication } from "@/app/actions/channel-applications"
@@ -41,14 +40,7 @@ export default function ChannelApplyPage() {
   return (
     <InnerPageLayout activePath="/channels">
       <header className="border-b border-border/50 pb-8">
-        <Link
-          href="/channels"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to channels
-        </Link>
-        <p className="mt-6 inline-flex items-center gap-2 text-xs font-semibold text-primary">
+        <p className="inline-flex items-center gap-2 text-xs font-semibold text-primary">
           <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
           Community channels
         </p>

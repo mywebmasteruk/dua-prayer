@@ -29,6 +29,14 @@ test.describe("Homepage", () => {
     await expect(composer.getByRole("button", { name: "Make Dua" })).toBeDisabled()
   })
 
+  test("channel application page omits back-to-channels link", async ({ page }) => {
+    await page.goto("/channels/apply")
+
+    await expect(page.getByRole("heading", { name: "Apply to open a channel" })).toBeVisible()
+    await expect(page.getByText("Community channels")).toBeVisible()
+    await expect(page.getByRole("link", { name: /Back to channels?/i })).toHaveCount(0)
+  })
+
   test("submitted dua appears in feed without full reload", async ({ page }) => {
     await page.goto("/")
 
