@@ -3,7 +3,8 @@
 import type React from "react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Building2, Flag, Heart, HeartHandshake, Share2, Sparkles, UserRound } from "lucide-react"
+import { Building2, Flag, Heart, Share2, Sparkles, UserRound } from "lucide-react"
+import { PrayerHandsIcon } from "@/components/icons/prayer-hands"
 import type { Dua } from "@/lib/types/dua"
 import { toast } from "@/components/ui/use-toast"
 import { prayForDua, flagDua } from "@/app/actions/duas"
@@ -281,7 +282,7 @@ export function DuaList({
                   tooltip={prayed ? "Prayed" : "Ameen"}
                   className="px-1 text-primary"
                 >
-                  <HeartHandshake className="h-4 w-4" aria-hidden="true" />
+                  <PrayerHandsIcon className="h-4 w-4" aria-hidden="true" />
                   <span className="text-xs font-semibold tabular-nums">{dua.likes}</span>
                 </ActionButton>
                 <ActionButton
