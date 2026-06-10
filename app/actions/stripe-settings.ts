@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { isStripeMode, SITE_SETTING_KEYS, type StripeMode } from "@/lib/settings-keys"
-import { getStripeSettingsForAdmin } from "@/lib/stripe-settings-server"
+import { getStripeSettingsForAdmin, invalidateStripeSettingsCache } from "@/lib/stripe-settings-server"
 
 function canManageStripeSettings(ctx: NonNullable<Awaited<ReturnType<typeof getAdminContext>>>) {
   return ctx.isFoundingAdmin || hasPermission(ctx, "manage_settings")
@@ -194,6 +194,7 @@ export async function updateStripeSettings(input: StripeSettingsInput) {
   const testError = await persistCredentialSet("test", TEST_KEYS, input.test, current.test)
   if (testError) return { error: testError }
 
+  invalidateStripeSettingsCache()
   revalidateTag("stripe-settings")
   revalidatePath("/admin/integration")
   revalidatePath("/admin/settings/stripe")

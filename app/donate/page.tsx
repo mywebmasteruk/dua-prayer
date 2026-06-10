@@ -13,6 +13,7 @@ import { InnerPageLayout } from "@/components/inner-page-layout"
 import { DonateForm } from "@/components/donate-form"
 import { getPlatformStats } from "@/lib/platform-stats-server"
 import { getDonationsStatus } from "@/lib/stripe"
+import { isTurnstileEnabled } from "@/lib/turnstile"
 import { getSiteCopy } from "@/lib/site-copy-server"
 
 export const metadata: Metadata = {
@@ -112,6 +113,7 @@ export default async function DonatePage({
           <DonateForm
             donationsReady={donationsStatus.ready}
             unavailableReason={donationsStatus.reason}
+            turnstileSiteKey={isTurnstileEnabled() ? process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY : undefined}
           />
         </div>
       </section>

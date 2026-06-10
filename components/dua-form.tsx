@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import { createDua } from "@/app/actions/duas"
 import { useNavigationRouter } from "@/hooks/use-navigation-router"
 import type { Category } from "@/lib/types/dua"
 import { toast } from "@/components/ui/use-toast"
-import { TurnstileWidget } from "@/components/turnstile-widget"
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/turnstile-widget"
 import { cn } from "@/lib/utils"
 import {
   detectLanguage,
@@ -32,6 +32,7 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [charCount, setCharCount] = useState(0)
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null)
   const router = useNavigationRouter()
 
   const MAX_CHARS = 280
@@ -49,6 +50,7 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
   }, [duaText])
 
   const onTurnstileVerify = useCallback((token: string) => setTurnstileToken(token), [])
+  const onTurnstileExpire = useCallback(() => setTurnstileToken(null), [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -73,12 +75,15 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
 
     const result = await createDua(formData)
 
+    // Tokens are single-use: re-issue a challenge whether the submit succeeded or not.
+    setTurnstileToken(null)
+    turnstileRef.current?.reset()
+
     if (result.error) {
       toast({ title: "Error", description: result.error, variant: "destructive" })
     } else {
       setDuaText("")
       setLanguageMode("auto")
-      setTurnstileToken(null)
       toast({ title: "Success", description: "Your dua has been shared" })
       onSuccess?.()
       router.refresh()
@@ -139,7 +144,12 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
 
           {turnstileSiteKey && (
             <div className="mt-3">
-              <TurnstileWidget siteKey={turnstileSiteKey} onVerify={onTurnstileVerify} />
+              <TurnstileWidget
+                ref={turnstileRef}
+                siteKey={turnstileSiteKey}
+                onVerify={onTurnstileVerify}
+                onExpire={onTurnstileExpire}
+              />
             </div>
           )}
 

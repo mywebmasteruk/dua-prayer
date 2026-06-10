@@ -374,11 +374,21 @@ export async function flagDua(duaId: number) {
   if (!rate.allowed) return { error: "Too many flags. Please wait." }
 
   const admin = createAdminSupabaseClient()
-  const { error } = await admin.from("duas").update({ flagged: true }).eq("id", duaId)
+  // Only published duas can be flagged; .select() lets us detect a bogus id.
+  const { data, error } = await admin
+    .from("duas")
+    .update({ flagged: true })
+    .eq("id", duaId)
+    .eq("published", true)
+    .select("id")
 
   if (error) {
     console.error("Error flagging:", error)
     return { error: "Could not flag this dua" }
+  }
+
+  if (!data || data.length === 0) {
+    return { error: "Dua not found" }
   }
 
   revalidatePath("/admin")

@@ -160,10 +160,8 @@ export function DuaList({
   }
 
   const handleFlag = async (duaId: number, isReported: boolean) => {
-    if (isReported) {
-      setReportedDuas((previous) => ({ ...previous, [duaId]: false }))
-      return
-    }
+    // Flags can only be cleared by moderators in the admin panel.
+    if (isReported) return
 
     setLoadingFlags((prev) => ({ ...prev, [duaId]: true }))
     const result = await flagDua(duaId)
@@ -330,10 +328,10 @@ export function DuaList({
                 </DropdownMenu>
                 <ActionButton
                   onClick={() => handleFlag(dua.id, isReported)}
-                  disabled={loadingFlags[dua.id]}
-                  aria-label={isReported ? "Flagged; click to undo" : "Flag this dua"}
+                  disabled={loadingFlags[dua.id] || isReported}
+                  aria-label={isReported ? "Flagged for review" : "Flag this dua"}
                   aria-pressed={isReported}
-                  tooltip={isReported ? "Unflag" : "Flag"}
+                  tooltip={isReported ? "Flagged for review" : "Flag"}
                   className={cn(
                     "px-1",
                     isReported

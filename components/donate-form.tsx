@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { Building2, HandCoins, Loader2, Server, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,7 +13,8 @@ import {
   type DonationType,
   type DonationsUnavailableReason,
 } from "@/lib/stripe"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/turnstile-widget"
 import { cn } from "@/lib/utils"
 
 const PACKAGE_ICONS = {
@@ -25,15 +26,22 @@ const PACKAGE_ICONS = {
 interface DonateFormProps {
   donationsReady: boolean
   unavailableReason?: DonationsUnavailableReason
+  turnstileSiteKey?: string
 }
 
-export function DonateForm({ donationsReady, unavailableReason }: DonateFormProps) {
+export function DonateForm({ donationsReady, unavailableReason, turnstileSiteKey }: DonateFormProps) {
   const defaultPackage = DONATION_PACKAGES[0]
   const [selectedPackageId, setSelectedPackageId] = useState<DonationPackageId>(defaultPackage.id)
   const [donationType, setDonationType] = useState<DonationType>("monthly")
   const [amountInput, setAmountInput] = useState(String(defaultPackage.suggestedAmountUsd))
   const [isLoading, setIsLoading] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null)
+  const turnstileRequired = !!turnstileSiteKey
   const { toast } = useToast()
+
+  const onTurnstileVerify = useCallback((token: string) => setTurnstileToken(token), [])
+  const onTurnstileExpire = useCallback(() => setTurnstileToken(null), [])
 
   const parsedAmount = Number.parseInt(amountInput, 10)
   const amountIsValid =
@@ -73,6 +81,15 @@ export function DonateForm({ donationsReady, unavailableReason }: DonateFormProp
       return
     }
 
+    if (turnstileRequired && !turnstileToken) {
+      toast({
+        title: "Almost there",
+        description: "Please complete the verification check below first.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLoading(true)
     try {
       const response = await fetch("/api/checkout", {
@@ -82,6 +99,7 @@ export function DonateForm({ donationsReady, unavailableReason }: DonateFormProp
           amount: parsedAmount,
           packageId: selectedPackageId,
           donationType,
+          turnstileToken,
         }),
       })
 
@@ -97,6 +115,9 @@ export function DonateForm({ donationsReady, unavailableReason }: DonateFormProp
 
       window.location.href = data.url
     } catch (error) {
+      // Tokens are single-use; re-issue a challenge before the next attempt.
+      setTurnstileToken(null)
+      turnstileRef.current?.reset()
       toast({
         title: "Could not start checkout",
         description: error instanceof Error ? error.message : "Please try again in a moment.",
@@ -272,6 +293,17 @@ export function DonateForm({ donationsReady, unavailableReason }: DonateFormProp
           <p className="mt-2 text-xs text-destructive">
             Enter a whole-dollar amount between ${MIN_DONATION_USD} and ${MAX_DONATION_USD.toLocaleString()}.
           </p>
+        ) : null}
+
+        {donationsReady && turnstileSiteKey ? (
+          <div className="mt-4">
+            <TurnstileWidget
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              onVerify={onTurnstileVerify}
+              onExpire={onTurnstileExpire}
+            />
+          </div>
         ) : null}
       </div>
 

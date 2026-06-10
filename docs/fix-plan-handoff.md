@@ -15,7 +15,8 @@
 
 ## Phase 0 — Critical security (do first)
 
-### 0.1 ✅ DONE (file written, ⬜ NOT YET APPLIED TO PROD) — Block privilege escalation on `profiles`
+### 0.1 ✅ DONE & APPLIED TO PRODUCTION (2026-06-10) — Block privilege escalation on `profiles`
+> Applied via direct Postgres using DATABASE_URL; verified post-apply: only `display_name`/`updated_at` updatable by `authenticated`, zero table-level write grants for `anon`/`authenticated`.
 **Problem (CRITICAL):** `profiles_update_own` policy (`supabase/migrations/20250608000000_initial_schema.sql:176-177`) restricts rows but not columns. Any authenticated user can run `update profiles set is_admin=true where id=auth.uid()` via the public anon key, bypassing all server-side permission checks (`is_admin`, `admin_role`, `admin_permissions`, `member_role`, `account_status` all live on `profiles`).
 
 **Done:** Created `supabase/migrations/20260610090000_lock_privileged_profile_columns.sql`:
@@ -41,24 +42,38 @@ Safe because: all profile writes in the app go through service-role server actio
 
 ---
 
-## Phase 1 — Security & payments
+## Phase 1 — Security & payments — ✅ ALL DONE (2026-06-10, verified: tsc clean, build clean, e2e 10 passed / 1 skipped)
 
-### 1.1 ⬜ TODO — Protect `/api/checkout` (rate limit + Turnstile) and PaymentIntent metadata
+Summary of what was done:
+- **1.1 ✅** `/api/checkout`: 5/min/IP rate limit + Turnstile verification (no-op when TURNSTILE_SECRET_KEY unset); `payment_intent_data.metadata` added for one-time gifts. Donate page passes `turnstileSiteKey`; donate form renders the widget, sends `turnstileToken`, resets on error. Also fixed donate-form's toast import (was dispatching into the unmounted `hooks/use-toast` store — audit M11).
+- **1.2 ✅** Added `app/api/webhooks/stripe/route.ts`: raw-body `constructEvent` signature verification; handles checkout.session.completed, invoice.payment_failed, customer.subscription.updated/deleted, charge.refunded (logging only for now — there is no donations table yet; see Phase 2+ ideas). **USER ACTION: add the endpoint in the Stripe Dashboard and save the whsec\_ secret in Admin → Settings → Stripe.**
+- **1.3 ✅** `lib/stripe-settings-server.ts`: replaced `unstable_cache` with a module-level in-memory 60s TTL cache (`invalidateStripeSettingsCache()` exported; called from the admin save action). Secrets no longer serialized to the shared Next.js data cache.
+- **1.4 ✅** `flagDua` now only flags existing published duas (update + `.select()` row check); client "Unflag" affordance removed — flag button disables once flagged ("Flagged for review").
+- **1.5 ✅** `lib/secure-compare.ts` (`secretsMatch`, sha256 + `timingSafeEqual`) used in channel & volunteer webhook routes.
+- **1.6 ✅** `@types/ws` present; `typescript.ignoreBuildErrors` and `eslint.ignoreDuringBuilds` REMOVED from next.config.mjs; `next build` passes with checks on.
+- **Turnstile widget rewritten** (part of audit M9/L6, originally Phase 2): single onload queue (multiple widgets safe), `expired-callback`/`error-callback` clear the token, imperative `reset()` handle; dua-form resets the widget after every submit.
+- **e2e/home.spec.ts rewritten**: the old tests referenced UI that no longer exists (stale placeholder/labels) and the old unflag toggle. New tests match current UI; the flag test creates its own dua before flagging it.
+
+> ⚠️ Discovered while running e2e: Playwright tests run against the dev server using `.env.local`, which points at the SAME Supabase project as production (`itcoxbkhcwlsjpcwawyl`). Test runs create real duas and flag real content. Recommendation (future task): create a separate Supabase project (or local `supabase start`) for development/e2e, and keep production credentials out of `.env.local`.
+
+Original task details kept below for reference.
+
+### 1.1 ✅ DONE — Protect `/api/checkout` (rate limit + Turnstile) and PaymentIntent metadata
 `app/api/checkout/route.ts:16` creates Stripe Checkout Sessions with no rate limit/Turnstile (card-testing/spam abuse). Mirror the pattern in `createDua` (`app/actions/duas.ts:296-307`): `checkRateLimit(\`checkout:${ip}\`, ...)` (lib/rate-limit.ts) + `verifyTurnstile` (lib/turnstile.ts) — Turnstile token must be passed from `components/donate-form.tsx` (render `components/turnstile-widget.tsx` in the form).
 Also (audit M3): for the one-time `mode: "payment"` branch (route lines ~84-115), add `payment_intent_data: { metadata }` — currently metadata is only on the session, so charges show no package/amount in Stripe reporting.
 
-### 1.2 ⬜ TODO — Add Stripe webhook route
+### 1.2 ✅ DONE — Add Stripe webhook route
 No `app/api/webhooks/stripe/route.ts` exists although admin UI stores/validates `whsec_` secrets (`lib/stripe-settings-server.ts:270` has `getStripeWebhookSecret()`). Subscription failures/cancellations are currently invisible.
 Create the route: read RAW body (`await req.text()`), verify with `stripe.webhooks.constructEvent(rawBody, sig, webhookSecret)`, handle at minimum: `checkout.session.completed`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`. Crib structure from Stripe's official Next.js sample (stripe-samples/checkout-one-time-payments or subscription-use-cases). Get the Stripe client the same way `app/api/checkout/route.ts` does (`lib/stripe.ts`). Log/store events minimally for now (no donations table exists yet — at minimum console.log + 200; consider a `donations` table migration as follow-up).
 
-### 1.3 ⬜ TODO — Stop caching Stripe secrets in the Next data cache
+### 1.3 ✅ DONE — Stop caching Stripe secrets in the Next data cache
 `lib/stripe-settings-server.ts:155-159`: `unstable_cache(fetchStripeSettingsFromDb, ["stripe-settings"], { tags: ["stripe-settings"] })` serializes `secretKey`/`webhookSecret` into the shared (on Vercel, remote) data cache. Split: cache only non-secret display fields (mode, last4, readiness); fetch secrets fresh per request (they're one small DB read) or hold in a module-level in-memory variable with manual invalidation on the existing `revalidateTag("stripe-settings")` path (`app/actions/stripe-settings.ts`).
 
-### 1.4 ⬜ TODO — Fix flag/unflag
+### 1.4 ✅ DONE — Fix flag/unflag
 `app/actions/duas.ts:365-383` (`flagDua`): anonymous, service-role, no existence check; and `components/dua-list.tsx:170-176,206`: "Unflag" only flips local state (DB stays flagged) and is shown to all visitors on server-flagged duas.
 Fix: in `flagDua`, first verify the dua exists and is published before updating; keep anonymous flagging (it's intentional) but remove the unflag affordance for non-admins in `dua-list.tsx` (the local `reportedDuas` state should not offer "Unflag" when `dua.flagged` came from the server).
 
-### 1.5 ⬜ TODO — Timing-safe webhook secret comparison
+### 1.5 ✅ DONE — Timing-safe webhook secret comparison
 `app/api/webhooks/channel/route.ts:~63` and `app/api/webhooks/volunteer/route.ts:~65` use `providedSecret !== configuredSecret`. Replace with `crypto.timingSafeEqual` (hash both sides with sha256 first to equalize length):
 ```ts
 import { createHash, timingSafeEqual } from "crypto"
@@ -67,7 +82,7 @@ const b = createHash("sha256").update(configuredSecret).digest()
 if (!timingSafeEqual(a, b)) { /* 401 */ }
 ```
 
-### 1.6 ⬜ TODO — Re-enable build-time type checking
+### 1.6 ✅ DONE — Re-enable build-time type checking
 1. `npm i -D @types/ws` (fixes the only current tsc error, from `lib/supabase/admin.ts:2`).
 2. Remove `typescript.ignoreBuildErrors: true` and `eslint.ignoreDuringBuilds: true` from `next.config.mjs`.
 3. `npx tsc --noEmit` and `npm run build` — fix anything that surfaces.
@@ -95,11 +110,11 @@ if (!timingSafeEqual(a, b)) { /* 401 */ }
 ### 2.5 ⬜ TODO — Surface swallowed `updateUserById` errors
 `app/actions/volunteers.ts:158-160, 186-191, 320-322`: result of `admin.auth.admin.updateUserById(...)` (app_metadata sync) is unchecked → silent divergence between `profiles` and `app_metadata`. Capture `{ error }` and return failure if set.
 
-### 2.6 ⬜ TODO — Turnstile robustness
+### 2.6 ✅ DONE (done with Phase 1) — Turnstile robustness
 - `components/dua-form.tsx:79-90`: after successful submit, call `window.turnstile.reset(widgetId)` (expose widget id from `turnstile-widget.tsx`), not just `setTurnstileToken(null)`.
 - `components/turnstile-widget.tsx:24-43`: register `"expired-callback"` → clear the token so the form disables submit instead of failing server-side; fix the `window.onTurnstileLoad` global being overwritten per instance (line ~33) — keep an array of pending callbacks.
 
-### 2.7 ⬜ TODO — Fix donate-form toasts (user-visible bug)
+### 2.7 🔶 PARTLY DONE — Fix donate-form toasts (import fixed with Phase 1; deleting the dead hooks/use-toast.ts + ui/toaster.tsx/sonner.tsx remains)
 `components/donate-form.tsx:16` imports `useToast` from `@/hooks/use-toast`, but the mounted `<Toaster/>` (`app/layout.tsx` → `components/toaster.tsx`) subscribes to the duplicate store in `components/ui/use-toast`. Donate-form toasts never render. Change the import to `@/components/ui/use-toast`, then delete `hooks/use-toast.ts` (and dead `components/ui/toaster.tsx`, `components/ui/sonner.tsx`).
 
 ### 2.8 ⬜ TODO — Rate limiter hygiene

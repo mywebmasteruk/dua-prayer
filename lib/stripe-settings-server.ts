@@ -1,4 +1,3 @@
-import { unstable_cache } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { isMissingTableError } from "@/lib/db-errors"
 import {
@@ -155,11 +154,31 @@ async function fetchStripeSettingsFromDb(): Promise<{
   }
 }
 
-const getStripeSettingsFromDbCached = unstable_cache(
-  fetchStripeSettingsFromDb,
-  ["stripe-settings"],
-  { revalidate: 60, tags: ["stripe-settings"] },
-)
+// SECURITY: do NOT use unstable_cache here — it serializes the cached value
+// (including secretKey/webhookSecret) into the shared Next.js data cache,
+// which on Vercel is remote storage. A module-level in-memory cache keeps
+// secrets inside the running process only; the short TTL bounds staleness on
+// other serverless instances the same way revalidate: 60 did.
+const STRIPE_SETTINGS_TTL_MS = 60_000
+
+type CachedStripeSettings = Awaited<ReturnType<typeof fetchStripeSettingsFromDb>>
+
+let stripeSettingsCache: { value: CachedStripeSettings; expiresAt: number } | null = null
+
+async function getStripeSettingsFromDbCached(): Promise<CachedStripeSettings> {
+  const now = Date.now()
+  if (stripeSettingsCache && now < stripeSettingsCache.expiresAt) {
+    return stripeSettingsCache.value
+  }
+  const value = await fetchStripeSettingsFromDb()
+  stripeSettingsCache = { value, expiresAt: now + STRIPE_SETTINGS_TTL_MS }
+  return value
+}
+
+/** Call after admin updates Stripe settings so this instance re-reads immediately. */
+export function invalidateStripeSettingsCache(): void {
+  stripeSettingsCache = null
+}
 
 function pickSource(dbValue: string | null | undefined, envValue: string | null): "db" | "env" | null {
   if (dbValue) return "db"

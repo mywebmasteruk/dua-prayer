@@ -1,3 +1,4 @@
+import { secretsMatch } from "@/lib/secure-compare"
 import { NextResponse } from "next/server"
 import {
   notifyChannelApplicationWebhook,
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
   }
 
   const providedSecret = request.headers.get("x-webhook-secret")?.trim()
-  if (!providedSecret || providedSecret !== configuredSecret) {
+  if (!providedSecret || !secretsMatch(providedSecret, configuredSecret)) {
     return unauthorized()
   }
 
