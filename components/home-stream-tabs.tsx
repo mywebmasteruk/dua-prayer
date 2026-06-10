@@ -14,6 +14,7 @@ interface HomeStreamTabsProps {
   duas: Dua[]
   topCategories: Category[]
   pageSize: number
+  total: number
   emptyCopy: HomeEmptyCopy
 }
 
@@ -23,6 +24,7 @@ export function HomeStreamTabs({
   duas,
   topCategories,
   pageSize,
+  total,
   emptyCopy,
 }: HomeStreamTabsProps) {
   const [activeTab, setActiveTab] = useState<HomeStreamTab>("feed")
@@ -52,7 +54,9 @@ export function HomeStreamTabs({
       params.set("tab", "following")
     } else {
       params.delete("tab")
-      params.delete("page")
+      // Reset the Following tab's position when leaving it; the feed's own
+      // ?page= param is left untouched.
+      params.delete("fpage")
     }
 
     const query = params.toString()
@@ -82,6 +86,7 @@ export function HomeStreamTabs({
             categories={categories}
             topCategories={topCategories}
             pageSize={pageSize}
+            total={total}
             feedActive={activeTab === "feed"}
             emptyCopy={emptyCopy}
           />

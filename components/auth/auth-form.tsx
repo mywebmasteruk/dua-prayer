@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ interface AuthFormProps {
   error?: string
   resetSuccess?: boolean
   next?: string
+  onMagicLinkSuccess?: () => void
 }
 
 function GoogleIcon() {
@@ -41,9 +42,26 @@ function GoogleIcon() {
   )
 }
 
-export function AuthForm({ error, resetSuccess, next }: AuthFormProps) {
+export function AuthForm({ error, resetSuccess, next, onMagicLinkSuccess }: AuthFormProps) {
   const [loading, setLoading] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
+  const [magicLinkClosing, setMagicLinkClosing] = useState(false)
+
+  useEffect(() => {
+    if (!magicLinkSent) return
+
+    const fadeTimer = window.setTimeout(() => setMagicLinkClosing(true), 2600)
+    const closeTimer = window.setTimeout(() => {
+      onMagicLinkSuccess?.()
+      setMagicLinkSent(false)
+      setMagicLinkClosing(false)
+    }, 3200)
+
+    return () => {
+      window.clearTimeout(fadeTimer)
+      window.clearTimeout(closeTimer)
+    }
+  }, [magicLinkSent, onMagicLinkSuccess])
 
   if (error === "not_admin") {
     return (
@@ -196,7 +214,7 @@ export function AuthForm({ error, resetSuccess, next }: AuthFormProps) {
 
           <TabsContent value="magic-link" className="mt-4">
             {magicLinkSent ? (
-              <div className="space-y-3 text-center py-2">
+              <div className={`space-y-3 py-2 text-center transition-opacity duration-500 ${magicLinkClosing ? "opacity-0" : "opacity-100"}`}>
                 <p className="text-sm font-medium text-green-600">Check your email</p>
                 <p className="text-sm text-muted-foreground">
                   We sent a sign-in link. Click it in your email to continue.
@@ -205,7 +223,10 @@ export function AuthForm({ error, resetSuccess, next }: AuthFormProps) {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setMagicLinkSent(false)}
+                  onClick={() => {
+                    setMagicLinkClosing(false)
+                    setMagicLinkSent(false)
+                  }}
                 >
                   Use a different email
                 </Button>

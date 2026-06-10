@@ -1,4 +1,5 @@
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
+import { findAuthUserIdByEmail } from "@/lib/auth-users"
 import {
   channelHandleFromName,
   normalizeChannelHandle,
@@ -44,20 +45,8 @@ export type ChannelApplicationRegistrationResult =
   | { ok: false; error: string; status?: number }
 
 async function findUserIdByEmail(email: string): Promise<string | null> {
-  const admin = createAdminSupabaseClient()
-  let page = 1
-  const perPage = 200
-
-  while (true) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
-    if (error) break
-    const match = data.users.find((u) => u.email?.toLowerCase() === email)
-    if (match) return match.id
-    if (data.users.length < perPage) break
-    page += 1
-  }
-
-  return null
+  const { userId } = await findAuthUserIdByEmail(email)
+  return userId
 }
 
 async function findExistingByFilloutSubmissionId(submissionId: string) {
@@ -152,7 +141,14 @@ export async function registerChannelApplication(
 
   if (insertError || !inserted) {
     if (insertError?.code === "23505") {
-      return { ok: false, error: "A channel with that name or handle already exists.", status: 409 }
+      const duplicatePending = insertError.message?.includes("categories_one_pending_application_per_owner")
+      return {
+        ok: false,
+        error: duplicatePending
+          ? "You already have a channel application under review."
+          : "A channel with that name or handle already exists.",
+        status: 409,
+      }
     }
     console.error("Error inserting channel application:", insertError)
     return { ok: false, error: insertError?.message ?? "Could not save application.", status: 500 }

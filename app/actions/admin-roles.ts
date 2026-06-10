@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
+import { findAuthUserIdByEmail } from "@/lib/auth-users"
 import {
   ADMIN_PERMISSIONS,
   ASSIGNABLE_ADMIN_ROLES,
@@ -169,19 +170,8 @@ export async function assignAdminRole(input: {
 
   const admin = createAdminSupabaseClient()
 
-  let targetUserId: string | null = null
-  let page = 1
-  while (!targetUserId) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 })
-    if (error) return { error: error.message }
-    const match = data.users.find((u) => u.email?.toLowerCase() === email)
-    if (match) {
-      targetUserId = match.id
-      break
-    }
-    if (data.users.length < 200) break
-    page += 1
-  }
+  const { userId: targetUserId, error: lookupError } = await findAuthUserIdByEmail(email)
+  if (lookupError) return { error: lookupError }
 
   if (!targetUserId) {
     return { error: "No account found with that email. They must sign up first." }

@@ -29,17 +29,18 @@ function matchesSearch(dua: Dua, searchQuery: string, categories: Category[]) {
   return dua.text.toLowerCase().includes(trimmed) || categoryName.toLowerCase().includes(trimmed)
 }
 
+// Uses ?fpage= so it never collides with the feed tab's ?page= param.
 function readFollowingPageFromUrl() {
   if (typeof window === "undefined") return 1
-  return Math.max(1, Number.parseInt(new URLSearchParams(window.location.search).get("page") ?? "1") || 1)
+  return Math.max(1, Number.parseInt(new URLSearchParams(window.location.search).get("fpage") ?? "1") || 1)
 }
 
 function syncFollowingPageToUrl(page: number) {
   const params = new URLSearchParams(window.location.search)
   params.set("tab", "following")
 
-  if (page > 1) params.set("page", String(page))
-  else params.delete("page")
+  if (page > 1) params.set("fpage", String(page))
+  else params.delete("fpage")
 
   const query = params.toString()
   const nextUrl = query ? `/?${query}` : "/"

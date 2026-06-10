@@ -113,11 +113,13 @@ function flattenPayload(body: unknown): Record<string, unknown> {
 }
 
 function extractSubmissionId(body: unknown, flat: Record<string, unknown>): string | null {
+  // Only explicit submission-id keys: a generic `id` in the flattened payload
+  // is often a constant (e.g. the form id), which would make every new
+  // application dedupe-match the first one and get silently dropped.
   const fromFlat =
     pickFromRecord(flat, ["submission id", "submissionid", "fillout submission id"]) ??
     asString(flat.submissionId) ??
-    asString(flat.submission_id) ??
-    asString(flat.id)
+    asString(flat.submission_id)
 
   if (fromFlat) return fromFlat
 

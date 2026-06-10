@@ -41,7 +41,7 @@ export function HomeAuthModal({ error, resetSuccess, next, initiallyOpen = false
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md border-0 bg-transparent p-0 shadow-none sm:max-w-md [&>button]:z-10 [&>button]:rounded-full [&>button]:bg-background/90 [&>button]:shadow-sm">
-        <AuthForm error={error} resetSuccess={resetSuccess} next={next} />
+        <AuthForm error={error} resetSuccess={resetSuccess} next={next} onMagicLinkSuccess={closeModal} />
       </DialogContent>
     </Dialog>
   )

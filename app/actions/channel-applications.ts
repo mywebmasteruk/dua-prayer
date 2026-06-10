@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
+import { listAllAuthUsers } from "@/lib/auth-users"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { requirePermission } from "@/lib/auth"
 import { registerChannelApplication } from "@/lib/channel-applications"
@@ -19,28 +20,9 @@ export type ChannelApplicationRecord = Category & {
 }
 
 async function listAuthEmails(): Promise<Map<string, string>> {
-  const admin = createAdminSupabaseClient()
-  const map = new Map<string, string>()
-
-  let page = 1
-  const perPage = 200
-
-  while (true) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
-    if (error) {
-      console.error("Error listing auth users for channel applications:", error)
-      break
-    }
-
-    for (const user of data.users) {
-      if (user.email) map.set(user.id, user.email)
-    }
-
-    if (data.users.length < perPage) break
-    page += 1
-  }
-
-  return map
+  const { users, error } = await listAllAuthUsers()
+  if (error) console.error("Error listing auth users for channel applications:", error)
+  return new Map(users.filter((user) => user.email).map((user) => [user.id, user.email as string]))
 }
 
 function parseApplication(value: unknown): ChannelApplicationPayload | null {

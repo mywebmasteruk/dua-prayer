@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
+import { listAllAuthUsers } from "@/lib/auth-users"
 import { getAdminContext, hasPermission, requirePermission } from "@/lib/auth"
 import { memberRoleToAdminFields } from "@/lib/volunteers"
 import {
@@ -33,28 +34,9 @@ export type ActiveVolunteerRecord = {
 }
 
 async function listAuthEmails(): Promise<Map<string, string>> {
-  const admin = createAdminSupabaseClient()
-  const map = new Map<string, string>()
-
-  let page = 1
-  const perPage = 200
-
-  while (true) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
-    if (error) {
-      console.error("Error listing auth users for volunteers:", error)
-      break
-    }
-
-    for (const user of data.users) {
-      if (user.email) map.set(user.id, user.email)
-    }
-
-    if (data.users.length < perPage) break
-    page += 1
-  }
-
-  return map
+  const { users, error } = await listAllAuthUsers()
+  if (error) console.error("Error listing auth users for volunteers:", error)
+  return new Map(users.filter((user) => user.email).map((user) => [user.id, user.email as string]))
 }
 
 function parseApplication(value: unknown): VolunteerApplicationPayload | null {
@@ -156,9 +138,13 @@ export async function reviewVolunteerApplicant(input: {
 
     if (error) return { error: error.message }
 
-    await admin.auth.admin.updateUserById(input.userId, {
+    const { error: metadataError } = await admin.auth.admin.updateUserById(input.userId, {
       app_metadata: { account_status: "rejected" },
     })
+    if (metadataError) {
+      console.error("Failed to sync app_metadata for rejected volunteer:", metadataError)
+      return { error: "Profile updated but session metadata sync failed. Retry the decision." }
+    }
 
     revalidatePath("/admin/volunteers")
     revalidatePath("/admin/volunteers/roles")
@@ -185,12 +171,16 @@ export async function reviewVolunteerApplicant(input: {
 
   if (error) return { error: error.message }
 
-  await admin.auth.admin.updateUserById(input.userId, {
+  const { error: metadataError } = await admin.auth.admin.updateUserById(input.userId, {
     app_metadata: {
       account_status: "active",
       member_role: role,
     },
   })
+  if (metadataError) {
+    console.error("Failed to sync app_metadata for activated volunteer:", metadataError)
+    return { error: "Profile updated but session metadata sync failed. Retry the decision." }
+  }
 
   revalidatePath("/admin/volunteers")
   revalidatePath("/admin/volunteers/roles")
@@ -316,9 +306,13 @@ export async function updateVolunteerTier(input: { userId: string; tier: MemberR
 
   if (error) return { error: error.message }
 
-  await admin.auth.admin.updateUserById(input.userId, {
+  const { error: metadataError } = await admin.auth.admin.updateUserById(input.userId, {
     app_metadata: { member_role: input.tier },
   })
+  if (metadataError) {
+    console.error("Failed to sync app_metadata for volunteer tier change:", metadataError)
+    return { error: "Profile updated but session metadata sync failed. Retry the change." }
+  }
 
   revalidatePath("/admin/volunteers")
   revalidatePath("/admin/volunteers/roles")

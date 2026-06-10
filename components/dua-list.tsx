@@ -74,7 +74,12 @@ function formatRelativeTime(value: string) {
   const created = new Date(value)
   if (Number.isNaN(created.getTime())) return ""
 
-  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(created)
+  const sameYear = created.getFullYear() === new Date().getFullYear()
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  }).format(created)
 }
 
 const sharePlatforms = [
@@ -202,7 +207,7 @@ export function DuaList({
   return (
     <div className="space-y-3 bg-white py-3">
       {duasList.map((dua) => {
-        const prayed = dua.user_has_prayed ?? dua.user_has_liked
+        const prayed = dua.user_has_prayed
         const textDirection = getTextDirection(dua.text)
         const isRtl = textDirection === "rtl"
         const isReported = reportedDuas[dua.id] ?? dua.flagged

@@ -1,7 +1,7 @@
-import { BookOpen, HandCoins, HandHeart, Home, Info, LayoutGrid, Shield, ShieldAlert, UserCheck } from "lucide-react"
+import { Bell, Bookmark, BookOpen, HandCoins, HandHeart, Home, Info, LayoutGrid, Shield, ShieldAlert, User, UserCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getUserNavState } from "@/lib/user-nav"
-import { AuthButton } from "./auth/auth-button"
+import { AccountDock } from "./auth/account-dock"
 import { isSidebarPathActive, SidebarBranding, SidebarNavItem } from "./sidebar-nav-shared"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
@@ -68,6 +68,18 @@ export function HomeSidebarNav({
             variant={navState.guestAccountItem.variant}
           />
         ) : null}
+        {navState.signedInItems.map((item) => {
+          const Icon = item.label === "Profile" ? User : item.label === "Bookmarks" ? Bookmark : Bell
+          return (
+            <SidebarNavItem
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              icon={Icon}
+              active={activePath === item.activePath || isSidebarPathActive(activePath, item.activePath)}
+            />
+          )
+        })}
         {navState.showAdminLink ? (
           <SidebarNavItem
             href="/admin"
@@ -79,16 +91,8 @@ export function HomeSidebarNav({
       </nav>
 
       {navState.signedInSummary ? (
-        <div className="mt-auto space-y-3 pb-2 pt-8">
-          <div className="rounded-3xl border border-border/60 bg-white/65 px-3 py-3 shadow-sm lg:px-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              {navState.signedInSummary.eyebrow}
-            </p>
-            <p className="mt-1 truncate text-sm font-semibold text-foreground" title={navState.signedInSummary.label}>
-              {navState.signedInSummary.label}
-            </p>
-          </div>
-          {user ? <AuthButton user={user} variant="cta" /> : null}
+        <div className="mt-auto pb-2 pt-8">
+          <AccountDock label={navState.signedInSummary.label} email={user?.email} />
         </div>
       ) : null}
     </div>

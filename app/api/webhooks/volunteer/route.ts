@@ -101,14 +101,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.error }, { status: result.status ?? 500 })
   }
 
-  await notifyVolunteerWebhook({
-    userId: result.userId,
-    email,
-    name,
-    status: result.status,
-    created: result.created,
-    application,
-  })
+  // Only notify on genuinely new applicants — the event name is
+  // "volunteer.application.created", and re-applications are updates.
+  if (result.created) {
+    await notifyVolunteerWebhook({
+      userId: result.userId,
+      email,
+      name,
+      status: result.status,
+      created: result.created,
+      application,
+    })
+  }
 
   return NextResponse.json({
     ok: true,

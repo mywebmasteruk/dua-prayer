@@ -10,7 +10,6 @@ export interface Dua {
   category_name?: string
   category_channel_type?: ChannelType
   user_has_prayed?: boolean
-  user_has_liked?: boolean
   published: boolean
   flagged: boolean
 }

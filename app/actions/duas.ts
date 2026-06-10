@@ -44,7 +44,11 @@ export async function getDuas(options: { category?: string; page?: number } = {}
     .range(from, to)
 
   if (options.category && options.category !== "all") {
-    query = query.eq("category_id", Number.parseInt(options.category))
+    const categoryId = Number.parseInt(options.category, 10)
+    // A non-numeric category would send NaN to PostgREST and fail the query.
+    if (Number.isInteger(categoryId)) {
+      query = query.eq("category_id", categoryId)
+    }
   }
 
   const { data: duas, error, count } = await query
@@ -250,15 +254,22 @@ export async function countNewDuasSince(sinceCreatedAt: string | null) {
   return count ?? 0
 }
 
-export async function getFeedDuas() {
+/**
+ * Fetch one batch of the published feed, newest first. The client loads
+ * further batches on demand (paging past loaded data or filtering), so duas
+ * beyond the first batch stay reachable. Inserts between batch fetches can
+ * shift offsets slightly; the client dedupes by id.
+ */
+export async function getFeedDuas(options: { offset?: number } = {}) {
   const supabase = await createServerSupabaseClient()
+  const offset = Math.max(0, Math.trunc(options.offset ?? 0))
 
   const { data: duas, error, count } = await supabase
     .from("duas")
     .select("id, text, user_id, category_id, likes, created_at, published, flagged", { count: "exact" })
     .eq("published", true)
     .order("created_at", { ascending: false })
-    .range(0, FEED_BATCH_SIZE - 1)
+    .range(offset, offset + FEED_BATCH_SIZE - 1)
 
   if (error) {
     console.error("Error fetching feed duas:", error)
@@ -321,9 +332,25 @@ export async function createDua(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   const admin = createAdminSupabaseClient()
 
+  // The insert uses the service-role client (anonymous submissions bypass
+  // RLS), so the client-supplied category must be validated against active
+  // public categories — otherwise crafted requests could post into pending,
+  // rejected, or inactive channels.
+  let validatedCategoryId: number | null = null
+  if (categoryId) {
+    const parsed = Number.parseInt(categoryId, 10)
+    if (!Number.isInteger(parsed)) return { error: "Choose a valid category" }
+
+    const activeCategories = await getCategories()
+    if (!activeCategories.some((category) => category.id === parsed)) {
+      return { error: "Choose a valid category" }
+    }
+    validatedCategoryId = parsed
+  }
+
   const { error } = await admin.from("duas").insert({
     text,
-    category_id: categoryId ? Number.parseInt(categoryId) : null,
+    category_id: validatedCategoryId,
     published: true,
     flagged: false,
     user_id: user?.id ?? null,

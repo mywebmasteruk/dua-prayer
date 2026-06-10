@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
+import { listAllAuthUsers } from "@/lib/auth-users"
 import { getFoundingAdminEmail, isFoundingAdminUser, requirePermission } from "@/lib/auth"
 import {
   ADMIN_ROLE_LABELS,
@@ -27,31 +28,14 @@ export type AppUserRecord = {
   createdAt: string
 }
 
-async function listAllAuthUsers(): Promise<Map<string, { email: string; createdAt: string }>> {
-  const admin = createAdminSupabaseClient()
-  const map = new Map<string, { email: string; createdAt: string }>()
-
-  let page = 1
-  const perPage = 200
-
-  while (true) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
-    if (error) {
-      console.error("Error listing auth users:", error)
-      break
-    }
-
-    for (const user of data.users) {
-      if (user.email) {
-        map.set(user.id, { email: user.email, createdAt: user.created_at })
-      }
-    }
-
-    if (data.users.length < perPage) break
-    page += 1
-  }
-
-  return map
+async function listAuthUserDetails(): Promise<Map<string, { email: string; createdAt: string }>> {
+  const { users, error } = await listAllAuthUsers()
+  if (error) console.error("Error listing auth users:", error)
+  return new Map(
+    users
+      .filter((user) => user.email)
+      .map((user) => [user.id, { email: user.email as string, createdAt: user.created_at }]),
+  )
 }
 
 function roleLabelForUser(input: {
@@ -80,7 +64,7 @@ export async function listAppUsers(): Promise<{ users: AppUserRecord[] } | { err
     return { error: error.message }
   }
 
-  const authUsers = await listAllAuthUsers()
+  const authUsers = await listAuthUserDetails()
 
   const ids = (profiles ?? []).map((p) => p.id)
   const duaCounts = new Map<string, number>()
@@ -163,7 +147,7 @@ export async function setUserRole(input: { userId: string; role: "user" | AdminR
   if (!gate.ok) return { error: gate.error === "Forbidden" ? "You cannot manage users." : "Unauthorized" }
 
   const admin = createAdminSupabaseClient()
-  const authUsers = await listAllAuthUsers()
+  const authUsers = await listAuthUserDetails()
   const email = authUsers.get(input.userId)?.email ?? ""
 
   const founderEmail = getFoundingAdminEmail()
@@ -229,7 +213,7 @@ export async function deleteUser(userId: string) {
   const trimmedId = userId.trim()
   if (!trimmedId) return { error: "User id is required." }
 
-  const authUsers = await listAllAuthUsers()
+  const authUsers = await listAuthUserDetails()
   const email = authUsers.get(trimmedId)?.email ?? ""
 
   const guard = deleteUserGuard({ userId: trimmedId, email, actorId: gate.user.id })
@@ -250,7 +234,7 @@ export async function deleteUsers(userIds: string[]) {
   const uniqueIds = [...new Set(userIds.map((id) => id.trim()).filter(Boolean))]
   if (uniqueIds.length === 0) return { error: "No users selected." }
 
-  const authUsers = await listAllAuthUsers()
+  const authUsers = await listAuthUserDetails()
   const admin = createAdminSupabaseClient()
 
   let deletedCount = 0

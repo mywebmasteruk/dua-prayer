@@ -27,7 +27,14 @@ describe("user navigation state", () => {
       eyebrow: "Signed in",
       label: "member@example.com",
     })
-    assert.deepEqual(state.signedInItems, [])
+    assert.deepEqual(
+      state.signedInItems.map((item) => [item.href, item.label]),
+      [
+        ["/profile", "Profile"],
+        ["/bookmarks", "Bookmarks"],
+        ["/notifications", "Notifications"],
+      ],
+    )
     assert.equal(state.mobileUserItem.href, "/account")
     assert.equal(state.mobileUserItem.label, "Account")
   })

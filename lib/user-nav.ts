@@ -48,7 +48,23 @@ export function getUserNavState(email?: string | null): UserNavState {
       eyebrow: "Signed in",
       label: email,
     },
-    signedInItems: [],
+    signedInItems: [
+      {
+        href: "/profile",
+        label: "Profile",
+        activePath: "/profile",
+      },
+      {
+        href: "/bookmarks",
+        label: "Bookmarks",
+        activePath: "/bookmarks",
+      },
+      {
+        href: "/notifications",
+        label: "Notifications",
+        activePath: "/notifications",
+      },
+    ],
     mobileUserItem: showAdminLink
       ? {
           href: "/admin",

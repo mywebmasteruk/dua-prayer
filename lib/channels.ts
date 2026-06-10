@@ -1,5 +1,5 @@
 import type { ChannelItem } from "@/components/channel-list"
-import { channelHandleFromName } from "@/lib/channel-types"
+import { channelHandleFromName, normalizeChannelHandle } from "@/lib/channel-types"
 import type { Category, Dua } from "@/lib/types/dua"
 
 function getChannelDescription(category: Category) {
@@ -10,7 +10,9 @@ function getChannelDescription(category: Category) {
 
 export function getChannelHandle(category: Pick<Category, "name" | "handle">) {
   const handle = category.handle?.trim()
-  if (handle) return handle.toLowerCase().replace(/^@+/, "")
+  // Normalize stored handles the same way they are normalized at write time,
+  // so legacy/manually-edited values render consistently.
+  if (handle) return normalizeChannelHandle(handle)
   return channelHandleFromName(category.name)
 }
 

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { getFeedDuas } from "@/app/actions/duas"
 import type { Category, Dua } from "@/lib/types/dua"
 import { detectLanguage, type DuaLanguage } from "@/lib/detect-language"
 import { FeedFilters, type LangFilter, type LangPill } from "@/components/feed-filters"
@@ -18,6 +19,8 @@ interface FeedSectionProps {
   categories: Category[]
   topCategories: Category[]
   pageSize: number
+  /** Total published duas on the server (the duas prop is only the first batch). */
+  total: number
   feedActive?: boolean
   emptyCopy?: Pick<HomeEmptyCopy, "homeFeedEmptyTitle" | "homeFeedEmptyDescription">
 }
@@ -99,6 +102,7 @@ export function FeedSection({
   categories,
   topCategories,
   pageSize,
+  total,
   feedActive = true,
   emptyCopy,
 }: FeedSectionProps) {
@@ -108,6 +112,8 @@ export function FeedSection({
   const [lang, setLang] = useState<LangFilter>("all")
   const [page, setPage] = useState(1)
   const [tag, setTag] = useState("")
+  const [extraDuas, setExtraDuas] = useState<Dua[]>([])
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   useEffect(() => {
     const initial = readFiltersFromUrl()
@@ -122,17 +128,61 @@ export function FeedSection({
     [categories, category, topCategories],
   )
 
+  // The duas prop is the newest server batch; extraDuas holds older batches
+  // loaded on demand. Dedupe by id — new submissions shift batch offsets.
+  const allDuas = useMemo(() => {
+    if (extraDuas.length === 0) return duas
+    const seen = new Set(duas.map((dua) => dua.id))
+    return [...duas, ...extraDuas.filter((dua) => !seen.has(dua.id))]
+  }, [duas, extraDuas])
+
   const filteredDuas = useMemo(() => {
-    return duas.filter((dua) => {
+    return allDuas.filter((dua) => {
       if (category !== "all" && dua.category_id?.toString() !== category) return false
       if (tag && !matchesHashtag(dua.text, tag)) return false
       if (!matchesLanguage(dua.text, lang)) return false
       if (!matchesSearch(dua, searchQuery, categories)) return false
       return true
     })
-  }, [category, categories, duas, lang, searchQuery, tag])
+  }, [allDuas, category, categories, lang, searchQuery, tag])
 
-  const totalPages = Math.max(1, Math.ceil(filteredDuas.length / pageSize))
+  const filtersActive =
+    category !== "all" || lang !== "all" || tag !== "" || searchQuery.trim() !== ""
+  const allLoaded = allDuas.length >= total
+
+  // Language/hashtag/search filters run on the client (they analyze the dua
+  // text), so they need the full dataset; otherwise load just enough batches
+  // to cover the page the user is on.
+  useEffect(() => {
+    if (allLoaded || isLoadingMore || !feedActive) return
+    const needed = filtersActive ? total : Math.min(page * pageSize, total)
+    if (allDuas.length >= needed) return
+
+    let cancelled = false
+    setIsLoadingMore(true)
+    getFeedDuas({ offset: allDuas.length })
+      .then((result) => {
+        if (cancelled) return
+        setExtraDuas((previous) => {
+          const seen = new Set([...duas, ...previous].map((dua) => dua.id))
+          return [...previous, ...result.duas.filter((dua) => !seen.has(dua.id))]
+        })
+      })
+      .catch((error) => console.error("Error loading more duas:", error))
+      .finally(() => {
+        if (!cancelled) setIsLoadingMore(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [allDuas.length, allLoaded, duas, feedActive, filtersActive, isLoadingMore, page, pageSize, total])
+
+  // Unfiltered: trust the server count so pages past the loaded batches stay
+  // reachable. Filtered: the dataset is (being) fully loaded, so the local
+  // count is the real one.
+  const paginationTotal = filtersActive ? filteredDuas.length : Math.max(total, filteredDuas.length)
+  const totalPages = Math.max(1, Math.ceil(paginationTotal / pageSize))
   const currentPage = Math.min(page, totalPages)
 
   const paginatedDuas = useMemo(() => {
@@ -246,7 +296,7 @@ export function FeedSection({
       <section className="bg-white px-4 py-3 sm:px-5 sm:py-4">
         <FeedPagination
           page={currentPage}
-          total={filteredDuas.length}
+          total={paginationTotal}
           pageSize={pageSize}
           onPageChange={handlePageChange}
         />

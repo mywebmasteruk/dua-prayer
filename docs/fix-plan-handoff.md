@@ -89,7 +89,22 @@ if (!timingSafeEqual(a, b)) { /* 401 */ }
 
 ---
 
-## Phase 2 — Correctness
+## Phase 2 — Correctness — ✅ ALL DONE (2026-06-10, verified: tsc clean, build clean, e2e 10 passed / 1 skipped)
+
+Summary:
+- **2.1 ✅** Feed: progressive batch loading — `getFeedDuas({offset})` + FeedSection loads more batches when paging past loaded data or when client-side filters (language/hashtag/search analyze dua text) are active; pagination uses the server count when unfiltered. Right-rail `totalAmeens` now from `getPlatformStats` (all duas). Following tab uses `?fpage=` (no more cross-talk with feed `?page=`). `getDuas` guards non-integer category.
+- **2.2 ✅** `createDua` validates `category_id` against active public categories before the service-role insert.
+- **2.3 ✅** `extractSubmissionId` no longer falls back to a generic flattened `id` (volunteer parser never had the issue).
+- **2.4 ✅** New migration `20260610100000_unique_pending_channel_application.sql` (unique partial index on categories(owner_id) WHERE pending_review) — APPLIED TO PRODUCTION; insert maps the violation to "already under review". sort_order race left as benign (cosmetic ordering).
+- **2.5 ✅** All three `updateUserById` app_metadata syncs in volunteers.ts now check and surface errors.
+- **2.6 ✅** (done in Phase 1) Turnstile reset/expiry/load-queue.
+- **2.7 ✅** donate-form import fixed (Phase 1); dead `hooks/use-toast.ts`, `components/ui/toaster.tsx`, `components/ui/sonner.tsx` deleted.
+- **2.8 ✅** Rate limiter sweeps expired buckets (5-min cadence); scope documented in-file. Shared-store upgrade left as optional future work.
+- **2.9 ✅** Volunteer webhook only fires created-event for new applicants; phantom `user_has_liked` removed; `getChannelHandle` uses `normalizeChannelHandle`; dates show the year when not current; new `lib/auth-users.ts` (`listAllAuthUsers`, `findAuthUserIdByEmail`) replaces all five duplicated listUsers loops.
+
+Original task details below.
+
+## Phase 2 (original details) — Correctness
 
 ### 2.1 ⬜ TODO — Real feed pagination + consistent stats
 - `app/actions/duas.ts:262`: `FEED_BATCH_SIZE = 100` + `components/feed-section.tsx:131-137` paginate client-side over the newest 100 → duas beyond 100 unreachable. The server-paginated `getDuas()` (`duas.ts:33`) exists but is unused. Wire `FeedSection` pagination to server-side fetching (page param → `getDuas({ page, category, ... })`), use the real `count` for `total`.
