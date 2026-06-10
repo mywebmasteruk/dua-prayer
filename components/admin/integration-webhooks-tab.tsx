@@ -21,7 +21,7 @@ function buildWebhookUrl(appUrl: string | null, path: string): string | null {
   return `${appUrl.replace(/\/$/, "")}${path}`
 }
 
-function CopyUrlButton({ value }: { value: string }) {
+function CopyValueButton({ value, label = "Copy URL" }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
@@ -44,7 +44,7 @@ function CopyUrlButton({ value }: { value: string }) {
       ) : (
         <>
           <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-          Copy URL
+          {label}
         </>
       )}
     </Button>
@@ -59,7 +59,7 @@ function WebhookUrlRow({ label, url }: { label: string; url: string | null }) {
         {url ? (
           <div className="flex flex-wrap items-start gap-2">
             <code className="min-w-0 flex-1 break-all rounded bg-muted px-1.5 py-0.5 text-xs">{url}</code>
-            <CopyUrlButton value={url} />
+            <CopyValueButton value={url} />
           </div>
         ) : (
           <code className="break-all rounded bg-muted px-1.5 py-0.5 text-xs">
@@ -85,15 +85,21 @@ function SecretStatusRow({
   return (
     <div className="grid gap-1 border-b border-border/50 py-3 last:border-b-0 sm:grid-cols-[minmax(8rem,11rem)_1fr] sm:gap-x-6">
       <dt className="text-sm font-medium text-foreground">{label}</dt>
-      <dd className="min-w-0 space-y-1">
-        <code className="break-all rounded bg-muted px-1.5 py-0.5 text-xs">{envVar}</code>
+      <dd className="min-w-0 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <code className="break-all rounded bg-muted px-1.5 py-0.5 text-xs">{envVar}</code>
+          <CopyValueButton value={envVar} label="Copy env key" />
+        </div>
         {headerHint ? (
-          <p className="text-xs text-muted-foreground">
-            Header: <code className="rounded bg-muted px-1 py-0.5">{headerHint}</code>
-          </p>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>
+              Header: <code className="rounded bg-muted px-1 py-0.5">{headerHint}</code>
+            </span>
+            <CopyValueButton value={headerHint} label="Copy header" />
+          </div>
         ) : null}
         <p className={cn("text-xs", configured ? "text-emerald-700" : "text-amber-800")}>
-          {configured ? "Configured" : "Not configured"}
+          {configured ? "Configured" : "Not configured — set this in Vercel Environment Variables."}
         </p>
       </dd>
     </div>
