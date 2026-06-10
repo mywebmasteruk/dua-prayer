@@ -55,7 +55,7 @@ export function HomeRightRail({
   return (
     <div className="space-y-4">
       <div
-        className="sticky top-0 z-10 flex items-center bg-muted/80 backdrop-blur"
+        className="sticky top-0 z-10 flex items-center bg-muted/40 backdrop-blur"
         style={{ height: HOME_FEED_TAB_BAR_HEIGHT_PX }}
       >
         <HomeSearchInput className="mt-[5px] w-full" />
