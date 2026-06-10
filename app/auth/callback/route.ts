@@ -2,12 +2,13 @@ import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { accountStatusSignInMessage, getProfileAccessState } from "@/lib/account-status"
 import { resolveAdminLandingPath, userHasAdminAccess } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
+import { safeNextPath } from "@/lib/safe-redirect"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get("code")
-  const next = requestUrl.searchParams.get("next") ?? "/"
+  const next = safeNextPath(requestUrl.searchParams.get("next"))
 
   if (!code) {
     return NextResponse.redirect(new URL(signInHref(), requestUrl.origin))

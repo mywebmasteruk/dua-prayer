@@ -7,6 +7,7 @@ import { isFoundingAdminUser, resolveAdminLandingPath, userHasAdminAccess } from
 import { accountStatusSignInMessage, getProfileAccessState } from "@/lib/account-status"
 import { mapAuthErrorMessage } from "@/lib/auth-errors"
 import { signInHref } from "@/lib/auth-modal"
+import { safeNextPath } from "@/lib/safe-redirect"
 
 function getAppUrl() {
   return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
@@ -38,7 +39,7 @@ async function resolvePostAuthRedirect(next: string, userId: string, email?: str
 export async function signIn(formData: FormData) {
   const email = formData.get("email") as string
   const password = formData.get("password") as string
-  const next = (formData.get("next") as string) || "/"
+  const next = safeNextPath(formData.get("next") as string)
 
   const supabase = await createServerSupabaseClient()
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
@@ -57,7 +58,7 @@ export async function signIn(formData: FormData) {
 
 export async function sendMagicLink(formData: FormData) {
   const email = formData.get("email") as string
-  const next = (formData.get("next") as string) || "/"
+  const next = safeNextPath(formData.get("next") as string)
 
   if (!email) return { error: "Email is required" }
 
