@@ -1,7 +1,7 @@
 export const DUA_SHARE_URL = "https://duaprayer.com"
 
 const MAX_SHARE_TEXT_LENGTH = 320
-const SHARE_SUFFIX = `Shared from DuaPrayer: ${DUA_SHARE_URL}`
+const SHARE_SUFFIX = "Shared from DuaPrayer"
 
 type ShareableDua = {
   id: number
@@ -42,11 +42,12 @@ export function buildDuaSharePayload(dua: ShareableDua): DuaSharePayload {
 export function buildDuaShareUrl(platform: DuaSharePlatform, dua: ShareableDua) {
   const payload = buildDuaSharePayload(dua)
   const text = encodeURIComponent(payload.text)
+  const textWithUrl = encodeURIComponent(`${payload.text}\n\n${payload.url}`)
   const url = encodeURIComponent(payload.url)
 
   switch (platform) {
     case "whatsapp":
-      return `https://wa.me/?text=${text}`
+      return `https://wa.me/?text=${textWithUrl}`
     case "telegram":
       return `https://t.me/share/url?url=${url}&text=${text}`
     case "twitter":
