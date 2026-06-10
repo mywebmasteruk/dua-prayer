@@ -15,6 +15,29 @@ type SiteCopySettingsProps = {
 
 const COPY_KEYS = Object.keys(SITE_COPY_LABELS) as SiteCopyKey[]
 
+function getRows(key: SiteCopyKey) {
+  if (
+    key === "aboutMission" ||
+    key === "donatePageIntro" ||
+    key === "homeFollowingEmptyDescription" ||
+    key === "composerDescriptionEn" ||
+    key === "composerDescriptionAr"
+  ) {
+    return 5
+  }
+
+  if (
+    key === "homeFeedEmptyDescription" ||
+    key === "channelsPageSubtitle" ||
+    key === "composerPlaceholderEn" ||
+    key === "composerPlaceholderAr"
+  ) {
+    return 3
+  }
+
+  return 2
+}
+
 export function SiteCopySettings({ initialCopy }: SiteCopySettingsProps) {
   const [copy, setCopy] = useState(initialCopy)
   const [isSaving, setIsSaving] = useState(false)
@@ -55,13 +78,9 @@ export function SiteCopySettings({ initialCopy }: SiteCopySettingsProps) {
               id={`copy-${key}`}
               value={copy[key]}
               onChange={(event) => setCopy((prev) => ({ ...prev, [key]: event.target.value }))}
-              rows={
-                key === "aboutMission" || key === "donatePageIntro" || key === "homeFollowingEmptyDescription"
-                  ? 5
-                  : key === "homeFeedEmptyDescription" || key === "channelsPageSubtitle"
-                    ? 3
-                    : 2
-              }
+              rows={getRows(key)}
+              dir={key.endsWith("Ar") ? "rtl" : "ltr"}
+              className={key.endsWith("Ar") ? "text-right" : undefined}
               required
             />
           </div>

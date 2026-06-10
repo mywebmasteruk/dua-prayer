@@ -27,6 +27,22 @@ test.describe("Homepage", () => {
     await expect(composer.getByRole("heading", { name: "Share your dua with the Ummah." })).toBeVisible()
     await expect(composer.getByText("Please do not include personal or private details and keep it positive. All posts are subject to moderation. JZK")).toBeVisible()
     await expect(composer.getByRole("button", { name: "Make Dua" })).toBeDisabled()
+
+    await composer.getByRole("combobox", { name: "Language" }).click()
+    await page.getByRole("option", { name: "العربية" }).click()
+
+    await expect(composer.getByRole("heading", { name: "شارك دعاءك مع الأمة." })).toBeVisible()
+    await expect(
+      composer.getByText(
+        "يرجى عدم تضمين تفاصيل شخصية أو خاصة، واجعل الدعاء إيجابيًا. تخضع جميع المشاركات للمراجعة. جزاكم الله خيرًا",
+      ),
+    ).toBeVisible()
+    await expect(composer.getByPlaceholder("ادعُ لنفسك أو لأهلك أو لمن يحتاج إلى الدعم...")).toHaveAttribute(
+      "dir",
+      "rtl",
+    )
+    await expect(composer.getByText("عام")).toBeVisible()
+    await expect(composer.getByRole("button", { name: "إرسال الدعاء" })).toBeDisabled()
   })
 
   test("channel application page prompts logged-out users before showing Fillout", async ({ page }) => {

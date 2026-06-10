@@ -147,6 +147,27 @@ export default async function Home({
                     homeFollowingEmptyDescription: siteCopy.homeFollowingEmptyDescription,
                     homeFollowingEmptyCta: siteCopy.homeFollowingEmptyCta,
                   }}
+                  composerCopy={{
+                    composerTitleEn: siteCopy.composerTitleEn,
+                    composerDescriptionEn: siteCopy.composerDescriptionEn,
+                    composerPlaceholderEn: siteCopy.composerPlaceholderEn,
+                    composerCategoryPlaceholderEn: siteCopy.composerCategoryPlaceholderEn,
+                    composerSubmitEn: siteCopy.composerSubmitEn,
+                    composerSubmitAriaEn: siteCopy.composerSubmitAriaEn,
+                    composerSubmittingEn: siteCopy.composerSubmittingEn,
+                    composerTitleAr: siteCopy.composerTitleAr,
+                    composerDescriptionAr: siteCopy.composerDescriptionAr,
+                    composerPlaceholderAr: siteCopy.composerPlaceholderAr,
+                    composerCategoryPlaceholderAr: siteCopy.composerCategoryPlaceholderAr,
+                    composerSubmitAr: siteCopy.composerSubmitAr,
+                    composerSubmitAriaAr: siteCopy.composerSubmitAriaAr,
+                    composerSubmittingAr: siteCopy.composerSubmittingAr,
+                    composerCategoryFamilyAr: siteCopy.composerCategoryFamilyAr,
+                    composerCategoryForgivenessAr: siteCopy.composerCategoryForgivenessAr,
+                    composerCategoryGeneralAr: siteCopy.composerCategoryGeneralAr,
+                    composerCategoryHealthAr: siteCopy.composerCategoryHealthAr,
+                    composerCategoryCommunityAr: siteCopy.composerCategoryCommunityAr,
+                  }}
                 />
               </section>
             </NavigationContentLoader>

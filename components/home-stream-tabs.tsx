@@ -6,7 +6,7 @@ import { HomeComposer } from "@/components/home-composer"
 import { FeedSection } from "@/components/feed-section"
 import { HomeFeedTabBar, type HomeStreamTab } from "@/components/home-feed-tab-bar"
 import { FollowingSection } from "@/components/following-section"
-import type { HomeEmptyCopy } from "@/lib/site-copy"
+import type { ComposerCopy, HomeEmptyCopy } from "@/lib/site-copy"
 
 interface HomeStreamTabsProps {
   categories: Category[]
@@ -16,6 +16,7 @@ interface HomeStreamTabsProps {
   pageSize: number
   total: number
   emptyCopy: HomeEmptyCopy
+  composerCopy: ComposerCopy
 }
 
 export function HomeStreamTabs({
@@ -26,6 +27,7 @@ export function HomeStreamTabs({
   pageSize,
   total,
   emptyCopy,
+  composerCopy,
 }: HomeStreamTabsProps) {
   const [activeTab, setActiveTab] = useState<HomeStreamTab>("feed")
 
@@ -80,7 +82,7 @@ export function HomeStreamTabs({
           hidden={activeTab !== "feed"}
           className={activeTab === "feed" ? undefined : "hidden"}
         >
-          <HomeComposer categories={categories} turnstileSiteKey={turnstileSiteKey} />
+          <HomeComposer categories={categories} turnstileSiteKey={turnstileSiteKey} copy={composerCopy} />
           <FeedSection
             duas={duas}
             categories={categories}

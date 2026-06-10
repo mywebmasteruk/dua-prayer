@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createDua } from "@/app/actions/duas"
 import { useNavigationRouter } from "@/hooks/use-navigation-router"
 import type { Category } from "@/lib/types/dua"
+import type { ComposerCopy } from "@/lib/site-copy"
 import { toast } from "@/components/ui/use-toast"
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/turnstile-widget"
 import { cn } from "@/lib/utils"
@@ -22,10 +23,20 @@ import {
 interface DuaFormProps {
   categories: Category[]
   turnstileSiteKey?: string
+  copy: ComposerCopy
+  onLanguageChange?: (languageMode: LanguageMode) => void
   onSuccess?: () => void
 }
 
-export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProps) {
+const ARABIC_CATEGORY_COPY_BY_NAME = {
+  Family: "composerCategoryFamilyAr",
+  Forgiveness: "composerCategoryForgivenessAr",
+  General: "composerCategoryGeneralAr",
+  Health: "composerCategoryHealthAr",
+  Community: "composerCategoryCommunityAr",
+} as const satisfies Record<string, keyof ComposerCopy>
+
+export function DuaForm({ categories, turnstileSiteKey, copy, onLanguageChange, onSuccess }: DuaFormProps) {
   const [duaText, setDuaText] = useState("")
   const [category, setCategory] = useState("")
   const [languageMode, setLanguageMode] = useState<LanguageMode>("auto")
@@ -83,7 +94,7 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
       toast({ title: "Error", description: result.error, variant: "destructive" })
     } else {
       setDuaText("")
-      setLanguageMode("auto")
+      handleLanguageChange("auto")
       toast({ title: "Success", description: "Your dua has been submitted" })
       onSuccess?.()
       router.refresh()
@@ -93,6 +104,8 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
   }
 
   const textDirection = resolveTextDirection(languageMode, duaText)
+  const uiDirection = languageMode === "ar" ? "rtl" : "ltr"
+  const isArabicUi = languageMode === "ar"
   const fontClassName = resolveFontClassName(languageMode, duaText)
   const detectedLanguage = detectLanguage(duaText)
   const languageTriggerLabel =
@@ -103,10 +116,26 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
       : languageMode === "ar"
         ? "العربية"
         : "English"
+  const placeholder = isArabicUi ? copy.composerPlaceholderAr : copy.composerPlaceholderEn
+  const categoryPlaceholder = isArabicUi ? copy.composerCategoryPlaceholderAr : copy.composerCategoryPlaceholderEn
+  const submitLabel = isArabicUi ? copy.composerSubmitAr : copy.composerSubmitEn
+  const submitAriaLabel = isArabicUi ? copy.composerSubmitAriaAr : copy.composerSubmitAriaEn
+  const submittingLabel = isArabicUi ? copy.composerSubmittingAr : copy.composerSubmittingEn
+
+  const getCategoryLabel = (cat: Category) => {
+    if (!isArabicUi) return cat.name
+    const copyKey = ARABIC_CATEGORY_COPY_BY_NAME[cat.name as keyof typeof ARABIC_CATEGORY_COPY_BY_NAME]
+    return copyKey ? copy[copyKey] : cat.name
+  }
+
+  const handleLanguageChange = (value: LanguageMode) => {
+    setLanguageMode(value)
+    onLanguageChange?.(value)
+  }
 
   const handleTextChange = (value: string) => {
     if (value.length > MAX_CHARS) return
-    if (value.length === 0) setLanguageMode("auto")
+    if (value.length === 0) handleLanguageChange("auto")
     setDuaText(value)
   }
 
@@ -129,11 +158,11 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
         </div>
         <div className="flex-1 min-w-0">
           <Textarea
-            placeholder="Make a dua for yourself, your family, or someone who needs support..."
-            dir={textDirection}
+            placeholder={placeholder}
+            dir={isArabicUi ? "rtl" : textDirection}
             className={cn(
               "min-h-[88px] resize-none border-0 bg-transparent px-0 text-[17px] leading-relaxed shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/80",
-              textDirection === "rtl" && "text-right leading-8",
+              (isArabicUi || textDirection === "rtl") && "text-right leading-8",
               fontClassName,
             )}
             value={duaText}
@@ -156,13 +185,13 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
           <div className="mt-3 pt-3 border-t feed-divider flex items-center justify-between flex-wrap gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="h-9 w-[160px] rounded-full border-primary/25 bg-muted/40 text-sm">
-                  <SelectValue placeholder="Category" />
+                <SelectTrigger className="h-9 w-[160px] rounded-full border-primary/25 bg-muted/40 text-sm" dir={uiDirection}>
+                  <SelectValue placeholder={categoryPlaceholder} />
                 </SelectTrigger>
                 <SelectContent position="popper" className={selectContentClassName}>
                   {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id.toString()}>
-                      {cat.name}
+                    <SelectItem key={cat.id} value={cat.id.toString()} dir={uiDirection}>
+                      {getCategoryLabel(cat)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -170,7 +199,7 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
 
               <Select
                 value={languageMode}
-                onValueChange={(value) => setLanguageMode(value as LanguageMode)}
+                onValueChange={(value) => handleLanguageChange(value as LanguageMode)}
               >
                 <SelectTrigger
                   className="h-9 w-[148px] rounded-full border-primary/25 bg-muted/40 text-sm"
@@ -199,9 +228,10 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
                 type="submit"
                 className="rounded-full bg-primary px-5 text-primary-foreground hover:bg-primary/90"
                 disabled={isSubmitting || duaText.trim().length < MIN_CHARS || (turnstileRequired && !turnstileToken)}
-                aria-label="Make Dua"
+                aria-label={submitAriaLabel}
+                dir={uiDirection}
               >
-                {isSubmitting ? "Making…" : "Make"}
+                {isSubmitting ? submittingLabel : submitLabel}
               </Button>
             </div>
           </div>

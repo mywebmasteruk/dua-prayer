@@ -16,6 +16,27 @@ export const SITE_COPY_DEFAULTS = {
   donatePageTitle: "Support DuaPrayer",
   donatePageIntro:
     "DuaPrayer is a nonprofit community platform for sharing duas and responding with ameen. Donations are optional and help cover hosting, moderation tools, and ongoing development so the service stays free for everyone.",
+  composerTitleEn: "Share your dua with the Ummah.",
+  composerDescriptionEn:
+    "Please do not include personal or private details and keep it positive. All posts are subject to moderation. JZK",
+  composerPlaceholderEn: "Make a dua for yourself, your family, or someone who needs support...",
+  composerCategoryPlaceholderEn: "Category",
+  composerSubmitEn: "Make",
+  composerSubmitAriaEn: "Make Dua",
+  composerSubmittingEn: "Making…",
+  composerTitleAr: "شارك دعاءك مع الأمة.",
+  composerDescriptionAr:
+    "يرجى عدم تضمين تفاصيل شخصية أو خاصة، واجعل الدعاء إيجابيًا. تخضع جميع المشاركات للمراجعة. جزاكم الله خيرًا",
+  composerPlaceholderAr: "ادعُ لنفسك أو لأهلك أو لمن يحتاج إلى الدعم...",
+  composerCategoryPlaceholderAr: "التصنيف",
+  composerSubmitAr: "ادعُ",
+  composerSubmitAriaAr: "إرسال الدعاء",
+  composerSubmittingAr: "جارٍ الإرسال...",
+  composerCategoryFamilyAr: "العائلة",
+  composerCategoryForgivenessAr: "المغفرة",
+  composerCategoryGeneralAr: "عام",
+  composerCategoryHealthAr: "الصحة",
+  composerCategoryCommunityAr: "المجتمع",
 } as const
 
 export type SiteCopyKey = keyof typeof SITE_COPY_DEFAULTS
@@ -33,6 +54,25 @@ export const SITE_SETTING_KEY_MAP: Record<SiteCopyKey, string> = {
   channelsPageSubtitle: SITE_SETTING_KEYS.copyChannelsPageSubtitle,
   donatePageTitle: SITE_SETTING_KEYS.copyDonatePageTitle,
   donatePageIntro: SITE_SETTING_KEYS.copyDonatePageIntro,
+  composerTitleEn: SITE_SETTING_KEYS.copyComposerTitleEn,
+  composerDescriptionEn: SITE_SETTING_KEYS.copyComposerDescriptionEn,
+  composerPlaceholderEn: SITE_SETTING_KEYS.copyComposerPlaceholderEn,
+  composerCategoryPlaceholderEn: SITE_SETTING_KEYS.copyComposerCategoryPlaceholderEn,
+  composerSubmitEn: SITE_SETTING_KEYS.copyComposerSubmitEn,
+  composerSubmitAriaEn: SITE_SETTING_KEYS.copyComposerSubmitAriaEn,
+  composerSubmittingEn: SITE_SETTING_KEYS.copyComposerSubmittingEn,
+  composerTitleAr: SITE_SETTING_KEYS.copyComposerTitleAr,
+  composerDescriptionAr: SITE_SETTING_KEYS.copyComposerDescriptionAr,
+  composerPlaceholderAr: SITE_SETTING_KEYS.copyComposerPlaceholderAr,
+  composerCategoryPlaceholderAr: SITE_SETTING_KEYS.copyComposerCategoryPlaceholderAr,
+  composerSubmitAr: SITE_SETTING_KEYS.copyComposerSubmitAr,
+  composerSubmitAriaAr: SITE_SETTING_KEYS.copyComposerSubmitAriaAr,
+  composerSubmittingAr: SITE_SETTING_KEYS.copyComposerSubmittingAr,
+  composerCategoryFamilyAr: SITE_SETTING_KEYS.copyComposerCategoryFamilyAr,
+  composerCategoryForgivenessAr: SITE_SETTING_KEYS.copyComposerCategoryForgivenessAr,
+  composerCategoryGeneralAr: SITE_SETTING_KEYS.copyComposerCategoryGeneralAr,
+  composerCategoryHealthAr: SITE_SETTING_KEYS.copyComposerCategoryHealthAr,
+  composerCategoryCommunityAr: SITE_SETTING_KEYS.copyComposerCategoryCommunityAr,
 }
 
 export const SITE_COPY_LABELS: Record<SiteCopyKey, { label: string; description: string }> = {
@@ -84,9 +124,88 @@ export const SITE_COPY_LABELS: Record<SiteCopyKey, { label: string; description:
     label: "Donate page intro",
     description: "Intro paragraph below the Donate page title.",
   },
+  composerTitleEn: {
+    label: "Composer title — English",
+    description: "Heading shown at the top of the dua composer modal in English mode.",
+  },
+  composerDescriptionEn: {
+    label: "Composer description — English",
+    description: "Moderation guidance shown below the composer heading in English mode.",
+  },
+  composerPlaceholderEn: {
+    label: "Composer placeholder — English",
+    description: "Placeholder shown inside the dua text field in English mode.",
+  },
+  composerCategoryPlaceholderEn: {
+    label: "Composer category placeholder — English",
+    description: "Placeholder shown before a category is selected in English mode.",
+  },
+  composerSubmitEn: {
+    label: "Composer submit button — English",
+    description: "Text on the composer submit button in English mode.",
+  },
+  composerSubmitAriaEn: {
+    label: "Composer submit accessibility label — English",
+    description: "Screen-reader label for the composer submit button in English mode.",
+  },
+  composerSubmittingEn: {
+    label: "Composer submitting state — English",
+    description: "Text shown on the composer submit button while sending in English mode.",
+  },
+  composerTitleAr: {
+    label: "Composer title — Arabic",
+    description: "Heading shown at the top of the dua composer modal in Arabic mode.",
+  },
+  composerDescriptionAr: {
+    label: "Composer description — Arabic",
+    description: "Moderation guidance shown below the composer heading in Arabic mode.",
+  },
+  composerPlaceholderAr: {
+    label: "Composer placeholder — Arabic",
+    description: "Placeholder shown inside the dua text field in Arabic mode.",
+  },
+  composerCategoryPlaceholderAr: {
+    label: "Composer category placeholder — Arabic",
+    description: "Placeholder shown before a category is selected in Arabic mode.",
+  },
+  composerSubmitAr: {
+    label: "Composer submit button — Arabic",
+    description: "Text on the composer submit button in Arabic mode.",
+  },
+  composerSubmitAriaAr: {
+    label: "Composer submit accessibility label — Arabic",
+    description: "Screen-reader label for the composer submit button in Arabic mode.",
+  },
+  composerSubmittingAr: {
+    label: "Composer submitting state — Arabic",
+    description: "Text shown on the composer submit button while sending in Arabic mode.",
+  },
+  composerCategoryFamilyAr: {
+    label: "Composer category label — Arabic: Family",
+    description: "Arabic label for the Family category in the composer category menu.",
+  },
+  composerCategoryForgivenessAr: {
+    label: "Composer category label — Arabic: Forgiveness",
+    description: "Arabic label for the Forgiveness category in the composer category menu.",
+  },
+  composerCategoryGeneralAr: {
+    label: "Composer category label — Arabic: General",
+    description: "Arabic label for the General category in the composer category menu.",
+  },
+  composerCategoryHealthAr: {
+    label: "Composer category label — Arabic: Health",
+    description: "Arabic label for the Health category in the composer category menu.",
+  },
+  composerCategoryCommunityAr: {
+    label: "Composer category label — Arabic: Community",
+    description: "Arabic label for the Community category in the composer category menu.",
+  },
 }
 
 export type SiteCopy = Record<SiteCopyKey, string>
+
+export type ComposerCopyKey = Extract<SiteCopyKey, `composer${string}`>
+export type ComposerCopy = Pick<SiteCopy, ComposerCopyKey>
 
 export type HomeEmptyCopy = Pick<
   SiteCopy,

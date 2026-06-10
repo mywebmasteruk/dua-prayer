@@ -7,16 +7,27 @@ import { BrandLogo } from "@/components/brand-logo"
 import { DuaForm } from "@/components/dua-form"
 import { ActionIconTooltip } from "@/components/action-icon-tooltip"
 import type { Category } from "@/lib/types/dua"
+import type { ComposerCopy } from "@/lib/site-copy"
+import type { LanguageMode } from "@/lib/detect-language"
 
 interface HomeComposerProps {
   categories: Category[]
   turnstileSiteKey?: string
+  copy: ComposerCopy
 }
 
-export function HomeComposer({ categories, turnstileSiteKey }: HomeComposerProps) {
+export function HomeComposer({ categories, turnstileSiteKey, copy }: HomeComposerProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [composerLanguage, setComposerLanguage] = useState<LanguageMode>("auto")
   const dialogRef = useRef<HTMLDivElement>(null)
   const titleId = "home-composer-title"
+  const isArabicComposer = composerLanguage === "ar"
+  const modalTitle = isArabicComposer ? copy.composerTitleAr : copy.composerTitleEn
+  const modalDescription = isArabicComposer ? copy.composerDescriptionAr : copy.composerDescriptionEn
+
+  useEffect(() => {
+    if (!isOpen) setComposerLanguage("auto")
+  }, [isOpen])
 
   useEffect(() => {
     if (!isOpen) return
@@ -96,14 +107,11 @@ export function HomeComposer({ categories, turnstileSiteKey }: HomeComposerProps
                 >
                   <div className="rounded-[1.7rem] border border-border bg-white p-4 sm:p-5">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
+                      <div dir={isArabicComposer ? "rtl" : "ltr"} className={isArabicComposer ? "text-right" : undefined}>
                         <h2 id={titleId} className="text-xl font-semibold tracking-tight text-foreground">
-                          Share your dua with the Ummah.
+                          {modalTitle}
                         </h2>
-                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                          Please do not include personal or private details and keep it positive. All posts are subject
-                          to moderation. JZK
-                        </p>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">{modalDescription}</p>
                       </div>
                       <ActionIconTooltip label="Close">
                         <button
@@ -121,6 +129,8 @@ export function HomeComposer({ categories, turnstileSiteKey }: HomeComposerProps
                       <DuaForm
                         categories={categories}
                         turnstileSiteKey={turnstileSiteKey}
+                        copy={copy}
+                        onLanguageChange={setComposerLanguage}
                         onSuccess={() => setIsOpen(false)}
                       />
                     </div>
