@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import { getFeedDuas, getCategories, getTopCategories } from "./actions/duas"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { accountStatusPostAuthRedirect, getProfileAccessState } from "@/lib/account-status"
 import { requireAdmin } from "@/lib/auth"
 import { isSignInOpen, type SignInSearchParams } from "@/lib/auth-modal"
 import { getSiteCopy } from "@/lib/site-copy-server"
@@ -71,7 +72,9 @@ export default async function Home({
   } = await supabase.auth.getUser()
 
   if (user && isSignInOpen(params)) {
-    redirect(params.next === "/admin" ? "/admin" : "/")
+    const access = await getProfileAccessState(user.id)
+    const accountStatusDestination = access ? accountStatusPostAuthRedirect(access.accountStatus) : null
+    redirect(accountStatusDestination ?? (params.next === "/admin" ? "/admin" : "/"))
   }
 
   const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
@@ -155,6 +158,7 @@ export default async function Home({
               totalAmeens={totalAmeens}
               categoryCount={categories.length}
               compactNumber={compactNumber}
+              isSignedIn={Boolean(user)}
             />
           </aside>
         </div>

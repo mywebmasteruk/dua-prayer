@@ -22,6 +22,15 @@ export async function getProfileAccessState(userId: string): Promise<ProfileAcce
   }
 }
 
+export function shouldLimitInactiveAccount(status: AccountStatus): boolean {
+  return status !== "active"
+}
+
+export function accountStatusPostAuthRedirect(status: AccountStatus): string | null {
+  if (!shouldLimitInactiveAccount(status)) return null
+  return "/account"
+}
+
 export function accountStatusSignInMessage(status: AccountStatus): string {
   if (status === "pending_review") {
     return "Your volunteer application is under review. We will email you when your account is activated."

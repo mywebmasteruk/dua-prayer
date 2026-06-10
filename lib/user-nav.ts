@@ -48,26 +48,15 @@ export function getUserNavState(email?: string | null): UserNavState {
       eyebrow: "Signed in",
       label: email,
     },
-    signedInItems: [
-      {
-        href: "/?tab=following",
-        label: "Following",
-        activePath: "/?tab=following",
-      },
-      {
-        href: "/channels/apply",
-        label: "Apply for channel",
-        activePath: "/channels/apply",
-      },
-    ],
+    signedInItems: [],
     mobileUserItem: showAdminLink
       ? {
           href: "/admin",
           label: "Admin",
         }
       : {
-          href: "/?tab=following",
-          label: "Following",
+          href: "/account",
+          label: "Account",
         },
   }
 }

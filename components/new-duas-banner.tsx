@@ -6,7 +6,8 @@ interface NewDuasBannerProps {
   loading?: boolean
 }
 
-function formatBannerLabel(count: number) {
+export function formatNewDuasBannerLabel(count?: number | null) {
+  if (!count || count <= 0) return "Show new duas"
   return `Show ${count} new dua${count === 1 ? "" : "s"}`
 }
 
@@ -23,7 +24,7 @@ export function NewDuasBanner({ count, onShow, loading = false }: NewDuasBannerP
           className="rounded-full px-4 py-1.5 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-70"
           aria-live="polite"
         >
-          {loading ? "Loading…" : formatBannerLabel(count)}
+          {loading ? "Loading…" : formatNewDuasBannerLabel(count)}
         </button>
       </div>
     </div>

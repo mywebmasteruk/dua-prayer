@@ -27,15 +27,9 @@ describe("user navigation state", () => {
       eyebrow: "Signed in",
       label: "member@example.com",
     })
-    assert.deepEqual(
-      state.signedInItems.map((item) => [item.href, item.label]),
-      [
-        ["/?tab=following", "Following"],
-        ["/channels/apply", "Apply for channel"],
-      ],
-    )
-    assert.equal(state.mobileUserItem.href, "/?tab=following")
-    assert.equal(state.mobileUserItem.label, "Following")
+    assert.deepEqual(state.signedInItems, [])
+    assert.equal(state.mobileUserItem.href, "/account")
+    assert.equal(state.mobileUserItem.label, "Account")
   })
 
   it("exposes admin only to the founding webmaster", () => {

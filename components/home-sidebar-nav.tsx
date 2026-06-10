@@ -24,7 +24,7 @@ export function HomeSidebarNav({
   const navState = getUserNavState(user?.email)
 
   return (
-    <div className={cn("flex flex-col", className)}>
+    <div className={cn("flex min-h-[calc(100dvh-1.5rem)] flex-col", className)}>
       {showLogo ? <SidebarBranding tagline={sidebarTagline} /> : null}
 
       <nav aria-label="Primary" className={cn("space-y-1", showLogo && "mt-4")}>
@@ -68,25 +68,6 @@ export function HomeSidebarNav({
             variant={navState.guestAccountItem.variant}
           />
         ) : null}
-        {navState.signedInSummary ? (
-          <div className="rounded-3xl border border-border/60 bg-white/55 px-3 py-3 shadow-sm lg:px-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              {navState.signedInSummary.eyebrow}
-            </p>
-            <p className="mt-1 truncate text-sm font-semibold text-foreground" title={navState.signedInSummary.label}>
-              {navState.signedInSummary.label}
-            </p>
-          </div>
-        ) : null}
-        {navState.signedInItems.map((item) => (
-          <SidebarNavItem
-            key={item.href}
-            href={item.href}
-            label={item.label}
-            icon={UserCheck}
-            active={activePath === item.activePath || isSidebarPathActive(activePath, item.activePath)}
-          />
-        ))}
         {navState.showAdminLink ? (
           <SidebarNavItem
             href="/admin"
@@ -95,8 +76,21 @@ export function HomeSidebarNav({
             active={isSidebarPathActive(activePath, "/admin")}
           />
         ) : null}
-        {user ? <AuthButton user={user} variant="cta" /> : null}
       </nav>
+
+      {navState.signedInSummary ? (
+        <div className="mt-auto space-y-3 pb-2 pt-8">
+          <div className="rounded-3xl border border-border/60 bg-white/65 px-3 py-3 shadow-sm lg:px-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {navState.signedInSummary.eyebrow}
+            </p>
+            <p className="mt-1 truncate text-sm font-semibold text-foreground" title={navState.signedInSummary.label}>
+              {navState.signedInSummary.label}
+            </p>
+          </div>
+          {user ? <AuthButton user={user} variant="cta" /> : null}
+        </div>
+      ) : null}
     </div>
   )
 }

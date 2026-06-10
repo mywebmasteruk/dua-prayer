@@ -5,5 +5,13 @@
 export function safeNextPath(next: string | null | undefined): string {
   if (!next) return "/"
   if (!next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return "/"
-  return next
+
+  const url = new URL(next, "https://duaprayer.local")
+  url.searchParams.delete("signin")
+  url.searchParams.delete("code")
+  url.searchParams.delete("error")
+  url.searchParams.delete("error_code")
+  url.searchParams.delete("error_description")
+
+  return `${url.pathname}${url.search}${url.hash}`
 }

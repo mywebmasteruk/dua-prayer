@@ -35,9 +35,12 @@ interface HomeRightRailProps {
   totalAmeens: number
   categoryCount: number
   compactNumber: (value: number) => string
+  isSignedIn?: boolean
 }
 
-const rightRailCardClass = "rounded-[1.5rem] bg-white p-4 shadow-[0_14px_38px_rgba(15,23,42,0.04)]"
+const rightRailCardClass = "rounded-3xl border border-slate-200/70 bg-white p-4 shadow-sm"
+const rightRailHeadingClass = "text-xl font-bold tracking-[-0.03em] text-slate-950"
+const rightRailBodyClass = "text-sm leading-6 text-slate-600"
 
 export function HomeRightRail({
   categoryLeaderboard,
@@ -47,9 +50,10 @@ export function HomeRightRail({
   totalAmeens,
   categoryCount,
   compactNumber,
+  isSignedIn = false,
 }: HomeRightRailProps) {
   return (
-    <div className="space-y-4 opacity-90">
+    <div className="space-y-4">
       <div
         className="sticky top-0 z-10 flex items-center bg-muted/80 backdrop-blur"
         style={{ height: HOME_FEED_TAB_BAR_HEIGHT_PX }}
@@ -60,8 +64,8 @@ export function HomeRightRail({
       <section className={rightRailCardClass}>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Community</p>
-            <h2 className="mt-1 text-[17px] font-semibold tracking-tight text-foreground/80">Trending</h2>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Community</p>
+            <h2 className={rightRailHeadingClass}>Trending</h2>
           </div>
           <TrendingInfoTooltip />
         </div>
@@ -72,7 +76,7 @@ export function HomeRightRail({
                   key={hashtag.tag}
                   href={`/?tag=${encodeURIComponent(hashtag.tag)}`}
                   aria-label={`${hashtag.label}: ${hashtag.duas} duas and ${hashtag.ameens} ameens`}
-                  className="group flex min-h-12 items-center gap-3 rounded-2xl px-2 py-2 transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="group flex min-h-12 items-center gap-3 rounded-2xl px-2 py-2 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary group-hover:bg-primary/15">
                     {index === 0 ? <Hash className="h-3.5 w-3.5" aria-hidden="true" /> : index + 1}
@@ -92,7 +96,7 @@ export function HomeRightRail({
                   key={category.id}
                   href={`/?category=${category.id}`}
                   aria-label={`${category.name}: ${category.duas} duas and ${category.ameens} ameens`}
-                  className="group flex min-h-12 items-center gap-3 rounded-2xl px-2 py-2 transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="group flex min-h-12 items-center gap-3 rounded-2xl px-2 py-2 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted/80 text-xs font-semibold tabular-nums text-muted-foreground group-hover:text-primary">
                     {index + 1}
@@ -111,22 +115,16 @@ export function HomeRightRail({
       </section>
 
       <section id="support" className={rightRailCardClass}>
-        <p className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted/80 text-primary" aria-hidden="true">
-            <Users className="h-3.5 w-3.5" />
-          </span>
-          Channels
+        <h2 className={rightRailHeadingClass}>Start a dua channel</h2>
+        <p className={`${rightRailBodyClass} mt-2`}>
+          Create a shared space for your masjid, family, or community to collect requests and respond with ameen.
         </p>
-        <div className="mt-3">
-          <h2 className="text-[17px] font-semibold tracking-tight text-foreground/85">Start a dua channel</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Imams and community teams can open a shared space for requests, updates, and collective ameen.
-          </p>
-          <p className="mt-2 text-xs font-medium text-muted-foreground">Register or login to use this feature.</p>
-        </div>
+        {!isSignedIn ? (
+          <p className="mt-2 text-xs font-medium text-slate-500">Sign in to apply for a channel.</p>
+        ) : null}
         <Link
           href="/channels/apply"
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary/90 px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           Create a channel
           <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -136,13 +134,13 @@ export function HomeRightRail({
       <section className={rightRailCardClass}>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Live signals</p>
-            <h2 className="mt-1 text-[17px] font-semibold tracking-tight text-foreground/80">Platform activity</h2>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Live signals</p>
+            <h2 className={rightRailHeadingClass}>Platform activity</h2>
           </div>
           <LayoutGrid className="h-4 w-4 text-muted-foreground/70" aria-hidden="true" />
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-5 rounded-[1.25rem] bg-muted/55 p-4">
+        <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-5 rounded-2xl bg-slate-50 p-4">
           {[
             { icon: Users, label: "Duas shared", value: compactNumber(totalDuas) },
             { icon: MessageCircle, label: "Ameens shown", value: compactNumber(totalAmeens) },
@@ -193,16 +191,15 @@ export function HomeRightRail({
         </section>
       ) : null}
 
-      <section className="rounded-[1.5rem] bg-white p-4 opacity-80 shadow-[0_12px_34px_rgba(15,23,42,0.025)]">
+      <section className={rightRailCardClass}>
         <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-slate-50 text-slate-500">
             <LockKeyhole className="h-4 w-4" aria-hidden="true" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold tracking-tight text-foreground/75 lg:text-[17px]">Safety and privacy</h2>
-            <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
-              Public requests should avoid private identifying details. Community stats are support signals, not fatwa,
-              counseling, or scholarly guidance.
+            <h2 className="text-base font-bold tracking-[-0.02em] text-slate-950">Safety and privacy</h2>
+            <p className={`${rightRailBodyClass} mt-1.5`}>
+              Avoid private identifying details in public requests. Community stats are support signals, not fatwa or counseling.
             </p>
           </div>
         </div>

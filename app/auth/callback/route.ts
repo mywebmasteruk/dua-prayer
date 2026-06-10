@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server"
-import { accountStatusSignInMessage, getProfileAccessState } from "@/lib/account-status"
+import { accountStatusPostAuthRedirect, getProfileAccessState } from "@/lib/account-status"
 import { resolveAdminLandingPath, userHasAdminAccess } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
 import { safeNextPath } from "@/lib/safe-redirect"
@@ -22,11 +22,9 @@ export async function GET(request: Request) {
   }
 
   const access = await getProfileAccessState(data.user.id)
-  if (access && access.accountStatus !== "active") {
-    await supabase.auth.signOut()
-    return NextResponse.redirect(
-      new URL(signInHref({ error: accountStatusSignInMessage(access.accountStatus) }), requestUrl.origin),
-    )
+  const accountStatusDestination = access ? accountStatusPostAuthRedirect(access.accountStatus) : null
+  if (accountStatusDestination) {
+    return NextResponse.redirect(new URL(accountStatusDestination, requestUrl.origin))
   }
 
   const user = { id: data.user.id, email: data.user.email }
