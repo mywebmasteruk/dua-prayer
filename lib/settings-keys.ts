@@ -25,6 +25,10 @@ export const SITE_SETTING_KEYS = {
   stripeTestPublishableKey: "stripe.test.publishable_key",
   stripeTestWebhookSecret: "stripe.test.webhook_secret",
   stripeTestDonationProductId: "stripe.test.donation_product_id",
+  aiModerationEnabled: "ai_moderation.enabled",
+  aiModerationProvider: "ai_moderation.provider",
+  aiModerationApiKey: "ai_moderation.api_key",
+  aiModerationModel: "ai_moderation.model",
 } as const
 
 /** Keys stored in site_settings — never exposed via public RLS policy */
@@ -38,6 +42,13 @@ export const STRIPE_SITE_SETTING_KEYS = [
   SITE_SETTING_KEYS.stripeTestPublishableKey,
   SITE_SETTING_KEYS.stripeTestWebhookSecret,
   SITE_SETTING_KEYS.stripeTestDonationProductId,
+] as const
+
+export const AI_MODERATION_SITE_SETTING_KEYS = [
+  SITE_SETTING_KEYS.aiModerationEnabled,
+  SITE_SETTING_KEYS.aiModerationProvider,
+  SITE_SETTING_KEYS.aiModerationApiKey,
+  SITE_SETTING_KEYS.aiModerationModel,
 ] as const
 
 export type SiteSettingKey = (typeof SITE_SETTING_KEYS)[keyof typeof SITE_SETTING_KEYS]

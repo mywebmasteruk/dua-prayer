@@ -9,6 +9,7 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
 import { verifyTurnstile } from "@/lib/turnstile"
 import { randomBytes } from "crypto"
 import { isMissingColumnError } from "@/lib/db-errors"
+import { evaluateDuaModeration, fetchAiModerationSettings } from "@/lib/ai-moderation"
 import type { Category, Dua } from "@/lib/types/dua"
 
 const PAGE_SIZE = 10
@@ -348,11 +349,21 @@ export async function createDua(formData: FormData) {
     validatedCategoryId = parsed
   }
 
+  const moderation = await evaluateDuaModeration({
+    text,
+    settings: await fetchAiModerationSettings(),
+  })
+
+  if (moderation.severity === "block") {
+    return { error: "This dua could not be submitted because it appears to violate our community guidelines." }
+  }
+
+  const requiresReview = moderation.flagged || moderation.severity === "review"
   const { error } = await admin.from("duas").insert({
     text,
     category_id: validatedCategoryId,
-    published: true,
-    flagged: false,
+    published: !requiresReview,
+    flagged: requiresReview,
     user_id: user?.id ?? null,
   })
 
@@ -362,6 +373,10 @@ export async function createDua(formData: FormData) {
   }
 
   revalidatePath("/")
+  revalidatePath("/admin")
+  if (requiresReview) {
+    return { success: true, message: "Your dua was received and is waiting for moderator review." }
+  }
   return { success: true }
 }
 

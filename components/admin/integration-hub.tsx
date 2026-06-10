@@ -10,14 +10,17 @@ import { IntegrationStripeTab } from "@/components/admin/integration-stripe-tab"
 import { IntegrationSupabaseTab } from "@/components/admin/integration-supabase-tab"
 import { IntegrationWebhooksTab } from "@/components/admin/integration-webhooks-tab"
 import { IntegrationApiKeysMcpTab } from "@/components/admin/integration-api-keys-mcp-tab"
+import { IntegrationAiModerationTab } from "@/components/admin/integration-ai-moderation-tab"
 import type { StripeSettingsAdminView } from "@/lib/stripe-settings-server"
 import type { IntegrationEnvStatus } from "@/lib/integration-env-status"
+import type { AiModerationAdminView } from "@/lib/ai-moderation"
 
 type IntegrationHubProps = {
   initialTab: IntegrationTabId
   stripeSettings: StripeSettingsAdminView
   filloutValue: string
   envStatus: IntegrationEnvStatus
+  aiModerationSettings: AiModerationAdminView
   canManageStripe: boolean
   canManageFillout: boolean
 }
@@ -27,6 +30,7 @@ export function IntegrationHub({
   stripeSettings,
   filloutValue,
   envStatus,
+  aiModerationSettings,
   canManageStripe,
   canManageFillout,
 }: IntegrationHubProps) {
@@ -79,6 +83,12 @@ export function IntegrationHub({
             stripeSettings={stripeSettings}
             filloutConfigured={Boolean(filloutValue.trim())}
           />
+        ) : null}
+        {activeTab === "ai-moderation" && canManageStripe ? (
+          <IntegrationAiModerationTab initial={aiModerationSettings} />
+        ) : null}
+        {activeTab === "ai-moderation" && !canManageStripe ? (
+          <p className="text-sm text-muted-foreground">You don&apos;t have permission to manage AI moderation settings.</p>
         ) : null}
       </div>
     </div>

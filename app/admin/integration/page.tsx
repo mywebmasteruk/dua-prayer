@@ -9,6 +9,7 @@ import {
   emptyStripeSettingsAdminView,
   getStripeSettingsForAdmin,
 } from "@/lib/stripe-settings-server"
+import { getAiModerationAdminView, type AiModerationAdminView } from "@/lib/ai-moderation"
 import { getVolunteerFilloutSettingValue } from "@/lib/site-settings-server"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
@@ -28,6 +29,7 @@ const INTEGRATION_TAB_IDS: IntegrationTabId[] = [
   "supabase",
   "auth",
   "api-keys",
+  "ai-moderation",
 ]
 
 function resolveInitialTab(tab: string | undefined): IntegrationTabId {
@@ -68,15 +70,25 @@ export default async function AdminIntegrationPage({ searchParams }: PageProps) 
   if (!canManageSettings && !canVolunteer) redirect(signInHref({ error: "not_admin" }))
 
   let stripeSettings = emptyStripeSettingsAdminView()
+  let aiModerationSettings: AiModerationAdminView = {
+    enabled: false,
+    provider: "none",
+    model: "gpt-4o-mini",
+    hasApiKey: false,
+    apiKeyLast4: null,
+    ready: false,
+  }
   let filloutValue = ""
   const warnings: string[] = []
 
   try {
-    const [loadedStripe, loadedFillout] = await Promise.all([
+    const [loadedStripe, loadedAiModeration, loadedFillout] = await Promise.all([
       canManageSettings ? getStripeSettingsForAdmin() : Promise.resolve(null),
+      canManageSettings ? getAiModerationAdminView() : Promise.resolve(null),
       canVolunteer ? getVolunteerFilloutSettingValue() : Promise.resolve(""),
     ])
     if (loadedStripe) stripeSettings = loadedStripe
+    if (loadedAiModeration) aiModerationSettings = loadedAiModeration
     filloutValue = loadedFillout
   } catch (error) {
     console.error("Admin integration page failed to load settings:", error)
@@ -130,6 +142,7 @@ export default async function AdminIntegrationPage({ searchParams }: PageProps) 
           stripeSettings={stripeSettings}
           filloutValue={filloutValue}
           envStatus={envStatus}
+          aiModerationSettings={aiModerationSettings}
           canManageStripe={canManageSettings}
           canManageFillout={canVolunteer}
         />
