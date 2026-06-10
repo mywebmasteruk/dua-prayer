@@ -38,7 +38,7 @@ interface HomeRightRailProps {
   isSignedIn?: boolean
 }
 
-const rightRailCardClass = "rounded-3xl border border-slate-200/70 bg-white p-4 shadow-sm"
+const rightRailCardClass = "rounded-3xl border border-slate-200/70 bg-slate-50/60 p-4 shadow-sm"
 const rightRailHeadingClass = "text-xl font-bold tracking-[-0.03em] text-slate-950"
 const rightRailBodyClass = "text-sm leading-6 text-slate-600"
 

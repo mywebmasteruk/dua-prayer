@@ -221,7 +221,7 @@ export function DuaList({
         return (
           <article
             key={dua.id}
-            className="group overflow-hidden bg-white px-4 pt-4 shadow-[0_10px_28px_rgba(15,23,42,0.045)] transition hover:bg-white hover:shadow-[0_14px_36px_rgba(15,23,42,0.06)] focus-within:bg-white sm:px-5"
+            className="group overflow-hidden bg-slate-50/55 px-4 pt-4 shadow-[0_10px_28px_rgba(15,23,42,0.045)] transition hover:bg-slate-50/75 hover:shadow-[0_14px_36px_rgba(15,23,42,0.06)] focus-within:bg-slate-50/75 sm:px-5"
           >
             <div
               dir={textDirection}
@@ -264,7 +264,7 @@ export function DuaList({
 
             <div
               className={cn(
-                "-mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 bg-white/95 px-4 py-2.5 opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 sm:-mx-5 sm:px-5",
+                "-mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 bg-slate-50/65 px-4 py-2.5 opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 sm:-mx-5 sm:px-5",
                 isRtl && "flex-row-reverse",
               )}
             >
