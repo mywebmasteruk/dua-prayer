@@ -327,9 +327,9 @@ export default function DesignPrototypePage() {
                 className="flex min-w-0 flex-1 items-center rounded-full border border-border/70 bg-muted/35 px-4 py-2.5 text-[15px] font-medium text-muted-foreground shadow-inner transition hover:border-primary/25 hover:bg-white hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:text-base"
                 aria-haspopup="dialog"
                 aria-expanded={isComposerOpen}
-                aria-label="Open composer to share a dua request"
+                aria-label="Open composer to make a dua"
               >
-                <span className="truncate">What dua would you like to share?</span>
+                <span className="truncate">What dua would you like to make?</span>
               </button>
               <button
                 type="button"
@@ -337,7 +337,7 @@ export default function DesignPrototypePage() {
                 className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 aria-haspopup="dialog"
                 aria-expanded={isComposerOpen}
-                aria-label="Open composer to share a dua request"
+                aria-label="Open composer to make a dua"
               >
                 <Plus className="h-5 w-5 transition motion-reduce:transition-none" aria-hidden="true" />
               </button>

@@ -84,7 +84,7 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
     } else {
       setDuaText("")
       setLanguageMode("auto")
-      toast({ title: "Success", description: "Your dua has been shared" })
+      toast({ title: "Success", description: "Your dua has been submitted" })
       onSuccess?.()
       router.refresh()
     }
@@ -199,9 +199,9 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
                 type="submit"
                 className="rounded-full bg-primary px-5 text-primary-foreground hover:bg-primary/90"
                 disabled={isSubmitting || duaText.trim().length < MIN_CHARS || (turnstileRequired && !turnstileToken)}
-                aria-label="Share Dua"
+                aria-label="Make Dua"
               >
-                {isSubmitting ? "Sharing…" : "Share"}
+                {isSubmitting ? "Making…" : "Make"}
               </Button>
             </div>
           </div>
