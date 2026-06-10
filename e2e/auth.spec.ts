@@ -68,6 +68,16 @@ test.describe("Auth modal", () => {
     await expect(page.getByText("User sign in")).toBeVisible()
   })
 
+  test("root OAuth code fallback routes through callback exchange", async ({ page }) => {
+    await page.goto("/?code=invalid-oauth-code&next=/admin")
+    await page.waitForLoadState("networkidle")
+
+    await expect(page).toHaveURL(/signin=1/)
+    await expect(page).toHaveURL(/error=/)
+    await expect(page).not.toHaveURL(/\?code=invalid-oauth-code/)
+    await expect(page.getByText("User sign in")).toBeVisible()
+  })
+
   test("signs in a normal user with password and shows signed-in sidebar", async ({ page }) => {
     test.skip(
       !realLoginEmail || !realLoginPassword,

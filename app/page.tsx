@@ -55,9 +55,16 @@ function getTopSupportedDuas(duas: Dua[]) {
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<SignInSearchParams & { category?: string; tag?: string }>
+  searchParams: Promise<SignInSearchParams & { category?: string; code?: string; tag?: string }>
 }) {
   const params = await searchParams
+
+  if (params.code) {
+    const callbackParams = new URLSearchParams({ code: params.code })
+    if (params.next) callbackParams.set("next", params.next)
+    redirect(`/auth/callback?${callbackParams.toString()}`)
+  }
+
   const supabase = await createServerSupabaseClient()
   const {
     data: { user },
