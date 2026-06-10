@@ -4,8 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { HandCoins, HandHeart, Home, LayoutGrid, ShieldAlert, User } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { signInHref } from "@/lib/auth-modal"
-import { isFoundingAdminEmail } from "@/lib/admin-policy"
+import { getUserNavState } from "@/lib/user-nav"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 interface HomeMobileBottomNavProps {
@@ -41,11 +40,19 @@ function BottomNavItem({
 
 export function HomeMobileBottomNav({ user }: HomeMobileBottomNavProps) {
   const pathname = usePathname() ?? "/"
-  const showAdminLink = isFoundingAdminEmail(user?.email)
+  const navState = getUserNavState(user?.email)
 
   const isActive = (href: string) => {
-    if (href === "/") return pathname === "/"
-    return pathname === href || pathname.startsWith(`${href}/`)
+    const [path, query] = href.split("?")
+    if (query && typeof window !== "undefined") {
+      const hrefParams = new URLSearchParams(query)
+      const currentParams = new URLSearchParams(window.location.search)
+      for (const [key, value] of hrefParams) {
+        if (currentParams.get(key) !== value) return false
+      }
+    }
+    if (path === "/") return pathname === "/"
+    return pathname === path || pathname.startsWith(`${path}/`)
   }
 
   return (
@@ -58,16 +65,12 @@ export function HomeMobileBottomNav({ user }: HomeMobileBottomNavProps) {
         <BottomNavItem href="/channels" label="Channels" icon={LayoutGrid} active={isActive("/channels")} />
         <BottomNavItem href="/donate" label="Donate" icon={HandCoins} active={isActive("/donate")} />
         <BottomNavItem href="/volunteer" label="Volunteer" icon={HandHeart} active={isActive("/volunteer")} />
-        {showAdminLink ? (
-          <BottomNavItem href="/admin" label="Admin" icon={ShieldAlert} active={isActive("/admin")} />
-        ) : (
-          <BottomNavItem
-            href={signInHref()}
-            label={user ? "Account" : "Sign in"}
-            icon={User}
-            active={false}
-          />
-        )}
+        <BottomNavItem
+          href={navState.mobileUserItem.href}
+          label={navState.mobileUserItem.label}
+          icon={navState.showAdminLink ? ShieldAlert : User}
+          active={isActive(navState.mobileUserItem.href)}
+        />
       </div>
     </nav>
   )

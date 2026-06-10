@@ -1,7 +1,6 @@
-import { BookOpen, HandCoins, HandHeart, Home, Info, LayoutGrid, Shield, ShieldAlert, User } from "lucide-react"
+import { BookOpen, HandCoins, HandHeart, Home, Info, LayoutGrid, Shield, ShieldAlert, UserCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { signInHref } from "@/lib/auth-modal"
-import { isFoundingAdminEmail } from "@/lib/admin-policy"
+import { getUserNavState } from "@/lib/user-nav"
 import { AuthButton } from "./auth/auth-button"
 import { isSidebarPathActive, SidebarBranding, SidebarNavItem } from "./sidebar-nav-shared"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
@@ -22,9 +21,7 @@ export function HomeSidebarNav({
   className,
   sidebarTagline = "Share your duas, pray for one another, and grow together in faith.",
 }: HomeSidebarNavProps) {
-  const accountHref = signInHref()
-  const accountLabel = user ? "Account" : "Sign in"
-  const showAdminLink = isFoundingAdminEmail(user?.email)
+  const navState = getUserNavState(user?.email)
 
   return (
     <div className={cn("flex flex-col", className)}>
@@ -63,13 +60,34 @@ export function HomeSidebarNav({
           icon={Shield}
           active={isSidebarPathActive(activePath, "/safety")}
         />
-        <SidebarNavItem
-          href={accountHref}
-          label={accountLabel}
-          icon={User}
-          variant={user ? "default" : "cta"}
-        />
-        {showAdminLink ? (
+        {navState.guestAccountItem ? (
+          <SidebarNavItem
+            href={navState.guestAccountItem.href}
+            label={navState.guestAccountItem.label}
+            icon={UserCheck}
+            variant={navState.guestAccountItem.variant}
+          />
+        ) : null}
+        {navState.signedInSummary ? (
+          <div className="rounded-3xl border border-border/60 bg-white/55 px-3 py-3 shadow-sm lg:px-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {navState.signedInSummary.eyebrow}
+            </p>
+            <p className="mt-1 truncate text-sm font-semibold text-foreground" title={navState.signedInSummary.label}>
+              {navState.signedInSummary.label}
+            </p>
+          </div>
+        ) : null}
+        {navState.signedInItems.map((item) => (
+          <SidebarNavItem
+            key={item.href}
+            href={item.href}
+            label={item.label}
+            icon={UserCheck}
+            active={activePath === item.activePath || isSidebarPathActive(activePath, item.activePath)}
+          />
+        ))}
+        {navState.showAdminLink ? (
           <SidebarNavItem
             href="/admin"
             label="Admin"
