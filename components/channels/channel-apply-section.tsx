@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { toast } from "@/components/ui/use-toast"
-import { ChannelApplyForm } from "@/components/channels/channel-apply-form"
 import { createFilloutEmbedSession, FILLOUT_EMBED_ORIGIN } from "@/lib/fillout"
 import { signInHref } from "@/lib/auth-modal"
 
@@ -42,7 +41,8 @@ export function ChannelApplySection({
   )
 
   const handleFilloutSubmit = useCallback(() => {
-    if (!inline) setOpen(false)
+    if (inline) setSubmittedInline(true)
+    else setOpen(false)
     toast({
       title: "Application submitted",
       description: "Thanks — we'll review your channel application and follow up by email.",
@@ -101,7 +101,7 @@ export function ChannelApplySection({
   ) : (
     <div className="flex flex-col items-center gap-4 px-6 py-10 text-center">
       <p className="text-sm text-muted-foreground">
-        The external Fillout form isn&apos;t configured. Use the in-app application below or email us instead.
+        The external Fillout form isn&apos;t configured yet. Please email us instead.
       </p>
       <Button asChild className="rounded-full">
         <a href={contactMailto}>
@@ -141,17 +141,7 @@ export function ChannelApplySection({
             </p>
           </div>
         ) : (
-          <div className="mt-6 space-y-6">
-            <ChannelApplyForm onSubmitted={() => setSubmittedInline(true)} />
-            {filloutSrc ? (
-              <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Or use the external form
-                </p>
-                {filloutFrame}
-              </div>
-            ) : null}
-          </div>
+          <div className="mt-6">{filloutFrame}</div>
         )}
       </section>
     )
@@ -187,13 +177,7 @@ export function ChannelApplySection({
               Apply to open a channel — we&apos;ll review your application and follow up by email.
             </DialogDescription>
           </DialogHeader>
-          {isSignedIn && !pendingChannelName ? (
-            <div className="max-h-[70vh] overflow-y-auto px-6 py-4">
-              <ChannelApplyForm onSubmitted={() => setOpen(false)} />
-            </div>
-          ) : (
-            filloutFrame
-          )}
+          {filloutFrame}
         </DialogContent>
       </Dialog>
     </>
