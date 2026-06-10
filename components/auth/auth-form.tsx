@@ -90,7 +90,10 @@ export function AuthForm({ error, resetSuccess, next }: AuthFormProps) {
         toast({ title: "Error", description: result.error, variant: "destructive" })
       }
     } catch (e) {
-      if (e instanceof Error && !e.message.includes("NEXT_REDIRECT")) {
+      if (e instanceof Error && e.message.includes("NEXT_REDIRECT")) {
+        throw e
+      }
+      if (e instanceof Error) {
         toast({ title: "Error", description: e.message, variant: "destructive" })
       }
     }
