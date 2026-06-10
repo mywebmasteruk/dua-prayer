@@ -20,6 +20,7 @@ import {
 } from "@/lib/detect-language"
 import { SITE_COPY_DEFAULTS } from "@/lib/site-copy"
 import { extractHashtags } from "@/lib/hashtags"
+import { buildDuaShareUrl, type DuaSharePlatform } from "@/lib/dua-share"
 
 interface DuaListProps {
   duas: Dua[]
@@ -180,16 +181,9 @@ export function DuaList({
     setLoadingFlags((prev) => ({ ...prev, [duaId]: false }))
   }
 
-  const shareOnSocial = (platform: string, dua: Dua) => {
-    const text = encodeURIComponent(dua.text)
-    const url = encodeURIComponent(window.location.origin)
-    const urls: Record<string, string> = {
-      whatsapp: `https://wa.me/?text=${text}%20-%20${url}`,
-      telegram: `https://t.me/share/url?url=${url}&text=${text}`,
-      twitter: `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
-      facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${text}`,
-    }
-    if (urls[platform]) window.open(urls[platform], "_blank")
+  const shareOnSocial = (platform: DuaSharePlatform, dua: Dua) => {
+    const shareUrl = buildDuaShareUrl(platform, dua)
+    window.open(shareUrl, "_blank", "noopener,noreferrer")
   }
 
   if (duasList.length === 0) {
