@@ -29,10 +29,10 @@ export function HomeSidebarNav({
     "DuaPrayer member"
 
   return (
-    <div className={cn("flex min-h-[calc(100dvh-1.5rem)] flex-col", className)}>
+    <div className={cn("flex h-[calc(100dvh-1.5rem)] min-h-0 flex-col", className)}>
       {showLogo ? <SidebarBranding tagline={sidebarTagline} /> : null}
 
-      <nav aria-label="Primary" className={cn("space-y-1", showLogo && "mt-4")}>
+      <nav aria-label="Primary" className={cn("min-h-0 flex-1 space-y-1 overflow-y-auto pr-1", showLogo && "mt-4")}>
         <SidebarNavItem href="/" label="Home" icon={Home} active={isSidebarPathActive(activePath, "/")} />
         <SidebarNavItem
           href="/channels"
@@ -96,7 +96,7 @@ export function HomeSidebarNav({
       </nav>
 
       {navState.signedInSummary ? (
-        <div className="mt-auto pb-2 pt-8">
+        <div className="shrink-0 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-3">
           <AccountDock label={accountLabel} email={user?.email} />
         </div>
       ) : null}
