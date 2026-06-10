@@ -12,9 +12,9 @@ Community prayer wall: share duas, pray for others (Ameen), and moderate content
 
 ```bash
 cd apps/dua-prayer
-pnpm install
+npm install --legacy-peer-deps
 cp .env.example .env.local   # fill in your Supabase keys
-pnpm dev
+npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).

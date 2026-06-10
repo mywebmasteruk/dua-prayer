@@ -32,10 +32,8 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "/tmp/dua-prayer-next-build/types/**/*.ts",
     "/tmp/dua-prayer-next/types/**/*.ts",
-    "next-env.d.ts",
-    "/tmp/dua-prayer-build-prod/types/**/*.ts"
+    "next-env.d.ts"
   ],
   "exclude": [
     "node_modules",

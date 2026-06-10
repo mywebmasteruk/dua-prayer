@@ -8,6 +8,7 @@ import { Toaster } from "@/components/toaster"
 import { NavigationProvider } from "@/components/navigation-provider"
 import { AppTooltipProvider } from "@/components/app-tooltip-provider"
 import { FollowedChannelsProvider } from "@/components/followed-channels-provider"
+import { BetaBanner } from "@/components/beta-banner"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -34,7 +35,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AppTooltipProvider>
             <Suspense fallback={null}>
               <NavigationProvider>
-                <FollowedChannelsProvider>{children}</FollowedChannelsProvider>
+                <FollowedChannelsProvider>
+                  <BetaBanner />
+                  {children}
+                </FollowedChannelsProvider>
               </NavigationProvider>
             </Suspense>
             <Toaster />

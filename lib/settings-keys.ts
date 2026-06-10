@@ -1,6 +1,9 @@
 export const SITE_SETTING_KEYS = {
   volunteerFilloutEmbed: "volunteer_fillout_embed",
   channelFilloutEmbed: "channel_fillout_embed",
+  betaBannerEnabled: "beta_banner.enabled",
+  betaBannerMessage: "beta_banner.message",
+  betaBannerBgColor: "beta_banner.bg_color",
   copySidebarTagline: "copy.sidebar_tagline",
   copyFooterTagline: "copy.footer_tagline",
   copyAboutMission: "copy.about_mission",

@@ -134,18 +134,11 @@ export function AuthForm({ error, resetSuccess, next, onMagicLinkSuccess }: Auth
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle className="text-center text-xl" role="heading" aria-level={2}>
-          User sign in
+          Log in or create an account
         </CardTitle>
-        <CardDescription className="text-left space-y-2">
-          <p>
-            You can browse duas, share requests, and say ameen without an account.
-          </p>
-          <p>Sign in when you want your place in the community to follow you:</p>
-          <ul className="list-disc space-y-1 pl-5">
-            <li>Remember which duas you have supported</li>
-            <li>Continue on any device, not just this browser</li>
-            <li>Keep drafts, saved requests, and activity with you</li>
-          </ul>
+        <CardDescription className="text-center text-sm leading-6">
+          Log in to save your activity, follow channels, and access more features.
+          New here? Continue with Google or magic link to create your account.
         </CardDescription>
         {resetSuccess && (
           <p className="text-sm text-green-600 text-center">Password updated. You can sign in now.</p>

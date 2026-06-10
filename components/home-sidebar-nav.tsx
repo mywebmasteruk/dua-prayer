@@ -22,6 +22,11 @@ export function HomeSidebarNav({
   sidebarTagline = "Share your duas, pray for one another, and grow together in faith.",
 }: HomeSidebarNavProps) {
   const navState = getUserNavState(user?.email)
+  const accountLabel =
+    (typeof user?.user_metadata?.display_name === "string" && user.user_metadata.display_name) ||
+    (typeof user?.user_metadata?.full_name === "string" && user.user_metadata.full_name) ||
+    navState.signedInSummary?.label ||
+    "DuaPrayer member"
 
   return (
     <div className={cn("flex min-h-[calc(100dvh-1.5rem)] flex-col", className)}>
@@ -92,7 +97,7 @@ export function HomeSidebarNav({
 
       {navState.signedInSummary ? (
         <div className="mt-auto pb-2 pt-8">
-          <AccountDock label={navState.signedInSummary.label} email={user?.email} />
+          <AccountDock label={accountLabel} email={user?.email} />
         </div>
       ) : null}
     </div>

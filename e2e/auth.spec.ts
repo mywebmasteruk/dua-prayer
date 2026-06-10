@@ -12,9 +12,9 @@ test.describe("Auth modal", () => {
   test("shows clean sign-in with password and magic link tabs", async ({ page }) => {
     await openSignInModal(page)
 
-    await expect(page.getByText("User sign in")).toBeVisible()
+    await expect(page.getByText("Log in or create an account")).toBeVisible()
     await expect(
-      page.getByText("You can browse duas, share requests, and say ameen without an account."),
+      page.getByText("Log in to save your activity, follow channels, and access more features."),
     ).toBeVisible()
     await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible()
     await expect(page.getByRole("tab", { name: "Password" })).toBeVisible()
@@ -65,7 +65,7 @@ test.describe("Auth modal", () => {
     await page.waitForLoadState("networkidle")
 
     await expect(page).toHaveURL(/signin=1&next=%2Fadmin/)
-    await expect(page.getByText("User sign in")).toBeVisible()
+    await expect(page.getByText("Log in or create an account")).toBeVisible()
   })
 
   test("root OAuth code fallback routes through callback exchange", async ({ page }) => {
@@ -75,7 +75,7 @@ test.describe("Auth modal", () => {
     await expect(page).toHaveURL(/signin=1/)
     await expect(page).toHaveURL(/error=/)
     await expect(page).not.toHaveURL(/\?code=invalid-oauth-code/)
-    await expect(page.getByText("User sign in")).toBeVisible()
+    await expect(page.getByText("Log in or create an account")).toBeVisible()
   })
 
   test("signs in a normal user with password and shows signed-in sidebar", async ({ page }) => {
@@ -92,11 +92,13 @@ test.describe("Auth modal", () => {
     await passwordPanel.getByRole("button", { name: "Sign in" }).click()
 
     await expect(page).toHaveURL(/^(?!.*signin=1).*/, { timeout: 15_000 })
-    await expect(page.getByText("User sign in")).toHaveCount(0)
+    await expect(page.getByText("Log in or create an account")).toHaveCount(0)
     await expect(page.getByText("Signed in")).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText(realLoginEmail!)).toBeVisible()
-    await expect(page.getByRole("link", { name: "Following" })).toBeVisible()
-    await expect(page.getByRole("button", { name: "Logout" })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Profile" })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Bookmarks" })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Notifications" })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Open account settings" })).toBeVisible()
     await expect(page.getByRole("link", { name: "Sign in" })).toHaveCount(0)
   })
 })
@@ -106,6 +108,6 @@ test.describe("Admin access", () => {
     await page.goto("/admin")
 
     await expect(page).toHaveURL(/signin=1&next=%2Fadmin/)
-    await expect(page.getByText("User sign in")).toBeVisible()
+    await expect(page.getByText("Log in or create an account")).toBeVisible()
   })
 })

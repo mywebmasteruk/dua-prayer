@@ -3,8 +3,14 @@
 import { revalidatePath, revalidateTag } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { getAdminContext, hasPermission, requirePermission } from "@/lib/auth"
+import { sanitizeBannerColor } from "@/lib/banner-rich-text"
 import { parseFilloutEmbed } from "@/lib/fillout"
-import { getChannelFilloutSettingValue, getVolunteerFilloutSettingValue } from "@/lib/site-settings-server"
+import {
+  BETA_BANNER_DEFAULTS,
+  getBetaBannerSettingsForAdmin,
+  getChannelFilloutSettingValue,
+  getVolunteerFilloutSettingValue,
+} from "@/lib/site-settings-server"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
 
 function canManageVolunteerSettings(ctx: NonNullable<Awaited<ReturnType<typeof getAdminContext>>>) {
@@ -15,6 +21,40 @@ function canManageChannelSettings(ctx: NonNullable<Awaited<ReturnType<typeof get
   return hasPermission(ctx, "manage_settings") || hasPermission(ctx, "manage_channels")
 }
 
+type BetaBannerSettingsInput = {
+  enabled: boolean
+  message: string
+  bgColor: string
+}
+
+export async function getBetaBannerSettingsForSuperAdmin() {
+  const ctx = await getAdminContext()
+  if (!ctx?.isFoundingAdmin) return { ...BETA_BANNER_DEFAULTS }
+  return getBetaBannerSettingsForAdmin()
+}
+
+export async function updateBetaBannerSettings(input: BetaBannerSettingsInput) {
+  const ctx = await getAdminContext()
+  if (!ctx?.isFoundingAdmin) return { error: "Unauthorized" as const }
+
+  const message = input.message.trim() || BETA_BANNER_DEFAULTS.message
+  const bgColor = sanitizeBannerColor(input.bgColor, BETA_BANNER_DEFAULTS.bgColor)
+  const admin = createAdminSupabaseClient()
+  const now = new Date().toISOString()
+  const rows = [
+    { key: SITE_SETTING_KEYS.betaBannerEnabled, value: input.enabled ? "true" : "false", updated_at: now },
+    { key: SITE_SETTING_KEYS.betaBannerMessage, value: message, updated_at: now },
+    { key: SITE_SETTING_KEYS.betaBannerBgColor, value: bgColor, updated_at: now },
+  ]
+
+  const { error } = await admin.from("site_settings").upsert(rows, { onConflict: "key" })
+  if (error) return { error: error.message }
+
+  revalidatePath("/")
+  revalidatePath("/admin/settings")
+  revalidateTag("site-setting-beta-banner")
+  return { success: true as const }
+}
 
 export async function getVolunteerFilloutSettingForAdmin(): Promise<string> {
   const ctx = await getAdminContext()

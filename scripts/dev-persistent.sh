@@ -93,7 +93,7 @@ fi
 # Port up without a supervisor (orphan next dev) — do not kill; do not overwrite PID file.
 if port_listening; then
   echo "Port ${PORT} is listening but no dev supervisor found."
-  echo "Leave it running during iteration. To attach a supervisor later, stop dev only when the user asks, then run: npm run dev:persistent"
+  echo "Leave it running during iteration. To attach a supervisor later, stop dev only when the user asks, then run: npm run dev"
   if http_ready; then
     echo "Health: HTTP OK (unmanaged listener PID $(listener_pid_on_port || echo unknown))"
   fi

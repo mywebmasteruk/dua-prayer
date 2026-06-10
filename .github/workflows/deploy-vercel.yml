@@ -48,7 +48,6 @@ jobs:
       - name: Prepare workspace for Vercel
         run: |
           rm -rf .git
-          if [ -f pnpm-lock.yaml ]; then rm -f pnpm-lock.yaml; fi
           if [ -f .vercel/.env.production.local ]; then ln -sf .vercel/.env.production.local .env.local; fi
 
       - name: Build

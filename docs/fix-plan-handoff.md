@@ -144,7 +144,20 @@ Original task details below.
 
 ---
 
-## Phase 3 — Hygiene
+## Phase 3 — Hygiene — ✅ DONE except where noted (2026-06-10)
+
+Summary:
+- **3.1 ✅** Four `"latest"` deps pinned to installed versions; `pnpm-lock.yaml` deleted; CI `rm -f pnpm-lock.yaml` workaround removed; README switched to npm.
+- **3.2 ✅** `.env.example`: added the 4 `STRIPE_TEST_*` vars; removed the 10 unused `STRIPE_PRICE_DONATION_*` vars.
+- **3.3 ✅** Dead code removed: 9 superseded app components (header, theme-toggle, home-mobile-header, home-sidebar-toolbar, navigation-content-spinner, admin/stripe-settings, admin/admin-nav, 2 admin integration tabs) + 31 unused shadcn `components/ui/*` files (verified zero importers, iteratively incl. intra-kit imports) + `styles/globals.css` + `scripts/pending-admin-migrations.sql` (verified applied in DB). 12 now-unused npm deps uninstalled (react-hook-form, zod, recharts, date-fns, sonner, etc.).
+- **3.4 ✅** tsconfig: removed 2 stale `/tmp/...` includes (kept `/tmp/dua-prayer-next/types` — the dev scripts intentionally build there to keep output off iCloud); duplicate npm scripts deduped (`dev:persistent`, `dev:stable` removed; references updated).
+- **3.5 ⬜ LEFT FOR USER:** `apps/test-dua-app` (stale v0 original) — delete or archive manually when convenient.
+
+> ⚠️ e2e note: with a second editing session active, full-suite runs against the shared dev server are flaky (Fast Refresh reloads mid-test). Each spec passes when run on a quiet tree. For reliable runs, use the production server mode (`npm run test:e2e:prod` if configured) or pause parallel editing.
+
+Original details below.
+
+## Phase 3 (original details) — Hygiene
 
 ### 3.1 ⬜ TODO — Dependencies
 - `package.json`: replace the four `"latest"` specifiers (`@radix-ui/react-toast`, `@supabase/ssr`, `@supabase/supabase-js`, `next-themes`) with the exact versions currently resolved in `package-lock.json`.
