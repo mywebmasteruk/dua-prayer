@@ -7,6 +7,7 @@ import {
   type ComposerCopyKey,
   type SiteCopyKey,
 } from "./site-copy"
+import { getGroupedSiteCopyKeys, SITE_COPY_GROUPS, type SiteCopyField } from "./site-copy-groups"
 
 const composerCopyKeys = [
   "composerTitleEn",
@@ -32,6 +33,32 @@ const composerCopyKeys = [
   "composerCategoryGratitudeAr",
   "composerCategoryProtectionAr",
 ] as const satisfies readonly SiteCopyKey[]
+
+describe("site copy grouping", () => {
+  it("assigns every editable copy key to exactly one admin group", () => {
+    const groupedKeys = getGroupedSiteCopyKeys()
+    const uniqueGroupedKeys = new Set(groupedKeys)
+    const defaultKeys = Object.keys(SITE_COPY_DEFAULTS) as SiteCopyKey[]
+
+    assert.deepEqual(groupedKeys, [...uniqueGroupedKeys])
+    assert.deepEqual([...uniqueGroupedKeys].sort(), [...defaultKeys].sort())
+  })
+
+  it("keeps composer translations in side-by-side translation pairs", () => {
+    const composerGroup = SITE_COPY_GROUPS.find((group) => group.value === "composer")
+    assert.ok(composerGroup)
+
+    const translationFields = composerGroup.sections
+      .flatMap((section) => section.fields as readonly SiteCopyField[])
+      .filter((field) => field.type === "translation")
+
+    assert.ok(translationFields.length > 0)
+    for (const field of translationFields) {
+      assert.match(field.enKey, /En$/)
+      assert.match(field.arKey, /Ar$/)
+    }
+  })
+})
 
 describe("site composer copy", () => {
   it("defines editable defaults and labels for every composer copy key", () => {
