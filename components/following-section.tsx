@@ -8,12 +8,15 @@ import { DuaList } from "@/components/dua-list"
 import { FeedPagination } from "@/components/feed-pagination"
 import { useFollowedChannels } from "@/components/followed-channels-provider"
 import { useHomeSearch } from "@/components/home-search-provider"
+import type { HomeEmptyCopy } from "@/lib/site-copy"
+import { SITE_COPY_DEFAULTS } from "@/lib/site-copy"
 
 interface FollowingSectionProps {
   duas: Dua[]
   categories: Category[]
   pageSize: number
   followingActive?: boolean
+  emptyCopy?: HomeEmptyCopy
 }
 
 function matchesSearch(dua: Dua, searchQuery: string, categories: Category[]) {
@@ -52,6 +55,13 @@ export function FollowingSection({
   categories,
   pageSize,
   followingActive = true,
+  emptyCopy = {
+    homeFollowingEmptyTitle: SITE_COPY_DEFAULTS.homeFollowingEmptyTitle,
+    homeFollowingEmptyDescription: SITE_COPY_DEFAULTS.homeFollowingEmptyDescription,
+    homeFollowingEmptyCta: SITE_COPY_DEFAULTS.homeFollowingEmptyCta,
+    homeFeedEmptyTitle: SITE_COPY_DEFAULTS.homeFeedEmptyTitle,
+    homeFeedEmptyDescription: SITE_COPY_DEFAULTS.homeFeedEmptyDescription,
+  },
 }: FollowingSectionProps) {
   const { followedIds } = useFollowedChannels()
   const { query: searchQuery } = useHomeSearch()
@@ -100,15 +110,17 @@ export function FollowingSection({
         <div className="rounded-full border border-border/70 bg-muted/40 p-4 text-muted-foreground">
           <UserCheck className="h-6 w-6" aria-hidden="true" />
         </div>
-        <h2 className="mt-4 text-lg font-semibold tracking-tight text-foreground">Nothing followed yet</h2>
+        <h2 className="mt-4 text-lg font-semibold tracking-tight text-foreground">
+          {emptyCopy.homeFollowingEmptyTitle}
+        </h2>
         <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-          Follow channels from the Channels page to see duas here.
+          {emptyCopy.homeFollowingEmptyDescription}
         </p>
         <Link
           href="/channels"
           className="mt-6 inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          Browse channels
+          {emptyCopy.homeFollowingEmptyCta}
         </Link>
       </section>
     )

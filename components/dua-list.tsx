@@ -18,9 +18,12 @@ import {
   getTextDirection,
   hasArabicText,
 } from "@/lib/detect-language"
+import { SITE_COPY_DEFAULTS } from "@/lib/site-copy"
 
 interface DuaListProps {
   duas: Dua[]
+  emptyTitle?: string
+  emptyDescription?: string
 }
 
 function ActionButton({
@@ -111,7 +114,11 @@ function ShareIcon({ platform }: { platform: (typeof sharePlatforms)[number]["id
   }
 }
 
-export function DuaList({ duas }: DuaListProps) {
+export function DuaList({
+  duas,
+  emptyTitle = SITE_COPY_DEFAULTS.homeFeedEmptyTitle,
+  emptyDescription = SITE_COPY_DEFAULTS.homeFeedEmptyDescription,
+}: DuaListProps) {
   const [loadingPrays, setLoadingPrays] = useState<Record<number, boolean>>({})
   const [loadingFlags, setLoadingFlags] = useState<Record<number, boolean>>({})
   const [reportedDuas, setReportedDuas] = useState<Record<number, boolean>>({})
@@ -185,10 +192,8 @@ export function DuaList({ duas }: DuaListProps) {
         <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent">
           <Sparkles className="h-6 w-6 text-primary" aria-hidden="true" />
         </div>
-        <h2 className="text-lg font-semibold tracking-tight">No duas yet</h2>
-        <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
-          Be the first to share a dua. Your words can lift someone across the Ummah.
-        </p>
+        <h2 className="text-lg font-semibold tracking-tight">{emptyTitle}</h2>
+        <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">{emptyDescription}</p>
       </div>
     )
   }

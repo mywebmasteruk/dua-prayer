@@ -122,6 +122,13 @@ export default async function Home({
                   duas={duas}
                   topCategories={topCategories}
                   pageSize={pageSize}
+                  emptyCopy={{
+                    homeFeedEmptyTitle: siteCopy.homeFeedEmptyTitle,
+                    homeFeedEmptyDescription: siteCopy.homeFeedEmptyDescription,
+                    homeFollowingEmptyTitle: siteCopy.homeFollowingEmptyTitle,
+                    homeFollowingEmptyDescription: siteCopy.homeFollowingEmptyDescription,
+                    homeFollowingEmptyCta: siteCopy.homeFollowingEmptyCta,
+                  }}
                 />
               </section>
             </NavigationContentLoader>

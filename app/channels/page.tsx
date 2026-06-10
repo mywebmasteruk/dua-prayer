@@ -104,9 +104,7 @@ export default async function ChannelsPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h1 className="text-xl font-bold tracking-tight text-foreground">Channels</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Follow channels to personalize your Following feed on Home.
-                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">{siteCopy.channelsPageSubtitle}</p>
                   </div>
                   <Link
                     href="/channels/apply"

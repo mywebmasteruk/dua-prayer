@@ -26,11 +26,11 @@ export function SiteCopySettings({ initialCopy }: SiteCopySettingsProps) {
     setIsSaving(false)
 
     if ("error" in result && result.error) {
-      toast({ title: "Could not save copy", description: result.error, variant: "destructive" })
+      toast({ title: "Could not save content", description: result.error, variant: "destructive" })
       return
     }
 
-    toast({ title: "Site copy saved", description: "Public pages will show the updated text." })
+    toast({ title: "Site content saved", description: "Public pages will show the updated text." })
   }
 
   return (
@@ -43,7 +43,13 @@ export function SiteCopySettings({ initialCopy }: SiteCopySettingsProps) {
             id={`copy-${key}`}
             value={copy[key]}
             onChange={(event) => setCopy((prev) => ({ ...prev, [key]: event.target.value }))}
-            rows={key === "aboutMission" ? 5 : 3}
+            rows={
+              key === "aboutMission" || key === "donatePageIntro" || key === "homeFollowingEmptyDescription"
+                ? 5
+                : key === "homeFeedEmptyDescription" || key === "channelsPageSubtitle"
+                  ? 3
+                  : 2
+            }
             required
           />
         </div>
@@ -55,7 +61,7 @@ export function SiteCopySettings({ initialCopy }: SiteCopySettingsProps) {
             Saving…
           </>
         ) : (
-          "Save site copy"
+          "Save site content"
         )}
       </Button>
     </form>

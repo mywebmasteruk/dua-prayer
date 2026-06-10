@@ -6,6 +6,7 @@ import { HomeComposer } from "@/components/home-composer"
 import { FeedSection } from "@/components/feed-section"
 import { HomeFeedTabBar, type HomeStreamTab } from "@/components/home-feed-tab-bar"
 import { FollowingSection } from "@/components/following-section"
+import type { HomeEmptyCopy } from "@/lib/site-copy"
 
 interface HomeStreamTabsProps {
   categories: Category[]
@@ -13,6 +14,7 @@ interface HomeStreamTabsProps {
   duas: Dua[]
   topCategories: Category[]
   pageSize: number
+  emptyCopy: HomeEmptyCopy
 }
 
 export function HomeStreamTabs({
@@ -21,6 +23,7 @@ export function HomeStreamTabs({
   duas,
   topCategories,
   pageSize,
+  emptyCopy,
 }: HomeStreamTabsProps) {
   const [activeTab, setActiveTab] = useState<HomeStreamTab>("feed")
 
@@ -80,6 +83,7 @@ export function HomeStreamTabs({
           topCategories={topCategories}
           pageSize={pageSize}
           feedActive={activeTab === "feed"}
+          emptyCopy={emptyCopy}
         />
       </div>
 
@@ -95,6 +99,7 @@ export function HomeStreamTabs({
           categories={categories}
           pageSize={pageSize}
           followingActive={activeTab === "following"}
+          emptyCopy={emptyCopy}
         />
       </div>
       </div>

@@ -8,7 +8,6 @@ import { IntegrationAuthTab } from "@/components/admin/integration-auth-tab"
 import { IntegrationFilloutTab } from "@/components/admin/integration-fillout-tab"
 import { IntegrationStripeTab } from "@/components/admin/integration-stripe-tab"
 import { IntegrationSupabaseTab } from "@/components/admin/integration-supabase-tab"
-import { IntegrationVolunteerWebhookTab } from "@/components/admin/integration-volunteer-webhook-tab"
 import { IntegrationWebhooksTab } from "@/components/admin/integration-webhooks-tab"
 import { IntegrationApiKeysMcpTab } from "@/components/admin/integration-api-keys-mcp-tab"
 import type { StripeSettingsAdminView } from "@/lib/stripe-settings-server"
@@ -61,12 +60,6 @@ export function IntegrationHub({
         ) : null}
         {activeTab === "fillout" && !canManageFillout ? (
           <p className="text-sm text-muted-foreground">You don&apos;t have permission to manage Fillout settings.</p>
-        ) : null}
-        {activeTab === "volunteer-webhook" ? (
-          <IntegrationVolunteerWebhookTab
-            appUrl={envStatus.appUrl}
-            webhookConfigured={envStatus.volunteerWebhookConfigured}
-          />
         ) : null}
         {activeTab === "webhooks" ? (
           <IntegrationWebhooksTab

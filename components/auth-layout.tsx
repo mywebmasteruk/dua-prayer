@@ -18,7 +18,7 @@ export async function AuthLayout({ children }: AuthLayoutProps) {
         <div className="mx-auto flex w-full max-w-md flex-col items-center text-center">
           <BrandLogo variant="icon" href="/" showWordmark priority className="h-9 w-9 shrink-0" />
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            {siteCopy.sidebarTagline}
+            {siteCopy.authTagline}
           </p>
         </div>
       </header>

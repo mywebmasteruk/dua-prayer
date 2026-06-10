@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/auth"
 import { registerChannelApplication } from "@/lib/channel-applications"
 import {
   CHANNEL_STATUS_LABELS,
+  type ChannelApplicationPayload,
   type ChannelStatus,
 } from "@/lib/channel-types"
 import type { Category } from "@/lib/types/dua"

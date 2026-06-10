@@ -59,13 +59,13 @@ export default async function AdminSettingsPage() {
 
         {canManageSettings && (
           <AdminSection
-            title="Site copy"
-            description="Edit sidebar, footer, and About page text."
+            title="Site Content"
+            description="Edit homepage, channels, donate, auth, sidebar, footer, and About page text."
             action={
               <Button variant="outline" size="sm" asChild className="rounded-full">
                 <Link href="/admin/copy">
                   <Type className="h-4 w-4" aria-hidden="true" />
-                  Edit copy
+                  Edit content
                 </Link>
               </Button>
             }

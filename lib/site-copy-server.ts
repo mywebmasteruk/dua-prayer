@@ -10,11 +10,11 @@ import {
 } from "@/lib/site-copy"
 
 function withDefaults(values: Partial<SiteCopy>): SiteCopy {
-  return {
-    sidebarTagline: values.sidebarTagline?.trim() || SITE_COPY_DEFAULTS.sidebarTagline,
-    footerTagline: values.footerTagline?.trim() || SITE_COPY_DEFAULTS.footerTagline,
-    aboutMission: values.aboutMission?.trim() || SITE_COPY_DEFAULTS.aboutMission,
+  const result = {} as SiteCopy
+  for (const key of Object.keys(SITE_COPY_DEFAULTS) as SiteCopyKey[]) {
+    result[key] = values[key]?.trim() || SITE_COPY_DEFAULTS[key]
   }
+  return result
 }
 
 async function fetchSiteCopyFromDb(): Promise<SiteCopy> {

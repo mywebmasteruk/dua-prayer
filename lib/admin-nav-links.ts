@@ -68,7 +68,7 @@ export function getAdminNavLinks(
     {
       key: "copy",
       href: "/admin/copy",
-      label: "Site copy",
+      label: "Site Content",
       icon: Type,
       visible: canSee(permissions, isFoundingAdmin, "manage_settings"),
     },

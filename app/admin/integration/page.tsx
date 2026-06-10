@@ -24,7 +24,6 @@ type PageProps = {
 const INTEGRATION_TAB_IDS: IntegrationTabId[] = [
   "stripe",
   "fillout",
-  "volunteer-webhook",
   "webhooks",
   "supabase",
   "auth",
@@ -32,6 +31,7 @@ const INTEGRATION_TAB_IDS: IntegrationTabId[] = [
 ]
 
 function resolveInitialTab(tab: string | undefined): IntegrationTabId {
+  if (tab === "volunteer-webhook") return "webhooks"
   if (tab && INTEGRATION_TAB_IDS.includes(tab as IntegrationTabId)) {
     return tab as IntegrationTabId
   }

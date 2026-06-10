@@ -13,6 +13,7 @@ import { InnerPageLayout } from "@/components/inner-page-layout"
 import { DonateForm } from "@/components/donate-form"
 import { getPlatformStats } from "@/lib/platform-stats-server"
 import { getDonationsStatus } from "@/lib/stripe"
+import { getSiteCopy } from "@/lib/site-copy-server"
 
 export const metadata: Metadata = {
   title: "Donate — DuaPrayer",
@@ -24,10 +25,11 @@ export default async function DonatePage({
 }: {
   searchParams: Promise<{ success?: string; canceled?: string }>
 }) {
-  const [params, stats, donationsStatus] = await Promise.all([
+  const [params, stats, donationsStatus, siteCopy] = await Promise.all([
     searchParams,
     getPlatformStats(),
     getDonationsStatus(),
+    getSiteCopy(),
   ])
 
   const showSuccess = params.success === "1"
@@ -64,11 +66,9 @@ export default async function DonatePage({
           <HeartHandshake className="h-3.5 w-3.5" aria-hidden="true" />
           Voluntary sadaqah
         </p>
-        <h1 className="mt-4 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">Support DuaPrayer</h1>
+        <h1 className="mt-4 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">{siteCopy.donatePageTitle}</h1>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-          DuaPrayer is a nonprofit community platform for sharing duas and responding with ameen. Donations are
-          optional and help cover hosting, moderation tools, and ongoing development so the service stays free for
-          everyone.
+          {siteCopy.donatePageIntro}
         </p>
       </header>
 

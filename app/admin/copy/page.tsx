@@ -19,10 +19,10 @@ export default async function AdminCopyPage() {
     <InnerPageLayout activePath="/admin/copy">
       <AdminPageHeader
         icon={Type}
-        title="Site copy"
+        title="Site Content"
         backHref="/admin/settings"
         backLabel="Back to settings"
-        description="Edit public-facing text on the sidebar, footer, and About page."
+        description="Edit public-facing text on the homepage, channels, donate page, auth screens, sidebar, footer, and About page."
       />
 
       <AdminSection title="Public text" description="Changes apply after you save.">

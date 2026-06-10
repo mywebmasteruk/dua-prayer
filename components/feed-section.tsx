@@ -10,6 +10,7 @@ import { NewDuasBanner } from "@/components/new-duas-banner"
 import { useHomeSearch } from "@/components/home-search-provider"
 import { useNewDuasPoll } from "@/hooks/use-new-duas-poll"
 import { useNavigationRouter } from "@/hooks/use-navigation-router"
+import type { HomeEmptyCopy } from "@/lib/site-copy"
 
 interface FeedSectionProps {
   duas: Dua[]
@@ -17,6 +18,7 @@ interface FeedSectionProps {
   topCategories: Category[]
   pageSize: number
   feedActive?: boolean
+  emptyCopy?: Pick<HomeEmptyCopy, "homeFeedEmptyTitle" | "homeFeedEmptyDescription">
 }
 
 function resolveVisibleCategories(topCategories: Category[], allCategories: Category[], activeCategory: string) {
@@ -87,7 +89,14 @@ function matchesSearch(dua: Dua, searchQuery: string, categories: Category[]) {
   return dua.text.toLowerCase().includes(trimmed) || categoryName.toLowerCase().includes(trimmed)
 }
 
-export function FeedSection({ duas, categories, topCategories, pageSize, feedActive = true }: FeedSectionProps) {
+export function FeedSection({
+  duas,
+  categories,
+  topCategories,
+  pageSize,
+  feedActive = true,
+  emptyCopy,
+}: FeedSectionProps) {
   const { query: searchQuery } = useHomeSearch()
   const router = useNavigationRouter()
   const [category, setCategory] = useState("all")
@@ -197,7 +206,11 @@ export function FeedSection({ duas, categories, topCategories, pageSize, feedAct
       <NewDuasBanner count={newDuasCount} onShow={handleShowNewDuas} />
 
       <section className="min-h-[280px]">
-        <DuaList duas={paginatedDuas} />
+        <DuaList
+          duas={paginatedDuas}
+          emptyTitle={emptyCopy?.homeFeedEmptyTitle}
+          emptyDescription={emptyCopy?.homeFeedEmptyDescription}
+        />
       </section>
 
       <section className="border-t feed-divider bg-white px-4 py-3 sm:px-5 sm:py-4">
