@@ -1,11 +1,10 @@
 import { BookOpen, HandCoins, HandHeart, Home, Info, LayoutGrid, Shield, ShieldAlert, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signInHref } from "@/lib/auth-modal"
+import { isFoundingAdminEmail } from "@/lib/admin-policy"
 import { AuthButton } from "./auth/auth-button"
 import { isSidebarPathActive, SidebarBranding, SidebarNavItem } from "./sidebar-nav-shared"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
-
-const SUPER_ADMIN_EMAIL = "webmaster@duaprayer.com"
 
 interface HomeSidebarNavProps {
   user: SupabaseUser | null
@@ -25,7 +24,7 @@ export function HomeSidebarNav({
 }: HomeSidebarNavProps) {
   const accountHref = signInHref()
   const accountLabel = user ? "Account" : "Sign in"
-  const showAdminLink = user?.email === SUPER_ADMIN_EMAIL
+  const showAdminLink = isFoundingAdminEmail(user?.email)
 
   return (
     <div className={cn("flex flex-col", className)}>

@@ -27,7 +27,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Client + server | Publishable key |
 | `SUPABASE_SECRET_KEY` | Server only | Secret key for admin writes |
 | `NEXT_PUBLIC_APP_URL` | Server | App URL for auth redirects |
-| `PLATFORM_FOUNDER_EMAIL` | Server | Founding super-admin email (full access, env-based) |
+| `SUPER_ADMIN_EMAIL` | Server | Informational only; server-side admin access is hard-coded to `webmaster@duaprayer.com` |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Client | Optional Cloudflare Turnstile |
 | `TURNSTILE_SECRET_KEY` | Server | Optional Turnstile secret |
 | `STRIPE_SECRET_KEY` | Server only | Stripe secret/restricted key for Checkout (`/donate`) |
@@ -49,7 +49,7 @@ Get `DATABASE_URL` from [Supabase Dashboard](https://supabase.com/dashboard/proj
 
 **Manual alternative:** open **SQL Editor** and run `supabase/migrations/20250608000000_initial_schema.sql`, then promote admin:
 
-3. Promote your founding admin (must match `PLATFORM_FOUNDER_EMAIL` in `.env.local`):
+3. Promote the fixed founding admin account (`webmaster@duaprayer.com`) for profile/RLS consistency:
 
 ```sql
 UPDATE public.profiles
@@ -65,7 +65,7 @@ SELECT id, true, 'admin', '{}'::jsonb FROM auth.users WHERE lower(email) = lower
 ON CONFLICT (id) DO UPDATE SET is_admin = true, admin_role = 'admin', admin_permissions = '{}';
 ```
 
-The founding admin also receives **full super-admin access** when their signed-in email matches `PLATFORM_FOUNDER_EMAIL`, even before the SQL step — but running setup promotes them in the database for RLS consistency.
+Server-side `/admin` access is restricted to the exact signed-in email `webmaster@duaprayer.com`, even if other users have admin roles in the database. Running setup promotes that fixed account in the database for RLS consistency.
 
 ## Authentication (admin sign-in)
 

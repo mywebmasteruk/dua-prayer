@@ -133,7 +133,7 @@ export function RolesAccessSettings({ currentUser, admins, canManageAdmins }: Ro
           <li>
             <span className="font-medium text-foreground">{SUPER_ADMIN_ROLE_LABEL}</span>
             {" — "}
-            All permissions via SUPER_ADMIN_EMAIL (not assignable)
+            All permissions for webmaster@duaprayer.com only (not assignable)
           </li>
         </ul>
       </AdminSection>

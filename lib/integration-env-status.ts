@@ -94,7 +94,7 @@ STRIPE_SECRET_KEY=sk_test_your_key_here
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_your_key_here
 STRIPE_WEBHOOK_SECRET=whsec_your_secret_here
 
-# Super admin
-SUPER_ADMIN_EMAIL=your-admin@example.com
+# Admin access is hard-coded server-side to webmaster@duaprayer.com only.
+SUPER_ADMIN_EMAIL=webmaster@duaprayer.com
 `
 }

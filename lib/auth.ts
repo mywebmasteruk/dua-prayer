@@ -1,6 +1,7 @@
 import { cache } from "react"
 import type { User } from "@supabase/supabase-js"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
+import { isFoundingAdminEmail, FOUNDING_ADMIN_EMAIL } from "@/lib/admin-policy"
 import { getServerUser } from "@/lib/server-user"
 import { signInHref } from "@/lib/auth-modal"
 import {
@@ -9,21 +10,14 @@ import {
   type AdminRoleType,
   founderPermissions,
   isAdminPermission,
-  resolvePermissions,
 } from "@/lib/admin-permissions"
 
-export function getFoundingAdminEmail(): string | null {
-  const email =
-    process.env.SUPER_ADMIN_EMAIL?.trim() ??
-    process.env.PLATFORM_FOUNDER_EMAIL?.trim() ??
-    process.env.SETUP_ADMIN_EMAIL?.trim()
-  return email ? email.toLowerCase() : null
+export function getFoundingAdminEmail(): string {
+  return FOUNDING_ADMIN_EMAIL
 }
 
 export function isFoundingAdminUser(user: { email?: string | null }): boolean {
-  const founderEmail = getFoundingAdminEmail()
-  if (!founderEmail || !user.email) return false
-  return user.email.toLowerCase() === founderEmail
+  return isFoundingAdminEmail(user.email)
 }
 
 /** @deprecated Prefer isFoundingAdminUser — alias for clarity in new code */
@@ -106,19 +100,7 @@ export const getAdminContext = cache(async (): Promise<AdminContext | null> => {
       }
     }
 
-    const profile = await getProfileAdminFields(user.id)
-    if (!profile?.is_admin) return null
-
-    const permissions = resolvePermissions(profile.admin_role ?? "admin", profile.admin_permissions)
-
-    return {
-      user,
-      isFoundingAdmin: false,
-      isAdmin: true,
-      role: profile.admin_role,
-      permissions,
-      displayName: profile.display_name,
-    }
+    return null
   } catch (error) {
     console.error("getAdminContext failed:", error)
     return null
@@ -134,20 +116,8 @@ export async function getSession() {
   return getServerUser()
 }
 
-export async function isUserAdmin(userId: string, email?: string | null): Promise<boolean> {
-  if (email && isFoundingAdminUser({ email })) return true
-
-  let admin
-  try {
-    admin = createAdminSupabaseClient()
-  } catch (error) {
-    console.error("isUserAdmin: Supabase admin client unavailable", error)
-    return false
-  }
-
-  const { data, error } = await admin.from("profiles").select("is_admin").eq("id", userId).single()
-  if (error) return false
-  return data?.is_admin === true
+export async function isUserAdmin(_userId: string, email?: string | null): Promise<boolean> {
+  return isFoundingAdminUser({ email })
 }
 
 export async function requireAdmin() {
@@ -183,38 +153,10 @@ export async function requireAnyAdminAccess() {
 }
 
 export async function userHasAdminAccess(user: { id: string; email?: string | null }): Promise<boolean> {
-  if (isFoundingAdminUser(user)) return true
-  return isUserAdmin(user.id, user.email)
+  return isFoundingAdminUser(user)
 }
 
 export async function resolveAdminLandingPath(user: { id: string; email?: string | null }): Promise<string> {
   if (isFoundingAdminUser(user)) return "/admin"
-
-  const admin = createAdminSupabaseClient()
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("is_admin, admin_role, admin_permissions")
-    .eq("id", user.id)
-    .single()
-
-  if (!profile?.is_admin) return signInHref({ error: "not_admin" })
-
-  const overrides: AdminPermissionOverrides = {}
-  if (profile.admin_permissions && typeof profile.admin_permissions === "object") {
-    for (const [key, value] of Object.entries(profile.admin_permissions as Record<string, unknown>)) {
-      if (isAdminPermission(key) && typeof value === "boolean") {
-        overrides[key] = value
-      }
-    }
-  }
-
-  const permissions = resolvePermissions(profile.admin_role ?? "admin", overrides)
-  if (permissions.includes("manage_duas")) return "/admin"
-  if (permissions.includes("manage_channels")) return "/admin/channels"
-  if (permissions.includes("manage_users")) return "/admin/users"
-  if (permissions.includes("manage_settings")) return "/admin/copy"
-  if (permissions.includes("manage_volunteers")) return "/admin/volunteers"
-  if (permissions.includes("manage_admins")) return "/admin/users/roles"
-  if (permissions.includes("view_analytics")) return "/admin/volunteers/roles"
   return signInHref({ error: "not_admin" })
 }

@@ -168,7 +168,7 @@ export async function setUserRole(input: { userId: string; role: "user" | AdminR
 
   const founderEmail = getFoundingAdminEmail()
   if (founderEmail && email.toLowerCase() === founderEmail) {
-    return { error: "The super admin role is fixed by SUPER_ADMIN_EMAIL and cannot be changed here." }
+    return { error: "The super admin role is fixed to webmaster@duaprayer.com and cannot be changed here." }
   }
 
   if (input.role === "user") {

@@ -5,9 +5,8 @@ import { usePathname } from "next/navigation"
 import { HandCoins, HandHeart, Home, LayoutGrid, ShieldAlert, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { signInHref } from "@/lib/auth-modal"
+import { isFoundingAdminEmail } from "@/lib/admin-policy"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
-
-const SUPER_ADMIN_EMAIL = "webmaster@duaprayer.com"
 
 interface HomeMobileBottomNavProps {
   user: SupabaseUser | null
@@ -42,7 +41,7 @@ function BottomNavItem({
 
 export function HomeMobileBottomNav({ user }: HomeMobileBottomNavProps) {
   const pathname = usePathname() ?? "/"
-  const showAdminLink = user?.email === SUPER_ADMIN_EMAIL
+  const showAdminLink = isFoundingAdminEmail(user?.email)
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/"
