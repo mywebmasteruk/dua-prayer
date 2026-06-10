@@ -37,6 +37,9 @@ export const SITE_COPY_DEFAULTS = {
   composerCategoryGeneralAr: "عام",
   composerCategoryHealthAr: "الصحة",
   composerCategoryCommunityAr: "المجتمع",
+  composerCategoryGuidanceAr: "الهداية",
+  composerCategoryGratitudeAr: "الشكر",
+  composerCategoryProtectionAr: "الحماية",
 } as const
 
 export type SiteCopyKey = keyof typeof SITE_COPY_DEFAULTS
@@ -73,6 +76,9 @@ export const SITE_SETTING_KEY_MAP: Record<SiteCopyKey, string> = {
   composerCategoryGeneralAr: SITE_SETTING_KEYS.copyComposerCategoryGeneralAr,
   composerCategoryHealthAr: SITE_SETTING_KEYS.copyComposerCategoryHealthAr,
   composerCategoryCommunityAr: SITE_SETTING_KEYS.copyComposerCategoryCommunityAr,
+  composerCategoryGuidanceAr: SITE_SETTING_KEYS.copyComposerCategoryGuidanceAr,
+  composerCategoryGratitudeAr: SITE_SETTING_KEYS.copyComposerCategoryGratitudeAr,
+  composerCategoryProtectionAr: SITE_SETTING_KEYS.copyComposerCategoryProtectionAr,
 }
 
 export const SITE_COPY_LABELS: Record<SiteCopyKey, { label: string; description: string }> = {
@@ -200,12 +206,49 @@ export const SITE_COPY_LABELS: Record<SiteCopyKey, { label: string; description:
     label: "Composer category label — Arabic: Community",
     description: "Arabic label for the Community category in the composer category menu.",
   },
+  composerCategoryGuidanceAr: {
+    label: "Composer category label — Arabic: Guidance",
+    description: "Arabic label for the Guidance category in the composer category menu.",
+  },
+  composerCategoryGratitudeAr: {
+    label: "Composer category label — Arabic: Gratitude",
+    description: "Arabic label for the Gratitude category in the composer category menu.",
+  },
+  composerCategoryProtectionAr: {
+    label: "Composer category label — Arabic: Protection",
+    description: "Arabic label for the Protection category in the composer category menu.",
+  },
 }
 
 export type SiteCopy = Record<SiteCopyKey, string>
 
 export type ComposerCopyKey = Extract<SiteCopyKey, `composer${string}`>
 export type ComposerCopy = Pick<SiteCopy, ComposerCopyKey>
+export type ComposerCategoryLabelLanguage = "auto" | "en" | "ar"
+
+export const ARABIC_COMPOSER_CATEGORY_COPY_BY_NAME = {
+  Family: "composerCategoryFamilyAr",
+  Forgiveness: "composerCategoryForgivenessAr",
+  General: "composerCategoryGeneralAr",
+  Health: "composerCategoryHealthAr",
+  Community: "composerCategoryCommunityAr",
+  Guidance: "composerCategoryGuidanceAr",
+  Gratitude: "composerCategoryGratitudeAr",
+  Protection: "composerCategoryProtectionAr",
+} as const satisfies Record<string, ComposerCopyKey>
+
+export function getComposerCategoryLabel(
+  categoryName: string,
+  copy: ComposerCopy,
+  language: ComposerCategoryLabelLanguage,
+) {
+  if (language !== "ar") return categoryName
+
+  const copyKey = ARABIC_COMPOSER_CATEGORY_COPY_BY_NAME[
+    categoryName as keyof typeof ARABIC_COMPOSER_CATEGORY_COPY_BY_NAME
+  ]
+  return copyKey ? copy[copyKey] : categoryName
+}
 
 export type HomeEmptyCopy = Pick<
   SiteCopy,

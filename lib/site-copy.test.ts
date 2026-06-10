@@ -1,6 +1,12 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { SITE_COPY_DEFAULTS, SITE_COPY_LABELS, type ComposerCopyKey, type SiteCopyKey } from "./site-copy"
+import {
+  getComposerCategoryLabel,
+  SITE_COPY_DEFAULTS,
+  SITE_COPY_LABELS,
+  type ComposerCopyKey,
+  type SiteCopyKey,
+} from "./site-copy"
 
 const composerCopyKeys = [
   "composerTitleEn",
@@ -22,6 +28,9 @@ const composerCopyKeys = [
   "composerCategoryGeneralAr",
   "composerCategoryHealthAr",
   "composerCategoryCommunityAr",
+  "composerCategoryGuidanceAr",
+  "composerCategoryGratitudeAr",
+  "composerCategoryProtectionAr",
 ] as const satisfies readonly SiteCopyKey[]
 
 describe("site composer copy", () => {
@@ -54,10 +63,21 @@ describe("site composer copy", () => {
       composerCategoryGeneralAr: "عام",
       composerCategoryHealthAr: "الصحة",
       composerCategoryCommunityAr: "المجتمع",
+      composerCategoryGuidanceAr: "الهداية",
+      composerCategoryGratitudeAr: "الشكر",
+      composerCategoryProtectionAr: "الحماية",
     } as const satisfies Partial<Record<ComposerCopyKey, string>>
 
     for (const [key, label] of Object.entries(expected) as [keyof typeof expected, string][]) {
       assert.equal(SITE_COPY_DEFAULTS[key], label)
     }
+  })
+
+  it("resolves known Arabic category labels and preserves unknown custom categories", () => {
+    assert.equal(getComposerCategoryLabel("Guidance", SITE_COPY_DEFAULTS, "ar"), "الهداية")
+    assert.equal(getComposerCategoryLabel("Gratitude", SITE_COPY_DEFAULTS, "ar"), "الشكر")
+    assert.equal(getComposerCategoryLabel("Protection", SITE_COPY_DEFAULTS, "ar"), "الحماية")
+    assert.equal(getComposerCategoryLabel("Custom channel", SITE_COPY_DEFAULTS, "ar"), "Custom channel")
+    assert.equal(getComposerCategoryLabel("Guidance", SITE_COPY_DEFAULTS, "en"), "Guidance")
   })
 })

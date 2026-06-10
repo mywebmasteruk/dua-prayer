@@ -167,6 +167,9 @@ export default async function Home({
                     composerCategoryGeneralAr: siteCopy.composerCategoryGeneralAr,
                     composerCategoryHealthAr: siteCopy.composerCategoryHealthAr,
                     composerCategoryCommunityAr: siteCopy.composerCategoryCommunityAr,
+                    composerCategoryGuidanceAr: siteCopy.composerCategoryGuidanceAr,
+                    composerCategoryGratitudeAr: siteCopy.composerCategoryGratitudeAr,
+                    composerCategoryProtectionAr: siteCopy.composerCategoryProtectionAr,
                   }}
                 />
               </section>
