@@ -1,3 +1,5 @@
+import type { ChannelStatus, ChannelType } from "@/lib/channel-types"
+
 export interface Dua {
   id: number
   text: string
@@ -6,13 +8,12 @@ export interface Dua {
   likes: number
   created_at: string
   category_name?: string
+  category_channel_type?: ChannelType
   user_has_prayed?: boolean
   user_has_liked?: boolean
   published: boolean
   flagged: boolean
 }
-
-import type { ChannelStatus, ChannelType } from "@/lib/channel-types"
 
 export interface Category {
   id: number

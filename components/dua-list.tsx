@@ -3,7 +3,7 @@
 import type React from "react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Flag, Heart, HeartHandshake, Share2, Sparkles, UserRound } from "lucide-react"
+import { Building2, Flag, Heart, HeartHandshake, Share2, Sparkles, UserRound } from "lucide-react"
 import type { Dua } from "@/lib/types/dua"
 import { toast } from "@/components/ui/use-toast"
 import { prayForDua, flagDua } from "@/app/actions/duas"
@@ -38,7 +38,7 @@ function ActionButton({
       variant="ghost"
       size="sm"
       className={cn(
-        "h-8 gap-1.5 rounded-full px-2.5 text-muted-foreground hover:bg-primary/10 hover:text-primary",
+        "h-8 gap-1.5 rounded-full px-2.5 text-muted-foreground hover:bg-muted hover:text-primary",
         active && "text-primary",
         className,
       )}
@@ -189,7 +189,7 @@ export function DuaList({
   if (duasList.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
           <Sparkles className="h-6 w-6 text-primary" aria-hidden="true" />
         </div>
         <h2 className="text-lg font-semibold tracking-tight">{emptyTitle}</h2>
@@ -199,20 +199,22 @@ export function DuaList({
   }
 
   return (
-    <div>
+    <div className="space-y-3 bg-white py-3">
       {duasList.map((dua) => {
         const prayed = dua.user_has_prayed ?? dua.user_has_liked
         const textDirection = getTextDirection(dua.text)
         const isRtl = textDirection === "rtl"
         const isReported = reportedDuas[dua.id] ?? dua.flagged
         const isLoved = Boolean(lovedDuas[dua.id])
-        const sourceLabel = dua.user_id ? "Community member" : "Anonymous"
+        const isChannelPost = dua.category_channel_type === "user"
+        const sourceLabel = isChannelPost ? dua.category_name ?? "Community channel" : dua.user_id ? "Community member" : "Anonymous"
+        const SourceIcon = isChannelPost ? Building2 : UserRound
         const loveCount = isLoved ? 1 : 0
 
         return (
           <article
             key={dua.id}
-            className="group border-b feed-divider px-4 pt-3.5 transition hover:bg-muted/20 focus-within:bg-muted/20 last:border-b-0 sm:px-5"
+            className="group overflow-hidden bg-white px-4 pt-4 shadow-[0_10px_28px_rgba(15,23,42,0.045)] transition hover:bg-white hover:shadow-[0_14px_36px_rgba(15,23,42,0.06)] focus-within:bg-white sm:px-5"
           >
             <div
               dir={textDirection}
@@ -230,7 +232,7 @@ export function DuaList({
             <p
               dir={textDirection}
               className={cn(
-                "mt-2.5 whitespace-pre-wrap break-words text-[15px] leading-normal text-slate-800",
+                "mt-2.5 whitespace-pre-wrap break-words text-[15px] leading-7 text-foreground",
                 isRtl ? "text-right font-medium leading-8" : "",
                 getArabicOnlyFontClassName(dua.text),
               )}
@@ -240,18 +242,18 @@ export function DuaList({
 
             <div
               className={cn(
-                "-mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border/20 bg-white px-4 py-2.5 sm:-mx-5 sm:px-5",
+                "-mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 bg-white/95 px-4 py-2.5 opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 sm:-mx-5 sm:px-5",
                 isRtl && "flex-row-reverse",
               )}
             >
               <div
                 dir={textDirection}
-                className={cn("flex min-w-0 items-center gap-2 text-xs text-muted-foreground lg:text-[15px]", isRtl && "text-right")}
+                className={cn("flex min-w-0 items-center gap-2 text-xs text-muted-foreground", isRtl && "text-right")}
               >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/5 text-primary">
-                  <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-transparent text-primary/80">
+                  <SourceIcon className="h-3.5 w-3.5" aria-hidden="true" />
                 </span>
-                <span className="truncate font-bold text-foreground">{sourceLabel}</span>
+                <span className="truncate text-[12px] font-medium text-foreground/65">{sourceLabel}</span>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">

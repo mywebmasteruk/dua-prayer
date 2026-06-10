@@ -89,22 +89,22 @@ export default async function Home({
           next={params.next}
         />
       </Suspense>
-      <div className="min-h-screen bg-muted/40 text-foreground">
+      <div className="min-h-screen bg-muted text-foreground">
         <div className="mx-auto grid w-full max-w-[1265px] lg:grid-cols-[minmax(0,275px)_minmax(0,600px)_minmax(0,350px)] lg:justify-center">
           <aside
             aria-label="Site navigation"
-            className="hidden lg:sticky lg:top-0 lg:col-start-1 lg:block lg:self-start lg:px-4 lg:py-3"
+            className="hidden lg:sticky lg:top-0 lg:col-start-1 lg:block lg:self-start lg:px-4 lg:py-3 lg:text-foreground/70"
           >
             <HomeSidebarNav
               user={user}
               isAdmin={isAdmin}
               activePath="/"
-              sidebarTagline={siteCopy.sidebarTagline}
+              sidebarTagline="Share your duas, pray for one another, and grow together in faith."
             />
           </aside>
 
           <main
-            className="min-w-0 bg-white pb-20 lg:col-start-2 lg:border-x lg:border-border/70 lg:pb-0"
+            className="min-w-0 bg-white pb-20 shadow-[0_24px_80px_rgba(15,23,42,0.045)] lg:col-start-2 lg:pb-0"
             aria-label="Prayer request composer and feed"
           >
             <div className="border-b border-border/70 px-4 py-3 lg:hidden">
@@ -136,7 +136,7 @@ export default async function Home({
 
           <aside
             aria-label="Community trends and platform context"
-            className="hidden lg:sticky lg:top-0 lg:col-start-3 lg:block lg:self-start lg:px-4 lg:pb-3"
+            className="hidden lg:sticky lg:top-0 lg:col-start-3 lg:block lg:self-start lg:px-4 lg:pb-3 lg:text-foreground/65"
           >
             <HomeRightRail
               categoryLeaderboard={categoryLeaderboard}

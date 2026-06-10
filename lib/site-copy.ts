@@ -1,7 +1,7 @@
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
 
 export const SITE_COPY_DEFAULTS = {
-  sidebarTagline: "Share duas, support one another, and grow together in faith.",
+  sidebarTagline: "Share your duas, pray for one another, and grow together in faith.",
   footerTagline:
     "A nonprofit community platform for sharing duas and responding with ameen — free for the Ummah.",
   aboutMission:

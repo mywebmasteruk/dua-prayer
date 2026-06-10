@@ -20,7 +20,7 @@ export function HomeSidebarNav({
   activePath = "/",
   showLogo = true,
   className,
-  sidebarTagline = "Share duas, support one another, and grow together in faith.",
+  sidebarTagline = "Share your duas, pray for one another, and grow together in faith.",
 }: HomeSidebarNavProps) {
   const accountHref = signInHref()
   const accountLabel = user ? "Account" : "Sign in"

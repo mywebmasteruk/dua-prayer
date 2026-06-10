@@ -199,8 +199,8 @@ async function enrichDuas(
   }>,
 ) {
   const supabase = await createServerSupabaseClient()
-  const { data: categories } = await supabase.from("categories").select("id, name")
-  const categoryMap = new Map(categories?.map((c) => [c.id, c.name]) ?? [])
+  const { data: categories } = await supabase.from("categories").select("id, name, channel_type")
+  const categoryMap = new Map(categories?.map((c) => [c.id, c]) ?? [])
 
   const {
     data: { user },
@@ -219,11 +219,16 @@ async function enrichDuas(
     }
   }
 
-  return duas.map((dua) => ({
-    ...dua,
-    category_name: dua.category_id ? categoryMap.get(dua.category_id) : undefined,
-    user_has_prayed: prayedIds.has(dua.id),
-  }))
+  return duas.map((dua) => {
+    const category = dua.category_id ? categoryMap.get(dua.category_id) : undefined
+
+    return {
+      ...dua,
+      category_name: category?.name,
+      category_channel_type: category?.channel_type === "user" ? "user" : "category",
+      user_has_prayed: prayedIds.has(dua.id),
+    }
+  })
 }
 
 /** Count published duas newer than the feed watermark (matches getFeedDuas sort: created_at DESC). */

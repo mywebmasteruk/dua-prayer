@@ -42,16 +42,16 @@ export function HomeComposer({ categories, turnstileSiteKey }: HomeComposerProps
   return (
     <>
       <div
-        className="group flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition hover:bg-muted/25 sm:px-5"
+        className="group flex w-full cursor-pointer items-center gap-3 bg-white px-4 py-4 text-left transition hover:bg-muted sm:px-5"
         onClick={() => setIsOpen(true)}
       >
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/10">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-muted text-primary">
           <BrandLogo variant="icon" href="" className="h-6 w-6" />
         </span>
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="flex min-w-0 flex-1 items-center rounded-full border border-border/70 bg-muted/35 px-4 py-2.5 text-[15px] font-normal text-muted-foreground shadow-inner transition hover:border-primary/25 hover:bg-white hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex min-w-0 flex-1 items-center rounded-full bg-muted px-4 py-3 text-[15px] font-medium text-muted-foreground shadow-[inset_0_0_0_1px_rgba(15,23,42,0.035)] transition hover:bg-white hover:text-foreground hover:shadow-[0_8px_22px_rgba(15,23,42,0.06)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-haspopup="dialog"
           aria-expanded={isOpen}
           aria-label="Open composer to share a dua request"
@@ -62,7 +62,7 @@ export function HomeComposer({ categories, turnstileSiteKey }: HomeComposerProps
           <button
             type="button"
             onClick={() => setIsOpen(true)}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_20px_rgba(22,163,74,0.16)] transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-haspopup="dialog"
             aria-expanded={isOpen}
             aria-label="Open composer to share a dua request"
@@ -92,9 +92,9 @@ export function HomeComposer({ categories, turnstileSiteKey }: HomeComposerProps
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby={titleId}
-                  className="scrollbar-hide max-h-[calc(100svh-1rem)] w-full overflow-y-auto rounded-t-[2rem] border border-primary/15 bg-white p-4 shadow-[0_35px_120px_rgba(15,23,42,0.24)] sm:max-h-[calc(100svh-10rem)] sm:rounded-[2rem] sm:p-5"
+                  className="scrollbar-hide max-h-[calc(100svh-1rem)] w-full overflow-y-auto rounded-t-[2rem] border border-border bg-white p-4 shadow-[0_35px_120px_rgba(15,23,42,0.24)] sm:max-h-[calc(100svh-10rem)] sm:rounded-[2rem] sm:p-5"
                 >
-                  <div className="rounded-[1.7rem] border border-primary/15 bg-gradient-to-br from-primary/[0.08] via-white to-muted/50 p-4 sm:p-5">
+                  <div className="rounded-[1.7rem] border border-border bg-white p-4 sm:p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h2 id={titleId} className="text-xl font-semibold tracking-tight text-foreground">

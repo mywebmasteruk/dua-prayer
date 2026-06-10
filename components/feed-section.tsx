@@ -213,7 +213,7 @@ export function FeedSection({
         />
       </section>
 
-      <section className="border-t feed-divider bg-white px-4 py-3 sm:px-5 sm:py-4">
+      <section className="bg-white px-4 py-3 sm:px-5 sm:py-4">
         <FeedPagination
           page={currentPage}
           total={filteredDuas.length}

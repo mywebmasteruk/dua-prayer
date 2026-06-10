@@ -37,8 +37,8 @@ export function FilterPill({
       className={cn(
         "tap-feedback shrink-0 rounded-full border px-4 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         isActive
-          ? "border-border/80 bg-background font-semibold text-foreground shadow-sm"
-          : "border-transparent bg-muted/60 font-medium text-muted-foreground hover:border-border/60 hover:bg-muted hover:text-foreground",
+          ? "border-transparent bg-primary font-semibold text-primary-foreground"
+          : "border-transparent bg-transparent font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
       {label}
@@ -56,7 +56,7 @@ export function FeedFilters({
   const categoryPills = [{ id: "all", name: "All" }, ...categories.map((cat) => ({ id: cat.id.toString(), name: cat.name }))]
 
   return (
-    <div className="flex items-stretch border-b feed-divider bg-white">
+    <div className="flex items-stretch bg-white">
       <div className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div
           className="flex w-max gap-2 px-4 py-3 sm:pl-5"
