@@ -129,7 +129,7 @@ export function DuaForm({ categories, turnstileSiteKey, onSuccess }: DuaFormProp
         </div>
         <div className="flex-1 min-w-0">
           <Textarea
-            placeholder="Share a dua for yourself, your family, or someone who needs support..."
+            placeholder="Make a dua for yourself, your family, or someone who needs support..."
             dir={textDirection}
             className={cn(
               "min-h-[88px] resize-none border-0 bg-transparent px-0 text-[17px] leading-relaxed shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/80",

@@ -98,11 +98,11 @@ export function HomeComposer({ categories, turnstileSiteKey }: HomeComposerProps
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h2 id={titleId} className="text-xl font-semibold tracking-tight text-foreground">
-                          Share a dua request
+                          Share your dua with the Ummah.
                         </h2>
                         <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                          Ask for support from the community. Avoid private details and share only what helps others
-                          respond with care.
+                          Please do not include personal or private details and keep it positive. All posts are subject
+                          to moderation. JZK
                         </p>
                       </div>
                       <ActionIconTooltip label="Close">
