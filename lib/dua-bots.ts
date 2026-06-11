@@ -1,6 +1,12 @@
 import { createHash } from "crypto"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
-import { fetchAiProviderSettings, generateDuaForEvent, getAiProviderAdminView } from "@/lib/ai-provider"
+import {
+  fetchAiProviderSettings,
+  generateDuaForEvent,
+  getAiProviderAdminView,
+  isAiProviderReady,
+  type AiProviderSettings,
+} from "@/lib/ai-provider"
 import { evaluateDuaModeration } from "@/lib/ai-moderation"
 
 export type BotStatus = "active" | "paused"
@@ -86,6 +92,7 @@ export type BotRuntimeStatus = {
   aiProvider: Awaited<ReturnType<typeof getAiProviderAdminView>>
   supportedSourceTypes: BotSourceType[]
   canGenerateDuas: boolean
+  helperText: string
 }
 
 export type BotRunnerResult = {
@@ -298,10 +305,14 @@ export async function listRecentBotRuns(limit = 10): Promise<DuaBotRun[]> {
 
 export async function getDuaBotRuntimeStatus(): Promise<BotRuntimeStatus> {
   const aiProvider = await getAiProviderAdminView()
+  const canGenerateDuas = aiProvider.ready
   return {
     aiProvider,
     supportedSourceTypes: ["rss"],
-    canGenerateDuas: aiProvider.ready,
+    canGenerateDuas,
+    helperText: canGenerateDuas
+      ? "Bots can generate duas from configured RSS/news sources."
+      : "Configure and enable Admin → Integration → AI Provider before bot runs can create duas.",
   }
 }
 
@@ -391,10 +402,14 @@ async function alreadyPosted(botId: number, key: string): Promise<boolean> {
   return Boolean(data)
 }
 
-async function createDuaFromEvent(bot: DuaBot, runId: number | null, event: EventCandidate): Promise<boolean> {
+async function createDuaFromEvent(
+  bot: DuaBot,
+  runId: number | null,
+  event: EventCandidate,
+  aiSettings: AiProviderSettings,
+): Promise<boolean> {
   if (await alreadyPosted(bot.id, event.key)) return false
 
-  const aiSettings = await fetchAiProviderSettings()
   const text = await generateDuaForEvent({
     eventTitle: event.title,
     eventSummary: event.summary,
@@ -448,6 +463,11 @@ async function runOneBot(bot: DuaBot): Promise<{ created: number; error: string 
   let created = 0
 
   try {
+    const aiSettings = await fetchAiProviderSettings()
+    if (!isAiProviderReady(aiSettings)) {
+      throw new Error("AI Provider is not configured. Enable a provider and save an API key under Admin → Integration → AI Provider before running dua bots.")
+    }
+
     const discovery = await discoverEvents(bot)
     events = discovery.events
       .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""))
@@ -464,7 +484,7 @@ async function runOneBot(bot: DuaBot): Promise<{ created: number; error: string 
     }
 
     for (const event of events) {
-      if (await createDuaFromEvent(bot, runId, event)) created += 1
+      if (await createDuaFromEvent(bot, runId, event, aiSettings)) created += 1
     }
 
     const status = created > 0 ? "success" : "skipped"

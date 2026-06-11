@@ -22,13 +22,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
-import type { DuaEventBot, DuaBotRun } from "@/lib/dua-bots"
+import type { BotRuntimeStatus, DuaEventBot, DuaBotRun } from "@/lib/dua-bots"
 import type { Category } from "@/lib/types/dua"
 
 type DuaBotControlPanelProps = {
   initialBots: DuaEventBot[]
   recentRuns: DuaBotRun[]
   categories: Category[]
+  runtimeStatus: BotRuntimeStatus
 }
 
 type BotDraft = {
@@ -94,7 +95,7 @@ function statusTone(status: string): "success" | "warning" | "danger" | "neutral
   return "neutral"
 }
 
-export function DuaBotControlPanel({ initialBots, recentRuns, categories }: DuaBotControlPanelProps) {
+export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtimeStatus }: DuaBotControlPanelProps) {
   const [bots, setBots] = useState(initialBots)
   const [draft, setDraft] = useState<BotDraft>(blankDraft)
   const [open, setOpen] = useState(false)
@@ -162,7 +163,14 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories }: DuaB
       <AdminSection
         title="How bots run"
         description="Bots read configured RSS/news feeds, filter events by keyword/category, generate duas with the AI Provider, and save them for review by default."
+        action={
+          <AdminStatusBadge
+            label={runtimeStatus.canGenerateDuas ? "Ready" : "Needs AI Provider"}
+            tone={runtimeStatus.canGenerateDuas ? "success" : "warning"}
+          />
+        }
       >
+        <p className="mb-4 text-sm text-muted-foreground">{runtimeStatus.helperText}</p>
         <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
           <div className="rounded-lg border border-border/60 p-3">
             <p className="font-medium text-foreground">Sources</p>
@@ -170,7 +178,7 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories }: DuaB
           </div>
           <div className="rounded-lg border border-border/60 p-3">
             <p className="font-medium text-foreground">AI Provider</p>
-            <p className="mt-1">Configure OpenAI under Admin → Integration → AI Provider for both moderation and bot generation.</p>
+            <p className="mt-1">Configure a supported provider under Admin → Integration → AI Provider for both moderation and bot generation.</p>
           </div>
           <div className="rounded-lg border border-border/60 p-3">
             <p className="font-medium text-foreground">Cron</p>
@@ -238,7 +246,11 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories }: DuaB
                       actions={[
                         { label: "Edit", onClick: () => openEdit(bot) },
                         { label: bot.status === "active" ? "Pause" : "Resume", onClick: () => handleStatus(bot) },
-                        { label: runningId === bot.id ? "Running…" : "Run now", onClick: () => handleRunNow(bot) },
+                        {
+                          label: runningId === bot.id ? "Running…" : "Run now",
+                          onClick: () => handleRunNow(bot),
+                          disabled: !runtimeStatus.canGenerateDuas,
+                        },
                       ]}
                     />
                   </TableCell>
