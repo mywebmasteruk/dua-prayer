@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getFeedDuas } from "@/app/actions/duas"
 import type { Category, Dua } from "@/lib/types/dua"
 import { detectLanguage, type DuaLanguage } from "@/lib/detect-language"
@@ -114,6 +114,16 @@ export function FeedSection({
   const [tag, setTag] = useState("")
   const [extraDuas, setExtraDuas] = useState<Dua[]>([])
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  // Server count can shrink (duas unpublished) below the total prop captured
+  // at render; track the freshest count and stop loading on an empty batch so
+  // the loader can never spin forever chasing a stale total.
+  const [liveTotal, setLiveTotal] = useState(total)
+  const [exhausted, setExhausted] = useState(false)
+
+  useEffect(() => {
+    setLiveTotal(total)
+    setExhausted(false)
+  }, [total])
 
   useEffect(() => {
     const initial = readFiltersFromUrl()
@@ -148,14 +158,14 @@ export function FeedSection({
 
   const filtersActive =
     category !== "all" || lang !== "all" || tag !== "" || searchQuery.trim() !== ""
-  const allLoaded = allDuas.length >= total
+  const allLoaded = exhausted || allDuas.length >= liveTotal
 
   // Language/hashtag/search filters run on the client (they analyze the dua
   // text), so they need the full dataset; otherwise load just enough batches
   // to cover the page the user is on.
   useEffect(() => {
     if (allLoaded || isLoadingMore || !feedActive) return
-    const needed = filtersActive ? total : Math.min(page * pageSize, total)
+    const needed = filtersActive ? liveTotal : Math.min(page * pageSize, liveTotal)
     if (allDuas.length >= needed) return
 
     let cancelled = false
@@ -163,9 +173,21 @@ export function FeedSection({
     getFeedDuas({ offset: allDuas.length })
       .then((result) => {
         if (cancelled) return
+        setLiveTotal(result.total)
+        if (result.duas.length === 0) {
+          setExhausted(true)
+          return
+        }
         setExtraDuas((previous) => {
           const seen = new Set([...duas, ...previous].map((dua) => dua.id))
-          return [...previous, ...result.duas.filter((dua) => !seen.has(dua.id))]
+          const fresh = result.duas.filter((dua) => !seen.has(dua.id))
+          // An all-duplicates batch means offsets shifted and there is nothing
+          // new to fetch — treat it as exhausted rather than refetching.
+          if (fresh.length === 0) {
+            setExhausted(true)
+            return previous
+          }
+          return [...previous, ...fresh]
         })
       })
       .catch((error) => console.error("Error loading more duas:", error))
@@ -176,12 +198,14 @@ export function FeedSection({
     return () => {
       cancelled = true
     }
-  }, [allDuas.length, allLoaded, duas, feedActive, filtersActive, isLoadingMore, page, pageSize, total])
+  }, [allDuas.length, allLoaded, duas, feedActive, filtersActive, isLoadingMore, page, pageSize, liveTotal])
 
   // Unfiltered: trust the server count so pages past the loaded batches stay
-  // reachable. Filtered: the dataset is (being) fully loaded, so the local
-  // count is the real one.
-  const paginationTotal = filtersActive ? filteredDuas.length : Math.max(total, filteredDuas.length)
+  // reachable. Filtered (or exhausted): the local count is the real one.
+  const paginationTotal =
+    filtersActive || exhausted
+      ? filteredDuas.length
+      : Math.max(liveTotal, filteredDuas.length)
   const totalPages = Math.max(1, Math.ceil(paginationTotal / pageSize))
   const currentPage = Math.min(page, totalPages)
 
@@ -194,7 +218,14 @@ export function FeedSection({
     if (page !== currentPage) setPage(currentPage)
   }, [currentPage, page])
 
+  // Reset to page 1 when the search changes — but not on mount, where this
+  // would clobber the page just read from a ?page=N deep link.
+  const isFirstSearchEffect = useRef(true)
   useEffect(() => {
+    if (isFirstSearchEffect.current) {
+      isFirstSearchEffect.current = false
+      return
+    }
     setPage(1)
   }, [searchQuery])
 

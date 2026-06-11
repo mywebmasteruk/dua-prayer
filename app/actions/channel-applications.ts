@@ -5,7 +5,6 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { listAllAuthUsers } from "@/lib/auth-users"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { requirePermission } from "@/lib/auth"
-import { registerChannelApplication } from "@/lib/channel-applications"
 import {
   CHANNEL_STATUS_LABELS,
   type ChannelApplicationPayload,
@@ -78,56 +77,6 @@ function mapCategoryRow(row: {
     created_at: row.created_at,
     updated_at: row.updated_at,
   }
-}
-
-export async function submitChannelApplication(input: {
-  name: string
-  description: string
-  handle?: string
-  message?: string
-}) {
-  const supabase = await createServerSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) return { error: "Sign in to apply for a channel." }
-  if (!user.email) return { error: "Your account must have an email address to apply." }
-
-  const { data: existingPending, error: pendingError } = await supabase
-    .from("categories")
-    .select("id")
-    .eq("owner_id", user.id)
-    .eq("status", "pending_review")
-    .maybeSingle()
-
-  if (pendingError && pendingError.code !== "42703") {
-    console.error("Error checking pending channel application:", pendingError)
-    return { error: pendingError.message }
-  }
-
-  if (existingPending) {
-    return { error: "You already have a channel application under review." }
-  }
-
-  const result = await registerChannelApplication({
-    channelName: input.name,
-    description: input.description,
-    applicantEmail: user.email,
-    applicantName: user.user_metadata?.display_name ?? user.user_metadata?.full_name ?? null,
-    handle: input.handle,
-    applicantUserId: user.id,
-    source: "in_app",
-    payload: input.message?.trim() ? { message: input.message.trim() } : undefined,
-  })
-
-  if (!result.ok) {
-    return { error: result.error }
-  }
-
-  revalidatePath("/channels/apply")
-  revalidatePath("/admin/channels")
-  return { success: true as const }
 }
 
 export async function listChannelApplications(input?: {

@@ -1,5 +1,4 @@
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
-import { findAuthUserIdByEmail } from "@/lib/auth-users"
 import {
   channelHandleFromName,
   normalizeChannelHandle,
@@ -43,11 +42,6 @@ export type ChannelApplicationRegistrationResult =
       created: boolean
     }
   | { ok: false; error: string; status?: number }
-
-async function findUserIdByEmail(email: string): Promise<string | null> {
-  const { userId } = await findAuthUserIdByEmail(email)
-  return userId
-}
 
 async function findExistingByFilloutSubmissionId(submissionId: string) {
   const admin = createAdminSupabaseClient()
@@ -118,7 +112,11 @@ export async function registerChannelApplication(
     }
   }
 
-  const applicantUserId = input.applicantUserId ?? (await findUserIdByEmail(applicantEmail))
+  // SECURITY: owner_id may only come from a verified session (in-app path).
+  // Webhook submissions carry an attacker-controlled email — resolving it to
+  // a user id would let anyone attribute applications to (and block pending
+  // applications of) any registered account. Admins link ownership at review.
+  const applicantUserId = input.applicantUserId ?? null
   const admin = createAdminSupabaseClient()
 
   const { data: inserted, error: insertError } = await admin

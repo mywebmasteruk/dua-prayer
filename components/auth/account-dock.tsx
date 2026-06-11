@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { createClientSupabaseClient } from "@/lib/supabase/client"
 import { useNavigationRouter } from "@/hooks/use-navigation-router"
+import { toast } from "@/components/ui/use-toast"
 
 type AccountDockProps = {
   label: string
@@ -35,7 +36,12 @@ export function AccountDock({ label, email }: AccountDockProps) {
   const secondary = email && email !== label ? email : email ? `@${email.split("@")[0]}` : "Account settings"
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error("Sign out failed:", error)
+      toast({ title: "Sign out failed", description: "Please try again.", variant: "destructive" })
+      return
+    }
     router.push("/")
     router.refresh()
   }

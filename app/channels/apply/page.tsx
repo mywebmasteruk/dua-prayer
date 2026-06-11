@@ -18,8 +18,10 @@ async function ChannelApplyLoader() {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Only signed-in users get the Fillout URL — the auth gate must be
+  // server-side, not just hidden in the client component.
   const [filloutSrc, pendingResult] = await Promise.all([
-    getChannelFilloutEmbedSrc(),
+    user ? getChannelFilloutEmbedSrc() : Promise.resolve(null),
     user ? getMyPendingChannelApplication() : Promise.resolve({ application: null }),
   ])
 

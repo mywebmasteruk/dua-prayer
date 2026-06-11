@@ -93,9 +93,9 @@ test.describe("Auth modal", () => {
 
     await expect(page).toHaveURL(/^(?!.*signin=1).*/, { timeout: 15_000 })
     await expect(page.getByText("Log in or create an account")).toHaveCount(0)
-    await expect(page.getByText("Signed in")).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByText(realLoginEmail!)).toBeVisible()
-    await expect(page.getByRole("link", { name: "Profile" })).toBeVisible()
+    // The "Signed in" summary card was replaced by the account dock; the
+    // "Open account settings" link below is the dock's stable selector.
+    await expect(page.getByRole("link", { name: "Profile" })).toBeVisible({ timeout: 15_000 })
     await expect(page.getByRole("link", { name: "Bookmarks" })).toBeVisible()
     await expect(page.getByRole("link", { name: "Notifications" })).toBeVisible()
     await expect(page.getByRole("link", { name: "Open account settings" })).toBeVisible()

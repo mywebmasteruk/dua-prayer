@@ -75,7 +75,11 @@ export default async function Home({
   if (user && isSignInOpen(params)) {
     const access = await getProfileAccessState(user.id)
     const accountStatusDestination = access ? accountStatusPostAuthRedirect(access.accountStatus) : null
-    redirect(accountStatusDestination ?? (params.next === "/admin" ? "/admin" : "/"))
+    // Only bounce to /admin when the user actually has admin access — the
+    // admin guards redirect non-admins back here with next=/admin, so
+    // honoring it blindly creates an infinite redirect loop.
+    const wantsAdmin = params.next === "/admin" && (await requireAdmin()).isAdmin
+    redirect(accountStatusDestination ?? (wantsAdmin ? "/admin" : "/"))
   }
 
   const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
@@ -110,13 +114,13 @@ export default async function Home({
         <div className="mx-auto grid w-full max-w-[1265px] lg:grid-cols-[minmax(0,275px)_minmax(0,600px)_minmax(0,350px)] lg:justify-center">
           <aside
             aria-label="Site navigation"
-            className="hidden lg:sticky lg:top-0 lg:col-start-1 lg:block lg:self-start lg:px-4 lg:py-3 lg:text-foreground/70"
+            className="hidden lg:sticky lg:top-0 lg:col-start-1 lg:block lg:h-[calc(100dvh-2rem)] lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-hidden lg:px-4 lg:pb-0 lg:pt-3 lg:text-foreground/70"
           >
             <HomeSidebarNav
               user={user}
               isAdmin={isAdmin}
               activePath="/"
-              sidebarTagline="Share your duas, pray for one another, and grow together in faith."
+              sidebarTagline={siteCopy.sidebarTagline}
             />
           </aside>
 
@@ -178,7 +182,7 @@ export default async function Home({
 
           <aside
             aria-label="Community trends and platform context"
-            className="hidden lg:sticky lg:top-0 lg:col-start-3 lg:block lg:self-start lg:px-4 lg:pb-3 lg:text-foreground/65"
+            className="hidden lg:sticky lg:top-0 lg:col-start-3 lg:block lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto lg:px-4 lg:pb-3 lg:text-foreground/65"
           >
             <HomeRightRail
               categoryLeaderboard={categoryLeaderboard}
