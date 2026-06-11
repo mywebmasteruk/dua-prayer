@@ -29,7 +29,7 @@ export function HomeSidebarNav({
     "DuaPrayer member"
 
   return (
-    <div className={cn("flex h-[calc(100dvh-1.5rem)] min-h-0 flex-col", className)}>
+    <div className={cn("flex h-full min-h-0 max-h-full flex-col", className)}>
       {showLogo ? <SidebarBranding tagline={sidebarTagline} /> : null}
 
       <nav aria-label="Primary" className={cn("min-h-0 flex-1 space-y-1 overflow-y-auto pr-1", showLogo && "mt-4")}>

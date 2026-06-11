@@ -14,7 +14,7 @@ export const INTEGRATION_TABS: { id: IntegrationTabId; label: string }[] = [
   { id: "supabase", label: "Supabase" },
   { id: "auth", label: "Email & Auth" },
   { id: "api-keys", label: "API keys & MCP" },
-  { id: "ai-moderation", label: "AI Moderation" },
+  { id: "ai-moderation", label: "AI Provider" },
 ]
 
 export function isIntegrationTabId(value: string | undefined): value is IntegrationTabId {

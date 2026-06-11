@@ -466,8 +466,12 @@ export async function updateDua(id: number, text: string, categoryId: number | n
   const gate = await requirePermission("manage_duas")
   if (!gate.ok) return { error: "Unauthorized" }
 
+  const trimmed = text?.trim()
+  if (!trimmed || trimmed.length < 15) return { error: "Dua must be at least 15 characters" }
+  if (trimmed.length > 280) return { error: "Dua must be 280 characters or less" }
+
   const admin = createAdminSupabaseClient()
-  const { error } = await admin.from("duas").update({ text, category_id: categoryId }).eq("id", id)
+  const { error } = await admin.from("duas").update({ text: trimmed, category_id: categoryId }).eq("id", id)
   if (error) return { error: error.message }
 
   revalidatePath("/admin")

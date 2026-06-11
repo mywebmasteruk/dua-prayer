@@ -117,7 +117,7 @@ export function HomeRightRail({
       <section id="support" className={rightRailCardClass}>
         <h2 className={rightRailHeadingClass}>Start a dua channel</h2>
         <p className={`${rightRailBodyClass} mt-2`}>
-          Create a shared space for your masjid, family, or community to collect requests and respond with ameen.
+          Create a shared space for a reputable imam, masjid, or organisation to collect requests and respond with ameen.
         </p>
         {!isSignedIn ? (
           <p className="mt-2 text-xs font-medium text-slate-500">Sign in to apply for a channel.</p>

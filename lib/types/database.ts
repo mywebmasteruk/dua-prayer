@@ -141,6 +141,150 @@ export interface Database {
         Update: { id?: number; dua_id?: number; user_id?: string | null; voter_hash?: string | null }
         Relationships: []
       }
+      dua_bots: {
+        Row: {
+          id: number
+          name: string
+          description: string
+          status: "active" | "paused"
+          frequency_minutes: number
+          source_type: "rss"
+          rss_urls: string[]
+          keywords: string[]
+          categories: string[]
+          tone: string
+          language: string
+          target_category_id: number | null
+          publish_mode: "pending" | "published"
+          last_run_at: string | null
+          next_run_at: string | null
+          last_status: "never_run" | "success" | "error" | "skipped"
+          last_error: string | null
+          created_by: string | null
+          updated_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          name: string
+          description?: string
+          status?: "active" | "paused"
+          frequency_minutes?: number
+          source_type?: "rss"
+          rss_urls?: string[]
+          keywords?: string[]
+          categories?: string[]
+          tone?: string
+          language?: string
+          target_category_id?: number | null
+          publish_mode?: "pending" | "published"
+          last_run_at?: string | null
+          next_run_at?: string | null
+          last_status?: "never_run" | "success" | "error" | "skipped"
+          last_error?: string | null
+          created_by?: string | null
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          name?: string
+          description?: string
+          status?: "active" | "paused"
+          frequency_minutes?: number
+          source_type?: "rss"
+          rss_urls?: string[]
+          keywords?: string[]
+          categories?: string[]
+          tone?: string
+          language?: string
+          target_category_id?: number | null
+          publish_mode?: "pending" | "published"
+          last_run_at?: string | null
+          next_run_at?: string | null
+          last_status?: "never_run" | "success" | "error" | "skipped"
+          last_error?: string | null
+          created_by?: string | null
+          updated_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      dua_bot_runs: {
+        Row: {
+          id: number
+          bot_id: number
+          started_at: string
+          finished_at: string | null
+          status: "running" | "success" | "error" | "skipped"
+          events_found: number
+          duas_created: number
+          message: string | null
+        }
+        Insert: {
+          id?: number
+          bot_id: number
+          started_at?: string
+          finished_at?: string | null
+          status?: "running" | "success" | "error" | "skipped"
+          events_found?: number
+          duas_created?: number
+          message?: string | null
+        }
+        Update: {
+          id?: number
+          bot_id?: number
+          finished_at?: string | null
+          status?: "running" | "success" | "error" | "skipped"
+          events_found?: number
+          duas_created?: number
+          message?: string | null
+        }
+        Relationships: []
+      }
+      dua_bot_event_posts: {
+        Row: {
+          id: number
+          bot_id: number
+          run_id: number | null
+          dua_id: number | null
+          event_key: string
+          event_title: string
+          event_url: string | null
+          event_published_at: string | null
+          source_type: string
+          source_url: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          bot_id: number
+          run_id?: number | null
+          dua_id?: number | null
+          event_key: string
+          event_title: string
+          event_url?: string | null
+          event_published_at?: string | null
+          source_type?: string
+          source_url?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          bot_id?: number
+          run_id?: number | null
+          dua_id?: number | null
+          event_key?: string
+          event_title?: string
+          event_url?: string | null
+          event_published_at?: string | null
+          source_type?: string
+          source_url?: string | null
+        }
+        Relationships: []
+      }
       site_settings: {
         Row: { key: string; value: string; updated_at: string }
         Insert: { key: string; value?: string; updated_at?: string }

@@ -38,9 +38,13 @@ export function checkRateLimit(key: string, limit: number): { allowed: boolean; 
 }
 
 export function getClientIp(headers: Headers): string {
+  // Prefer platform-set headers (Vercel) — the first x-forwarded-for entry is
+  // client-controlled, so trusting it lets callers rotate fake IPs to bypass
+  // rate limits.
   return (
+    headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() ||
+    headers.get("x-real-ip")?.trim() ||
     headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headers.get("x-real-ip") ||
     "unknown"
   )
 }

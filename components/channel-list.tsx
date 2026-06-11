@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { LayoutGrid, Search, UserPlus, UserCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -63,22 +64,26 @@ export function ChannelList({ channels, followedIds, onToggleFollow, hasActiveFi
             key={channel.id}
             className="flex items-start gap-3 px-4 py-4 transition hover:bg-muted/20 sm:px-5"
           >
-            <div
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-base font-semibold text-primary ring-1 ring-primary/15"
+            <Link
+              href={`/channels/${channel.handle}`}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-base font-semibold text-primary ring-1 ring-primary/15 transition hover:ring-primary/40"
               aria-hidden="true"
+              tabIndex={-1}
             >
               {channelInitial(channel.name)}
-            </div>
+            </Link>
 
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                <Link href={`/channels/${channel.handle}`} className="min-w-0 group">
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <h3 className="truncate text-[15px] font-bold text-foreground">{channel.name}</h3>
+                    <h3 className="truncate text-[15px] font-bold text-foreground group-hover:underline">
+                      {channel.name}
+                    </h3>
                     {channel.isVerified ? <VerifiedChannelBadge className="h-4 w-4" /> : null}
                   </div>
                   <p className="mt-0.5 truncate text-sm text-muted-foreground">@{channel.handle}</p>
-                </div>
+                </Link>
                 <Button
                   type="button"
                   size="sm"

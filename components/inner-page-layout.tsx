@@ -48,7 +48,7 @@ export async function InnerPageLayout({
       <div className="mx-auto grid w-full max-w-[1265px] flex-1 lg:grid-cols-[minmax(0,275px)_minmax(0,600px)_minmax(0,350px)] lg:justify-center">
         <aside
           aria-label={isAdminLayout ? "Admin navigation" : "Site navigation"}
-          className="hidden lg:sticky lg:top-0 lg:col-start-1 lg:block lg:self-start lg:px-4 lg:py-3"
+          className="hidden lg:sticky lg:top-0 lg:col-start-1 lg:block lg:h-[calc(100dvh-2rem)] lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-hidden lg:px-4 lg:pb-0 lg:pt-3"
         >
           {isAdminLayout && adminCtx && user ? (
             <AdminSidebarNav

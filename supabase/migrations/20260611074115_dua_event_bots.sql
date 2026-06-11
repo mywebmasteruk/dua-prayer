@@ -1,0 +1,2 @@
+-- No-op placeholder retained to avoid deleting a duplicate migration file from prior worker output.
+-- The actual event-aware dua bot schema lives in 20260611114000_dua_event_bots.sql.

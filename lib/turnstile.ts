@@ -9,14 +9,21 @@ export async function verifyTurnstile(token: string | null | undefined, ip?: str
   })
   if (ip) body.set("remoteip", ip)
 
-  const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  })
+  try {
+    const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    })
 
-  const data = (await res.json()) as { success?: boolean }
-  return !!data.success
+    const data = (await res.json()) as { success?: boolean }
+    return !!data.success
+  } catch (error) {
+    // Fail closed: a siteverify outage should surface as a friendly
+    // verification error, not an unhandled 500.
+    console.error("Turnstile verification request failed:", error)
+    return false
+  }
 }
 
 export function isTurnstileEnabled(): boolean {
