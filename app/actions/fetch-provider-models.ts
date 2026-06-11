@@ -72,7 +72,18 @@ export async function fetchProviderModels(provider: AiProvider, newApiKey?: stri
     })
     if (!response.ok) return { models: meta.fallbackModels }
 
-    const data = (await response.json()) as { data?: Array<{ id: string }> }
+    const data = (await response.json()) as { data?: Array<{ id: string; architecture?: { modality?: string } }> }
+
+    if (provider === "openrouter") {
+      // Filter to text→text chat models only and sort
+      const models = (data.data ?? [])
+        .filter((m) => !m.architecture?.modality || m.architecture.modality.includes("text"))
+        .map((m) => m.id)
+        .filter(Boolean)
+        .sort()
+      return { models: models.length > 0 ? models : meta.fallbackModels }
+    }
+
     const models = (data.data ?? []).map((m) => m.id).filter(Boolean).sort()
     return { models: models.length > 0 ? models : meta.fallbackModels }
   } catch {

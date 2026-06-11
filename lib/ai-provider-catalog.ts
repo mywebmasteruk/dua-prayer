@@ -10,6 +10,7 @@ export type AiProvider =
   | "xai"
   | "perplexity"
   | "cohere"
+  | "openrouter"
   | "ollama"
 
 export type ProviderFormat = "openai" | "anthropic" | "google" | "cohere"
@@ -165,6 +166,27 @@ export const PROVIDER_CATALOG: Readonly<Record<Exclude<AiProvider, "none">, Prov
     format: "cohere",
     supportsJsonMode: false,
   },
+  openrouter: {
+    id: "openrouter",
+    label: "OpenRouter",
+    apiBase: "https://openrouter.ai/api/v1",
+    modelsEndpoint: "https://openrouter.ai/api/v1/models",
+    keyPlaceholder: "sk-or-v1-…",
+    requiresApiKey: true,
+    fallbackModels: [
+      "anthropic/claude-sonnet-4-5",
+      "openai/gpt-4o",
+      "openai/gpt-4o-mini",
+      "google/gemini-2.0-flash-001",
+      "meta-llama/llama-3.3-70b-instruct",
+      "deepseek/deepseek-chat",
+      "mistralai/mistral-large",
+      "x-ai/grok-2-1212",
+    ],
+    defaultModel: "openai/gpt-4o-mini",
+    format: "openai",
+    supportsJsonMode: false,
+  },
   ollama: {
     id: "ollama",
     label: "Ollama (local)",
@@ -191,5 +213,6 @@ export const AI_PROVIDER_IDS: AiProvider[] = [
   "xai",
   "perplexity",
   "cohere",
+  "openrouter",
   "ollama",
 ]
