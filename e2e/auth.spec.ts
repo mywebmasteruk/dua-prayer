@@ -110,4 +110,11 @@ test.describe("Admin access", () => {
     await expect(page).toHaveURL(/signin=1&next=%2Fadmin/)
     await expect(page.getByText("Log in or create an account")).toBeVisible()
   })
+
+  test("preserves deep admin path when unauthenticated users sign in", async ({ page }) => {
+    await page.goto("/admin/settings")
+
+    await expect(page).toHaveURL(/signin=1&next=%2Fadmin%2Fsettings/)
+    await expect(page.getByText("Log in or create an account")).toBeVisible()
+  })
 })

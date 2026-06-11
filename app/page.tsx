@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { accountStatusPostAuthRedirect, getProfileAccessState } from "@/lib/account-status"
 import { requireAdmin } from "@/lib/auth"
 import { isSignInOpen, type SignInSearchParams } from "@/lib/auth-modal"
+import { resolveSignedInSignInRedirect } from "@/lib/home-auth-redirect"
 import { getSiteCopy } from "@/lib/site-copy-server"
 import { getPlatformStats } from "@/lib/platform-stats-server"
 import { getPostingMode } from "@/lib/posting-settings"
@@ -76,11 +77,17 @@ export default async function Home({
   if (user && isSignInOpen(params)) {
     const access = await getProfileAccessState(user.id)
     const accountStatusDestination = access ? accountStatusPostAuthRedirect(access.accountStatus) : null
-    // Only bounce to /admin when the user actually has admin access — the
+    // Only bounce to admin paths when the user actually has admin access — the
     // admin guards redirect non-admins back here with next=/admin, so
     // honoring it blindly creates an infinite redirect loop.
-    const wantsAdmin = params.next === "/admin" && (await requireAdmin()).isAdmin
-    redirect(accountStatusDestination ?? (wantsAdmin ? "/admin" : "/"))
+    const { isAdmin } = await requireAdmin()
+    redirect(
+      resolveSignedInSignInRedirect({
+        accountStatusDestination,
+        isAdmin,
+        next: params.next,
+      }),
+    )
   }
 
   const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
