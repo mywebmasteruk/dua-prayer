@@ -64,7 +64,7 @@ export const PROVIDER_CATALOG: Readonly<Record<Exclude<AiProvider, "none">, Prov
     id: "google",
     label: "Google Gemini",
     apiBase: "https://generativelanguage.googleapis.com/v1beta",
-    modelsEndpoint: null,
+    modelsEndpoint: "https://generativelanguage.googleapis.com/v1beta/models",
     keyPlaceholder: "AIza…",
     requiresApiKey: true,
     fallbackModels: ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro", "gemini-1.5-flash"],
