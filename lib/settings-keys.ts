@@ -51,6 +51,7 @@ export const SITE_SETTING_KEYS = {
   aiProviderProvider: "ai_moderation.provider",
   aiProviderApiKey: "ai_moderation.api_key",
   aiProviderModel: "ai_moderation.model",
+  postingMode: "posting.mode",
 } as const
 
 /** Keys stored in site_settings — never exposed via public RLS policy */

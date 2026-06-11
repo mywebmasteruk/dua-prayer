@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/auth"
 import { isSignInOpen, type SignInSearchParams } from "@/lib/auth-modal"
 import { getSiteCopy } from "@/lib/site-copy-server"
 import { getPlatformStats } from "@/lib/platform-stats-server"
+import { getPostingMode } from "@/lib/posting-settings"
 import { HomeAuthModal } from "@/components/auth/home-auth-modal"
 import { HomeSearchProvider } from "@/components/home-search-provider"
 import { HomeSearchInput } from "@/components/home-search-input"
@@ -84,12 +85,13 @@ export default async function Home({
 
   const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
 
-  const [{ duas, total, pageSize }, categories, topCategories, siteCopy, platformStats] = await Promise.all([
+  const [{ duas, total, pageSize }, categories, topCategories, siteCopy, platformStats, postingMode] = await Promise.all([
     getFeedDuas(),
     getCategories(),
     getTopCategories(3),
     getSiteCopy(),
     getPlatformStats(),
+    getPostingMode(),
   ])
   const turnstileSiteKey = isTurnstileEnabled() ? process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY : undefined
   // Leaderboard/trending/supported are derived from the newest batch (recent
@@ -151,6 +153,9 @@ export default async function Home({
                     homeFollowingEmptyDescription: siteCopy.homeFollowingEmptyDescription,
                     homeFollowingEmptyCta: siteCopy.homeFollowingEmptyCta,
                   }}
+                  postingMode={postingMode}
+                  isSignedIn={Boolean(user)}
+                  isAdmin={isAdmin}
                   composerCopy={{
                     composerTitleEn: siteCopy.composerTitleEn,
                     composerDescriptionEn: siteCopy.composerDescriptionEn,

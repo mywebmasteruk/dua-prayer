@@ -4,12 +4,13 @@ import { headers, cookies } from "next/headers"
 import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
-import { requirePermission } from "@/lib/auth"
+import { requireAdmin, requirePermission } from "@/lib/auth"
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
 import { verifyTurnstile } from "@/lib/turnstile"
 import { randomBytes } from "crypto"
 import { isMissingColumnError } from "@/lib/db-errors"
 import { evaluateDuaModeration, fetchAiModerationSettings } from "@/lib/ai-moderation"
+import { getPostingMode, shouldAllowPublicDuaSubmission } from "@/lib/posting-settings"
 import type { Category, Dua } from "@/lib/types/dua"
 
 const PAGE_SIZE = 10
@@ -331,6 +332,14 @@ export async function createDua(formData: FormData) {
 
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
+  const postingAccess = shouldAllowPublicDuaSubmission({
+    mode: await getPostingMode(),
+    isAuthenticated: Boolean(user),
+    isAdmin,
+  })
+  if (!postingAccess.allowed) return { error: postingAccess.error }
+
   const admin = createAdminSupabaseClient()
 
   // The insert uses the service-role client (anonymous submissions bypass

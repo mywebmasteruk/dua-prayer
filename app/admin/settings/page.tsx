@@ -1,77 +1,58 @@
-import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Plug, Settings2, Shield, Type } from "lucide-react"
+import { Settings2 } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
-import { AdminSection } from "@/components/admin/admin-section"
+import { AdminSettingsHub, isSettingsTabId } from "@/components/admin/admin-settings-hub"
+import { getAdminDuaBotRuntimeStatus, listAdminDuaBots } from "@/app/actions/admin-bots"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
-import { Button } from "@/components/ui/button"
+import { getAiProviderAdminView } from "@/lib/ai-provider"
+import { getPostingModeForAdmin } from "@/lib/posting-settings"
 
-export default async function AdminSettingsPage() {
-  const ctx = await getAdminContext()
+type PageProps = {
+  searchParams: Promise<{ tab?: string }>
+}
+
+export default async function AdminSettingsPage({ searchParams }: PageProps) {
+  const [{ tab }, ctx] = await Promise.all([searchParams, getAdminContext()])
 
   if (!ctx) redirect(signInHref({ next: "/admin/settings" }))
 
   const canManageSettings = ctx.isFoundingAdmin || hasPermission(ctx, "manage_settings")
   const canManageAdmins = ctx.isFoundingAdmin || hasPermission(ctx, "manage_admins")
+  const canManageBots = ctx.isFoundingAdmin || hasPermission(ctx, "manage_duas")
+  const canManageVolunteers = ctx.isFoundingAdmin || hasPermission(ctx, "manage_volunteers")
 
-  if (!canManageSettings && !canManageAdmins) redirect(signInHref({ error: "not_admin" }))
+  if (!canManageSettings && !canManageAdmins && !canManageBots && !canManageVolunteers) {
+    redirect(signInHref({ error: "not_admin" }))
+  }
+
+  const [postingMode, aiProvider, bots, botRuntimeStatus] = await Promise.all([
+    canManageSettings ? getPostingModeForAdmin() : Promise.resolve("public" as const),
+    canManageSettings ? getAiProviderAdminView() : Promise.resolve(null),
+    canManageBots ? listAdminDuaBots() : Promise.resolve([]),
+    canManageBots ? getAdminDuaBotRuntimeStatus() : Promise.resolve(null),
+  ])
 
   return (
     <InnerPageLayout activePath="/admin/settings">
       <AdminPageHeader
         icon={Settings2}
         title="Settings"
-        description="Site-wide admin options. Integrations live under Integration in the sidebar."
+        description="Control center for site content, posting access, AI Provider, bots, integrations, and roles."
       />
 
-      <div className="space-y-5">
-        {(canManageSettings || hasPermission(ctx, "manage_volunteers")) && (
-          <AdminSection
-            title="Integrations"
-            description="Stripe donations, Fillout volunteer forms, webhooks, Supabase, and auth configuration."
-            action={
-              <Button variant="outline" size="sm" asChild className="rounded-full">
-                <Link href="/admin/integration">
-                  <Plug className="h-4 w-4" aria-hidden="true" />
-                  Open Integration
-                </Link>
-              </Button>
-            }
-          />
-        )}
-
-        {canManageAdmins && (
-          <AdminSection
-            title="Roles & Access"
-            description="Invite admins, assign roles, and review permissions."
-            action={
-              <Button variant="outline" size="sm" asChild className="rounded-full">
-                <Link href="/admin/users/roles">
-                  <Shield className="h-4 w-4" aria-hidden="true" />
-                  Manage roles
-                </Link>
-              </Button>
-            }
-          />
-        )}
-
-        {canManageSettings && (
-          <AdminSection
-            title="Site Content"
-            description="Edit homepage, channels, donate, auth, sidebar, footer, and About page text."
-            action={
-              <Button variant="outline" size="sm" asChild className="rounded-full">
-                <Link href="/admin/copy">
-                  <Type className="h-4 w-4" aria-hidden="true" />
-                  Edit content
-                </Link>
-              </Button>
-            }
-          />
-        )}
-      </div>
+      <AdminSettingsHub
+        initialTab={isSettingsTabId(tab) ? tab : "general"}
+        postingMode={postingMode}
+        aiProvider={aiProvider}
+        bots={bots}
+        botRuntimeStatus={botRuntimeStatus}
+        canManageSettings={canManageSettings}
+        canManageBots={canManageBots}
+        canManageAdmins={canManageAdmins}
+        canManageVolunteers={canManageVolunteers}
+      />
     </InnerPageLayout>
   )
 }

@@ -12,6 +12,7 @@ import {
   getVolunteerFilloutSettingValue,
 } from "@/lib/site-settings-server"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
+import { isPostingMode, type PostingMode } from "@/lib/posting-settings"
 
 function canManageVolunteerSettings(ctx: NonNullable<Awaited<ReturnType<typeof getAdminContext>>>) {
   return hasPermission(ctx, "manage_settings") || hasPermission(ctx, "manage_volunteers")
@@ -151,6 +152,29 @@ export async function updateChannelFilloutSetting(rawInput: string) {
   revalidatePath("/admin/channels")
   revalidatePath("/channels/apply")
   revalidateTag("site-setting-channel-fillout")
+  return { success: true as const }
+}
+
+export async function updatePostingMode(mode: PostingMode) {
+  const gate = await requirePermission("manage_settings")
+  if (!gate.ok) return { error: gate.error }
+  if (!isPostingMode(mode)) return { error: "Choose a supported posting mode." }
+
+  const admin = createAdminSupabaseClient()
+  const { error } = await admin.from("site_settings").upsert(
+    {
+      key: SITE_SETTING_KEYS.postingMode,
+      value: mode,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "key" },
+  )
+
+  if (error) return { error: error.message }
+
+  revalidatePath("/")
+  revalidatePath("/admin/settings")
+  revalidateTag("site-setting-posting-mode")
   return { success: true as const }
 }
 

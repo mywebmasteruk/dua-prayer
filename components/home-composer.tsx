@@ -8,6 +8,7 @@ import { DuaForm } from "@/components/dua-form"
 import { ActionIconTooltip } from "@/components/action-icon-tooltip"
 import type { Category } from "@/lib/types/dua"
 import type { ComposerCopy } from "@/lib/site-copy"
+import { getPostingModeOption, type PostingMode } from "@/lib/posting-settings-shared"
 import { arabicFontClassName, type LanguageMode } from "@/lib/detect-language"
 import { cn } from "@/lib/utils"
 
@@ -15,9 +16,12 @@ interface HomeComposerProps {
   categories: Category[]
   turnstileSiteKey?: string
   copy: ComposerCopy
+  postingMode: PostingMode
+  isSignedIn: boolean
+  isAdmin: boolean
 }
 
-export function HomeComposer({ categories, turnstileSiteKey, copy }: HomeComposerProps) {
+export function HomeComposer({ categories, turnstileSiteKey, copy, postingMode, isSignedIn, isAdmin }: HomeComposerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [composerLanguage, setComposerLanguage] = useState<LanguageMode>("auto")
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -25,6 +29,7 @@ export function HomeComposer({ categories, turnstileSiteKey, copy }: HomeCompose
   const isArabicComposer = composerLanguage === "ar"
   const modalTitle = isArabicComposer ? copy.composerTitleAr : copy.composerTitleEn
   const modalDescription = isArabicComposer ? copy.composerDescriptionAr : copy.composerDescriptionEn
+  const postingOption = getPostingModeOption(postingMode)
 
   useEffect(() => {
     if (!isOpen) setComposerLanguage("auto")
@@ -70,6 +75,11 @@ export function HomeComposer({ categories, turnstileSiteKey, copy }: HomeCompose
         >
           <span className="truncate">What dua would you like to make?</span>
         </button>
+        {postingMode !== "public" ? (
+          <span className="hidden rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground sm:inline-flex">
+            {postingOption?.label}
+          </span>
+        ) : null}
         <ActionIconTooltip label="Make dua">
           <button
             type="button"
@@ -139,6 +149,12 @@ export function HomeComposer({ categories, turnstileSiteKey, copy }: HomeCompose
                       </ActionIconTooltip>
                     </div>
 
+                    {postingMode !== "public" ? (
+                      <p className="mt-4 rounded-2xl border border-border/70 bg-muted/40 px-4 py-3 text-sm leading-6 text-muted-foreground">
+                        {postingOption?.helper}
+                      </p>
+                    ) : null}
+
                     <div className="mt-5">
                       <DuaForm
                         categories={categories}
@@ -146,6 +162,9 @@ export function HomeComposer({ categories, turnstileSiteKey, copy }: HomeCompose
                         copy={copy}
                         onLanguageChange={setComposerLanguage}
                         onSuccess={() => setIsOpen(false)}
+                        postingMode={postingMode}
+                        isSignedIn={isSignedIn}
+                        isAdmin={isAdmin}
                       />
                     </div>
                   </div>

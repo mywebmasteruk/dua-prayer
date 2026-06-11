@@ -7,6 +7,7 @@ import { FeedSection } from "@/components/feed-section"
 import { HomeFeedTabBar, type HomeStreamTab } from "@/components/home-feed-tab-bar"
 import { FollowingSection } from "@/components/following-section"
 import type { ComposerCopy, HomeEmptyCopy } from "@/lib/site-copy"
+import type { PostingMode } from "@/lib/posting-settings-shared"
 
 interface HomeStreamTabsProps {
   categories: Category[]
@@ -17,6 +18,9 @@ interface HomeStreamTabsProps {
   total: number
   emptyCopy: HomeEmptyCopy
   composerCopy: ComposerCopy
+  postingMode: PostingMode
+  isSignedIn: boolean
+  isAdmin: boolean
 }
 
 export function HomeStreamTabs({
@@ -28,6 +32,9 @@ export function HomeStreamTabs({
   total,
   emptyCopy,
   composerCopy,
+  postingMode,
+  isSignedIn,
+  isAdmin,
 }: HomeStreamTabsProps) {
   const [activeTab, setActiveTab] = useState<HomeStreamTab>("feed")
 
@@ -82,7 +89,14 @@ export function HomeStreamTabs({
           hidden={activeTab !== "feed"}
           className={activeTab === "feed" ? undefined : "hidden"}
         >
-          <HomeComposer categories={categories} turnstileSiteKey={turnstileSiteKey} copy={composerCopy} />
+          <HomeComposer
+            categories={categories}
+            turnstileSiteKey={turnstileSiteKey}
+            copy={composerCopy}
+            postingMode={postingMode}
+            isSignedIn={isSignedIn}
+            isAdmin={isAdmin}
+          />
           <FeedSection
             duas={duas}
             categories={categories}

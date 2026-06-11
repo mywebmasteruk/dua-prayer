@@ -12,6 +12,8 @@ import type { Category } from "@/lib/types/dua"
 import { getComposerCategoryLabel, type ComposerCopy } from "@/lib/site-copy"
 import { toast } from "@/components/ui/use-toast"
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/turnstile-widget"
+import { signInHref } from "@/lib/auth-modal"
+import { shouldAllowPublicDuaSubmission, type PostingMode } from "@/lib/posting-settings-shared"
 import { cn } from "@/lib/utils"
 import {
   arabicFontClassName,
@@ -27,9 +29,21 @@ interface DuaFormProps {
   copy: ComposerCopy
   onLanguageChange?: (languageMode: LanguageMode) => void
   onSuccess?: () => void
+  postingMode: PostingMode
+  isSignedIn: boolean
+  isAdmin: boolean
 }
 
-export function DuaForm({ categories, turnstileSiteKey, copy, onLanguageChange, onSuccess }: DuaFormProps) {
+export function DuaForm({
+  categories,
+  turnstileSiteKey,
+  copy,
+  onLanguageChange,
+  onSuccess,
+  postingMode,
+  isSignedIn,
+  isAdmin,
+}: DuaFormProps) {
   const [duaText, setDuaText] = useState("")
   const [category, setCategory] = useState("")
   const [languageMode, setLanguageMode] = useState<LanguageMode>("auto")
@@ -58,6 +72,13 @@ export function DuaForm({ categories, turnstileSiteKey, copy, onLanguageChange, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const postingAccess = shouldAllowPublicDuaSubmission({ mode: postingMode, isAuthenticated: isSignedIn, isAdmin })
+    if (!postingAccess.allowed) {
+      toast({ title: "Posting unavailable", description: postingAccess.error, variant: "destructive" })
+      if (postingMode === "registered_only" && !isSignedIn) router.push(signInHref({ next: "/" }))
+      return
+    }
 
     if (duaText.trim().length < MIN_CHARS) {
       toast({ title: "Error", description: `Please enter at least ${MIN_CHARS} characters`, variant: "destructive" })
