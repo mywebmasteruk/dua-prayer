@@ -9,6 +9,7 @@ import { NavigationProvider } from "@/components/navigation-provider"
 import { AppTooltipProvider } from "@/components/app-tooltip-provider"
 import { FollowedChannelsProvider } from "@/components/followed-channels-provider"
 import { BetaBanner } from "@/components/beta-banner"
+import { getCustomCode } from "@/lib/custom-code-server"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -27,10 +28,15 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const customCode = await getCustomCode()
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
+        {customCode.header ? (
+          <div dangerouslySetInnerHTML={{ __html: customCode.header }} />
+        ) : null}
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <AppTooltipProvider>
             <Suspense fallback={null}>
@@ -44,6 +50,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Toaster />
           </AppTooltipProvider>
         </ThemeProvider>
+        {customCode.footer ? (
+          <div dangerouslySetInnerHTML={{ __html: customCode.footer }} />
+        ) : null}
       </body>
     </html>
   )

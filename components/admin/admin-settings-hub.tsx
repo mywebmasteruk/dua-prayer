@@ -7,13 +7,15 @@ import { ChevronRight, FileText, KeyRound, Plug, Shield, SlidersHorizontal, Type
 import { AdminSection } from "@/components/admin/admin-section"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
 import { PostingAccessSettings } from "@/components/admin/posting-access-settings"
+import { CustomCodeSettings } from "@/components/admin/custom-code-settings"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { getPostingModeOption, type PostingMode } from "@/lib/posting-settings-shared"
 import type { AiProviderAdminView } from "@/lib/ai-provider"
 import type { BotRuntimeStatus, DuaEventBot } from "@/lib/dua-bots"
+import type { CustomCode } from "@/app/actions/custom-code"
 
-type SettingsTabId = "general" | "posting" | "ai-provider" | "ai-bots" | "integrations" | "roles"
+type SettingsTabId = "general" | "posting" | "ai-provider" | "ai-bots" | "integrations" | "roles" | "custom-code"
 
 type SettingsHubProps = {
   initialTab: SettingsTabId
@@ -21,6 +23,7 @@ type SettingsHubProps = {
   aiProvider: AiProviderAdminView | null
   bots: DuaEventBot[]
   botRuntimeStatus: BotRuntimeStatus | null
+  customCode: CustomCode
   canManageSettings: boolean
   canManageBots: boolean
   canManageAdmins: boolean
@@ -34,6 +37,7 @@ const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string }> = [
   { id: "ai-bots", label: "AI Bots" },
   { id: "integrations", label: "Integrations" },
   { id: "roles", label: "Roles & Permissions" },
+  { id: "custom-code", label: "Custom Code" },
 ]
 
 function resolveTab(value: string | null | undefined, fallback: SettingsTabId): SettingsTabId {
@@ -124,6 +128,7 @@ export function AdminSettingsHub({
   aiProvider,
   bots,
   botRuntimeStatus,
+  customCode,
   canManageSettings,
   canManageBots,
   canManageAdmins,
@@ -345,6 +350,22 @@ export function AdminSettingsHub({
               />
             </div>
           </AdminSection>
+        </div>
+
+        <div
+          id="settings-panel-custom-code"
+          role="tabpanel"
+          aria-labelledby="settings-tab-custom-code"
+          hidden={activeTab !== "custom-code"}
+          className={activeTab === "custom-code" ? undefined : "hidden"}
+        >
+          {canManageSettings ? (
+            <CustomCodeSettings initialCode={customCode} />
+          ) : (
+            <AdminSection title="Custom Code" description="You do not have permission to manage custom code.">
+              <p className="text-sm text-muted-foreground">Settings access required.</p>
+            </AdminSection>
+          )}
         </div>
       </div>
     </div>

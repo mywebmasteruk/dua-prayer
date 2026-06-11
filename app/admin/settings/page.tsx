@@ -4,6 +4,7 @@ import { InnerPageLayout } from "@/components/inner-page-layout"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import { AdminSettingsHub, isSettingsTabId } from "@/components/admin/admin-settings-hub"
 import { getAdminDuaBotRuntimeStatus, listAdminDuaBots } from "@/app/actions/admin-bots"
+import { getCustomCodeForAdmin } from "@/app/actions/custom-code"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
 import { getAiProviderAdminView } from "@/lib/ai-provider"
@@ -27,11 +28,12 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
     redirect(signInHref({ error: "not_admin" }))
   }
 
-  const [postingMode, aiProvider, bots, botRuntimeStatus] = await Promise.all([
+  const [postingMode, aiProvider, bots, botRuntimeStatus, customCode] = await Promise.all([
     canManageSettings ? getPostingModeForAdmin() : Promise.resolve("public" as const),
     canManageSettings ? getAiProviderAdminView() : Promise.resolve(null),
     canManageBots ? listAdminDuaBots() : Promise.resolve([]),
     canManageBots ? getAdminDuaBotRuntimeStatus() : Promise.resolve(null),
+    canManageSettings ? getCustomCodeForAdmin() : Promise.resolve({ header: "", footer: "" }),
   ])
 
   return (
@@ -48,6 +50,7 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
         aiProvider={aiProvider}
         bots={bots}
         botRuntimeStatus={botRuntimeStatus}
+        customCode={customCode}
         canManageSettings={canManageSettings}
         canManageBots={canManageBots}
         canManageAdmins={canManageAdmins}
