@@ -1,12 +1,11 @@
 # Deploy DuaPrayer to Vercel production on every push to main.
 #
-# One-time setup (GitHub repo → Settings → Secrets and variables → Actions):
-#   VERCEL_TOKEN        https://vercel.com/account/tokens (scope: full account or team)
-#   VERCEL_ORG_ID       team_km2T92NwivBy9c85XLjhTScR  (from .vercel/project.json orgId)
-#   VERCEL_PROJECT_ID   prj_8sQGGuKxXAfJdnHeRXuX0jh15dIk (from .vercel/project.json projectId)
+# Uses a Vercel Deploy Hook so the build runs on Vercel's servers,
+# not GitHub Actions — this uses ~5 seconds of Actions minutes per push
+# instead of the ~3 minutes a full build would consume.
 #
-# Vercel project env vars (Supabase, Stripe, etc.) must already be set in the Vercel dashboard.
-# This workflow does not need iCloud or local CLI — build runs on GitHub-hosted Ubuntu.
+# Secret required (GitHub repo → Settings → Secrets and variables → Actions):
+#   VERCEL_DEPLOY_HOOK_URL   from Vercel dashboard → Project → Settings → Git → Deploy Hooks
 
 name: Deploy Vercel Production
 
@@ -16,49 +15,15 @@ on:
 
 concurrency:
   group: vercel-production-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 2
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Install Vercel CLI
-        run: npm install -g vercel@latest
-
-      - name: Pull Vercel environment
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-
-      - name: Prepare workspace for Vercel
+      - name: Trigger Vercel deployment
         run: |
-          rm -rf .git
-          if [ -f .vercel/.env.production.local ]; then ln -sf .vercel/.env.production.local .env.local; fi
-
-      - name: Build
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          NEXT_FONT_GOOGLE_MOCKED: "1"
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Deploy prebuilt to production
-        run: vercel deploy --prebuilt --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          curl -s -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}" \
+            -d "ref=main" \
+            --fail-with-body
