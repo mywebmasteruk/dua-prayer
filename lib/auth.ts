@@ -10,6 +10,7 @@ import {
   type AdminRoleType,
   founderPermissions,
   isAdminPermission,
+  resolvePermissions,
 } from "@/lib/admin-permissions"
 
 export function getFoundingAdminEmail(): string {
@@ -100,7 +101,18 @@ export const getAdminContext = cache(async (): Promise<AdminContext | null> => {
       }
     }
 
-    return null
+    const profile = await getProfileAdminFields(user.id)
+    if (!profile?.is_admin) return null
+
+    const permissions = resolvePermissions(profile.admin_role, profile.admin_permissions)
+    return {
+      user,
+      isFoundingAdmin: false,
+      isAdmin: permissions.length > 0,
+      role: profile.admin_role,
+      permissions,
+      displayName: profile.display_name,
+    }
   } catch (error) {
     console.error("getAdminContext failed:", error)
     return null
