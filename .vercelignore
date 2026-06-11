@@ -8,8 +8,8 @@ docs/
 e2e/
 test-results/
 playwright-report/
-scripts/
-supabase/
+/scripts/
+/supabase/
 node_modules/
 tmp/
 pnpm-lock.yaml
