@@ -28,12 +28,21 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
     redirect(signInHref({ error: "not_admin" }))
   }
 
+  async function safe<T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> {
+    try {
+      return await fn()
+    } catch (error) {
+      console.error(`[admin/settings] ${label} failed:`, error)
+      return fallback
+    }
+  }
+
   const [postingMode, aiProvider, bots, botRuntimeStatus, customCode] = await Promise.all([
-    canManageSettings ? getPostingModeForAdmin() : Promise.resolve("public" as const),
-    canManageSettings ? getAiProviderAdminView() : Promise.resolve(null),
-    canManageBots ? listAdminDuaBots() : Promise.resolve([]),
-    canManageBots ? getAdminDuaBotRuntimeStatus() : Promise.resolve(null),
-    canManageSettings ? getCustomCodeForAdmin() : Promise.resolve({ header: "", footer: "" }),
+    canManageSettings ? safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const) : Promise.resolve("public" as const),
+    canManageSettings ? safe("getAiProviderAdminView", () => getAiProviderAdminView(), null) : Promise.resolve(null),
+    canManageBots ? safe("listAdminDuaBots", () => listAdminDuaBots(), []) : Promise.resolve([]),
+    canManageBots ? safe("getAdminDuaBotRuntimeStatus", () => getAdminDuaBotRuntimeStatus(), null) : Promise.resolve(null),
+    canManageSettings ? safe("getCustomCodeForAdmin", () => getCustomCodeForAdmin(), { header: "", footer: "" }) : Promise.resolve({ header: "", footer: "" }),
   ])
 
   return (
