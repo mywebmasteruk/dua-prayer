@@ -14,16 +14,25 @@ import {
   listRecentBotRuns,
   type BotFormInput,
 } from "@/lib/dua-bots"
+import { requirePermission } from "@/lib/auth"
 
+// Server actions are POSTable by any visitor — reads need the same gate as
+// the mutations in dua-bots.ts (bot configs include source URLs and prompts).
 export async function listAdminDuaBots() {
+  const gate = await requirePermission("manage_duas")
+  if (!gate.ok) return []
   return listDuaEventBots()
 }
 
 export async function listRecentAdminDuaBotRuns(limit = 10) {
+  const gate = await requirePermission("manage_duas")
+  if (!gate.ok) return []
   return listRecentBotRuns(limit)
 }
 
 export async function getAdminDuaBotRuntimeStatus() {
+  const gate = await requirePermission("manage_duas")
+  if (!gate.ok) return null
   return getDuaBotRuntimeStatus()
 }
 

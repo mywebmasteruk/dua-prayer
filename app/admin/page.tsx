@@ -88,6 +88,10 @@ export default async function AdminPage({
       getAdminDuaBotRuntimeStatus(),
     ])
 
+    // Gate above guarantees access; the action returns null only when called
+    // without manage_duas.
+    if (!runtimeStatus) redirect(signInHref({ error: "not_admin" }))
+
     return (
       <InnerPageLayout activePath="/admin">
         <AdminPageHeader
