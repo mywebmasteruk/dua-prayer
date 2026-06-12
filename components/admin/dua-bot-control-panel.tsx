@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
+import { getBotLanguageOptions } from "@/lib/bot-language-options"
 import type { BotRuntimeStatus, DuaEventBot, DuaBotRun } from "@/lib/dua-bots"
 import type { Category } from "@/lib/types/dua"
 
@@ -103,6 +104,7 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
   const [runningId, setRunningId] = useState<number | null>(null)
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category.name])), [categories])
+  const languageOptions = useMemo(() => getBotLanguageOptions(draft.language), [draft.language])
 
   const openCreate = () => {
     setDraft(blankDraft)
@@ -327,7 +329,14 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bot-language">Language</Label>
-              <Input id="bot-language" value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value })} />
+              <Select value={draft.language} onValueChange={(value) => setDraft({ ...draft, language: value })}>
+                <SelectTrigger id="bot-language"><SelectValue placeholder="Select language" /></SelectTrigger>
+                <SelectContent>
+                  {languageOptions.map((language) => (
+                    <SelectItem key={language} value={language}>{language}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bot-target-category">Post category</Label>
