@@ -1,17 +1,16 @@
 "use client"
 
-import type { Category } from "@/lib/types/dua"
-import { getChannelHandle } from "@/lib/channels"
+import type { TrendingHashtag } from "@/lib/hashtags"
 import { cn } from "@/lib/utils"
 
 export type LangFilter = "all" | "en" | "ar"
 export type LangPill = Exclude<LangFilter, "all">
 
 interface FeedFiltersProps {
-  categories: Category[]
-  activeCategory: string
+  trendingHashtags: TrendingHashtag[]
+  activeTag: string
   activeLang: LangFilter
-  onCategoryChange: (value: string) => void
+  onTagChange: (value: string) => void
   onLangChange: (value: LangPill) => void
 }
 
@@ -22,10 +21,12 @@ const LANG_OPTIONS: Array<{ id: LangPill; label: string }> = [
 
 export function FilterPill({
   label,
+  count,
   isActive,
   onSelect,
 }: {
   label: string
+  count?: number
   isActive: boolean
   onSelect: () => void
 }) {
@@ -36,25 +37,35 @@ export function FilterPill({
       aria-selected={isActive}
       onClick={onSelect}
       className={cn(
-        "tap-feedback shrink-0 rounded-full border px-4 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        "tap-feedback inline-flex shrink-0 items-center rounded-full border px-4 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         isActive
           ? "border-transparent bg-primary font-semibold text-primary-foreground"
           : "border-transparent bg-transparent font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
-      {label}
+      <span>{label}</span>
+      {typeof count === "number" ? (
+        <span
+          className={cn(
+            "ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] leading-none tabular-nums",
+            isActive ? "bg-primary-foreground/20 text-primary-foreground/85" : "bg-muted text-muted-foreground",
+          )}
+        >
+          {count}
+        </span>
+      ) : null}
     </button>
   )
 }
 
 export function FeedFilters({
-  categories,
-  activeCategory,
+  trendingHashtags,
+  activeTag,
   activeLang,
-  onCategoryChange,
+  onTagChange,
   onLangChange,
 }: FeedFiltersProps) {
-  const categoryPills = [{ id: "all", name: "All" }, ...categories.map((cat) => ({ id: getChannelHandle(cat), name: cat.name }))]
+  const hashtagPills = [{ tag: "", label: "All" }, ...trendingHashtags]
 
   return (
     <div className="flex items-stretch bg-white">
@@ -62,14 +73,15 @@ export function FeedFilters({
         <div
           className="flex w-max gap-2 px-4 py-3 sm:pl-5"
           role="tablist"
-          aria-label="Filter duas by category"
+          aria-label="Filter duas by trending hashtag"
         >
-          {categoryPills.map((pill) => (
+          {hashtagPills.map((pill) => (
             <FilterPill
-              key={pill.id}
-              label={pill.name}
-              isActive={activeCategory === pill.id}
-              onSelect={() => onCategoryChange(pill.id)}
+              key={pill.tag || "all"}
+              label={pill.label}
+              count={"duas" in pill ? pill.duas : undefined}
+              isActive={activeTag === pill.tag}
+              onSelect={() => onTagChange(pill.tag)}
             />
           ))}
         </div>

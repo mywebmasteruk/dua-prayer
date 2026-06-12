@@ -10,7 +10,7 @@ import { DuaList } from "@/components/dua-list"
 import { FeedPagination } from "@/components/feed-pagination"
 import { NewDuasBanner } from "@/components/new-duas-banner"
 import { useHomeSearch } from "@/components/home-search-provider"
-import { matchesHashtag, normalizeHashtag } from "@/lib/hashtags"
+import { buildTrendingHashtags, matchesHashtag, normalizeHashtag, type TrendingHashtag } from "@/lib/hashtags"
 import { useNewDuasPoll } from "@/hooks/use-new-duas-poll"
 import { useNavigationRouter } from "@/hooks/use-navigation-router"
 import type { HomeEmptyCopy } from "@/lib/site-copy"
@@ -18,7 +18,7 @@ import type { HomeEmptyCopy } from "@/lib/site-copy"
 interface FeedSectionProps {
   duas: Dua[]
   categories: Category[]
-  topCategories: Category[]
+  trendingHashtags: TrendingHashtag[]
   pageSize: number
   /** Total published duas on the server (the duas prop is only the first batch). */
   total: number
@@ -26,22 +26,6 @@ interface FeedSectionProps {
   emptyCopy?: Pick<HomeEmptyCopy, "homeFeedEmptyTitle" | "homeFeedEmptyDescription">
   /** Pre-select a channel handle on mount (used by /channel/[handle] page). */
   initialCategory?: string
-}
-
-function resolveVisibleCategories(topCategories: Category[], allCategories: Category[], activeHandle: string) {
-  if (activeHandle === "all") return topCategories
-
-  if (topCategories.some((category) => getChannelHandle(category) === activeHandle)) {
-    return topCategories
-  }
-
-  const active = allCategories.find((category) => getChannelHandle(category) === activeHandle)
-  if (!active) return topCategories
-
-  const next = [...topCategories]
-  if (next.length >= 3) next[2] = active
-  else next.push(active)
-  return next
 }
 
 function readFiltersFromUrl() {
@@ -104,7 +88,7 @@ function matchesSearch(dua: Dua, searchQuery: string, categories: Category[]) {
 export function FeedSection({
   duas,
   categories,
-  topCategories,
+  trendingHashtags,
   pageSize,
   total,
   feedActive = true,
@@ -161,11 +145,6 @@ export function FeedSection({
     setTag(initial.tag)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const visibleCategories = useMemo(
-    () => resolveVisibleCategories(topCategories, categories, category),
-    [categories, category, topCategories],
-  )
-
   // The duas prop is the newest server batch; extraDuas holds older batches
   // loaded on demand. Dedupe by id — new submissions shift batch offsets.
   const allDuas = useMemo(() => {
@@ -179,6 +158,15 @@ export function FeedSection({
     for (const cat of categories) map.set(getChannelHandle(cat), cat.id)
     return map
   }, [categories])
+
+  const activeTrendingHashtags = useMemo(() => {
+    if (!tag || trendingHashtags.some((hashtag) => hashtag.tag === tag)) return trendingHashtags
+
+    const activeHashtag = buildTrendingHashtags(allDuas.filter((dua) => matchesHashtag(dua.text, tag)), 1)[0]
+    if (!activeHashtag) return trendingHashtags
+
+    return [...trendingHashtags.slice(0, 4), activeHashtag]
+  }, [allDuas, tag, trendingHashtags])
 
   const filteredDuas = useMemo(() => {
     const activeCategoryId = category !== "all" ? categoryIdByHandle.get(category) : undefined
@@ -273,19 +261,14 @@ export function FeedSection({
     [tag],
   )
 
-  const handleCategoryChange = useCallback(
+  const handleTagChange = useCallback(
     (value: string) => {
-      if (value !== "all") {
-        window.history.pushState(null, "", `/channel/${value}`)
-        setCategory(value)
-        setPage(1)
-      } else {
-        window.history.pushState(null, "", "/")
-        setCategory("all")
-        updateFilters(lang, 1)
-      }
+      const nextTag = value === tag ? "" : value
+      setTag(nextTag)
+      setPage(1)
+      syncFiltersToUrl(lang, 1, nextTag)
     },
-    [lang, updateFilters],
+    [lang, tag],
   )
 
   const handleLangChange = useCallback(
@@ -336,10 +319,10 @@ export function FeedSection({
   return (
     <>
       <FeedFilters
-        categories={visibleCategories}
-        activeCategory={category}
+        trendingHashtags={activeTrendingHashtags}
+        activeTag={tag}
         activeLang={lang}
-        onCategoryChange={handleCategoryChange}
+        onTagChange={handleTagChange}
         onLangChange={handleLangChange}
       />
 

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import type { TrendingHashtag } from "@/lib/hashtags"
 import type { Category, Dua } from "@/lib/types/dua"
 import { HomeComposer } from "@/components/home-composer"
 import { FeedSection } from "@/components/feed-section"
@@ -13,7 +14,7 @@ interface HomeStreamTabsProps {
   categories: Category[]
   turnstileSiteKey?: string
   duas: Dua[]
-  topCategories: Category[]
+  trendingHashtags: TrendingHashtag[]
   pageSize: number
   total: number
   emptyCopy: HomeEmptyCopy
@@ -28,7 +29,7 @@ export function HomeStreamTabs({
   categories,
   turnstileSiteKey,
   duas,
-  topCategories,
+  trendingHashtags,
   pageSize,
   total,
   emptyCopy,
@@ -102,7 +103,7 @@ export function HomeStreamTabs({
           <FeedSection
             duas={duas}
             categories={categories}
-            topCategories={topCategories}
+            trendingHashtags={trendingHashtags}
             pageSize={pageSize}
             total={total}
             feedActive={activeTab === "feed"}

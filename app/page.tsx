@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import { redirect } from "next/navigation"
-import { getFeedDuas, getCategories, getTopCategories } from "./actions/duas"
+import { getFeedDuas, getCategories } from "./actions/duas"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { accountStatusPostAuthRedirect, getProfileAccessState } from "@/lib/account-status"
 import { requireAdmin } from "@/lib/auth"
@@ -92,10 +92,9 @@ export default async function Home({
 
   const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
 
-  const [{ duas, total, pageSize }, categories, topCategories, siteCopy, platformStats, postingMode] = await Promise.all([
+  const [{ duas, total, pageSize }, categories, siteCopy, platformStats, postingMode] = await Promise.all([
     getFeedDuas(),
     getCategories(),
-    getTopCategories(3),
     getSiteCopy(),
     getPlatformStats(),
     getPostingMode(),
@@ -150,7 +149,7 @@ export default async function Home({
                   categories={categories}
                   turnstileSiteKey={turnstileSiteKey}
                   duas={duas}
-                  topCategories={topCategories}
+                  trendingHashtags={trendingHashtags}
                   pageSize={pageSize}
                   total={total}
                   emptyCopy={{

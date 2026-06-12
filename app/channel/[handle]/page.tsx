@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
-import { getFeedDuas, getCategories, getTopCategories } from "@/app/actions/duas"
+import { getFeedDuas, getCategories } from "@/app/actions/duas"
 import { getServerUser } from "@/lib/server-user"
 import { requireAdmin } from "@/lib/auth"
 import { getSiteCopy } from "@/lib/site-copy-server"
@@ -82,15 +82,13 @@ export default async function ChannelFeedPage({
 
   const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
 
-  const [{ duas, total, pageSize }, categories, topCategories, siteCopy, platformStats, postingMode] =
-    await Promise.all([
-      getFeedDuas(),
-      getCategories(),
-      getTopCategories(3),
-      getSiteCopy(),
-      getPlatformStats(),
-      getPostingMode(),
-    ])
+  const [{ duas, total, pageSize }, categories, siteCopy, platformStats, postingMode] = await Promise.all([
+    getFeedDuas(),
+    getCategories(),
+    getSiteCopy(),
+    getPlatformStats(),
+    getPostingMode(),
+  ])
 
   const channel = categories.find((c) => getChannelHandle(c) === handle)
   if (!channel) notFound()
@@ -134,7 +132,7 @@ export default async function ChannelFeedPage({
                   categories={categories}
                   turnstileSiteKey={turnstileSiteKey}
                   duas={duas}
-                  topCategories={topCategories}
+                  trendingHashtags={trendingHashtags}
                   pageSize={pageSize}
                   total={total}
                   initialCategory={handle}
