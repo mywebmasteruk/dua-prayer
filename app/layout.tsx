@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import "@/app/globals.css"
 import { Inter } from "next/font/google"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/toaster"
 import { NavigationProvider } from "@/components/navigation-provider"
@@ -53,6 +54,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {customCode.footer ? (
           <div dangerouslySetInnerHTML={{ __html: customCode.footer }} />
         ) : null}
+        <SpeedInsights />
       </body>
     </html>
   )

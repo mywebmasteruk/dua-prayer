@@ -1,7 +1,7 @@
 "use server"
 
 import { headers, cookies } from "next/headers"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag, unstable_cache } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { requireAdmin, requirePermission } from "@/lib/auth"
@@ -193,6 +193,21 @@ export async function getCategories(options: { includeInactive?: boolean } = {})
   return fetchCategoriesFromDb(supabase, options)
 }
 
+/** Category id → label/type lookup shared by every feed render. */
+const getCachedCategoryLabels = unstable_cache(
+  async () => {
+    const admin = createAdminSupabaseClient()
+    const { data, error } = await admin.from("categories").select("id, name, channel_type")
+    if (error) {
+      console.error("Error fetching category labels:", error)
+      return []
+    }
+    return data ?? []
+  },
+  ["category-labels"],
+  { revalidate: 60, tags: ["categories"] },
+)
+
 async function enrichDuas(
   duas: Array<{
     id: number
@@ -209,8 +224,8 @@ async function enrichDuas(
   const duaIds = duas.map((dua) => dua.id)
   const botGeneratedIds = new Set<number>()
 
-  const [{ data: categories }, botPostsResult, user] = await Promise.all([
-    supabase.from("categories").select("id, name, channel_type"),
+  const [categories, botPostsResult, user] = await Promise.all([
+    getCachedCategoryLabels(),
     duaIds.length > 0
       ? createAdminSupabaseClient().from("dua_bot_event_posts").select("dua_id").in("dua_id", duaIds)
       : Promise.resolve(null),
@@ -289,25 +304,40 @@ export async function countNewDuasSince(sinceCreatedAt: string | null) {
  * beyond the first batch stay reachable. Inserts between batch fetches can
  * shift offsets slightly; the client dedupes by id.
  */
+/**
+ * Shared (non-user-specific) feed batch, cached for all visitors. Uses the
+ * admin client because unstable_cache cannot read request cookies; the query
+ * only returns published duas, matching public RLS. Invalidated via the
+ * "duas-feed" tag on create/moderation; falls back to 30s staleness for
+ * likes counts.
+ */
+const getCachedFeedBatch = unstable_cache(
+  async (offset: number) => {
+    const admin = createAdminSupabaseClient()
+    const { data: duas, error, count } = await admin
+      .from("duas")
+      .select("id, text, user_id, category_id, likes, created_at, published, flagged", { count: "exact" })
+      .eq("published", true)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + FEED_BATCH_SIZE - 1)
+
+    if (error) {
+      console.error("Error fetching feed duas:", error)
+      return { duas: [], total: 0 }
+    }
+    return { duas: duas ?? [], total: count ?? 0 }
+  },
+  ["feed-batch"],
+  { revalidate: 30, tags: ["duas-feed"] },
+)
+
 export async function getFeedDuas(options: { offset?: number } = {}) {
-  const supabase = await createServerSupabaseClient()
   const offset = Math.max(0, Math.trunc(options.offset ?? 0))
-
-  const { data: duas, error, count } = await supabase
-    .from("duas")
-    .select("id, text, user_id, category_id, likes, created_at, published, flagged", { count: "exact" })
-    .eq("published", true)
-    .order("created_at", { ascending: false })
-    .range(offset, offset + FEED_BATCH_SIZE - 1)
-
-  if (error) {
-    console.error("Error fetching feed duas:", error)
-    return { duas: [], total: 0, pageSize: PAGE_SIZE }
-  }
+  const { duas, total } = await getCachedFeedBatch(offset)
 
   return {
-    duas: await enrichDuas(duas ?? []),
-    total: count ?? 0,
+    duas: await enrichDuas(duas),
+    total,
     pageSize: PAGE_SIZE,
   }
 }
@@ -406,6 +436,7 @@ export async function createDua(formData: FormData) {
     return { error: error.message }
   }
 
+  revalidateTag("duas-feed")
   revalidatePath("/")
   revalidatePath("/admin")
   if (requiresReview) {
@@ -439,6 +470,8 @@ export async function prayForDua(duaId: number) {
     return { error: result.error === "not_found" ? "Dua not found" : "Could not pray for this dua" }
   }
 
+  // No feed-cache bust here: invalidating on every ameen would defeat the
+  // cache. The client updates optimistically; cached likes lag <=30s.
   revalidatePath("/")
   return { success: true, counted: result.counted, likes: result.likes }
 }
@@ -480,6 +513,7 @@ export async function updateDuaStatus(id: number, published: boolean) {
   if (error) return { error: error.message }
 
   revalidatePath("/admin")
+  revalidateTag("duas-feed")
   revalidatePath("/")
   return { success: true }
 }
@@ -509,6 +543,7 @@ export async function updateDua(id: number, text: string, categoryId: number | n
   if (error) return { error: error.message }
 
   revalidatePath("/admin")
+  revalidateTag("duas-feed")
   revalidatePath("/")
   return { success: true }
 }
@@ -522,6 +557,7 @@ export async function deleteDua(id: number) {
   if (error) return { error: error.message }
 
   revalidatePath("/admin")
+  revalidateTag("duas-feed")
   revalidatePath("/")
   return { success: true }
 }
