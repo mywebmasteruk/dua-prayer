@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { requireAdmin, requirePermission } from "@/lib/auth"
+import { getServerUser } from "@/lib/server-user"
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
 import { verifyTurnstile } from "@/lib/turnstile"
 import { randomBytes } from "crypto"
@@ -205,41 +206,48 @@ async function enrichDuas(
   }>,
 ): Promise<Dua[]> {
   const supabase = await createServerSupabaseClient()
-  const { data: categories } = await supabase.from("categories").select("id, name, channel_type")
-  const categoryMap = new Map(categories?.map((c) => [c.id, c]) ?? [])
   const duaIds = duas.map((dua) => dua.id)
   const botGeneratedIds = new Set<number>()
 
-  if (duaIds.length > 0) {
-    const admin = createAdminSupabaseClient()
-    const { data: botPosts, error: botPostsError } = await admin
-      .from("dua_bot_event_posts")
-      .select("dua_id")
-      .in("dua_id", duaIds)
+  const [{ data: categories }, botPostsResult, user] = await Promise.all([
+    supabase.from("categories").select("id, name, channel_type"),
+    duaIds.length > 0
+      ? createAdminSupabaseClient().from("dua_bot_event_posts").select("dua_id").in("dua_id", duaIds)
+      : Promise.resolve(null),
+    getServerUser(),
+  ])
+  const categoryMap = new Map(categories?.map((c) => [c.id, c]) ?? [])
 
-    if (botPostsError) {
-      console.error("Error fetching bot-generated dua markers:", botPostsError)
+  if (botPostsResult) {
+    if (botPostsResult.error) {
+      console.error("Error fetching bot-generated dua markers:", botPostsResult.error)
     } else {
-      for (const post of botPosts ?? []) {
+      for (const post of botPostsResult.data ?? []) {
         if (typeof post.dua_id === "number") botGeneratedIds.add(post.dua_id)
       }
     }
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
   let prayedIds = new Set<number>()
-  if (user) {
-    const { data: prayers } = await supabase.from("dua_prayers").select("dua_id").eq("user_id", user.id)
-    prayedIds = new Set(prayers?.map((p) => p.dua_id) ?? [])
-  } else {
-    const voterHash = (await cookies()).get("dua_voter")?.value
-    if (voterHash) {
-      const admin = createAdminSupabaseClient()
-      const { data: prayers } = await admin.from("dua_prayers").select("dua_id").eq("voter_hash", voterHash)
+  if (duaIds.length > 0) {
+    if (user) {
+      const { data: prayers } = await supabase
+        .from("dua_prayers")
+        .select("dua_id")
+        .eq("user_id", user.id)
+        .in("dua_id", duaIds)
       prayedIds = new Set(prayers?.map((p) => p.dua_id) ?? [])
+    } else {
+      const voterHash = (await cookies()).get("dua_voter")?.value
+      if (voterHash) {
+        const admin = createAdminSupabaseClient()
+        const { data: prayers } = await admin
+          .from("dua_prayers")
+          .select("dua_id")
+          .eq("voter_hash", voterHash)
+          .in("dua_id", duaIds)
+        prayedIds = new Set(prayers?.map((p) => p.dua_id) ?? [])
+      }
     }
   }
 
@@ -349,8 +357,7 @@ export async function createDua(formData: FormData) {
   if (!text || text.length < 15) return { error: "Dua must be at least 15 characters" }
   if (text.length > 280) return { error: "Dua must be 280 characters or less" }
 
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getServerUser()
   const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
   const postingAccess = shouldAllowPublicDuaSubmission({
     mode: await getPostingMode(),
@@ -415,7 +422,7 @@ export async function prayForDua(duaId: number) {
   if (!rate.allowed) return { error: "Too many requests. Please slow down." }
 
   const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getServerUser()
   const voterHash = user ? null : await getVoterHash()
 
   const { data, error } = await supabase.rpc("pray_for_dua", {

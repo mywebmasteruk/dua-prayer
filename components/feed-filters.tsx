@@ -1,6 +1,7 @@
 "use client"
 
 import type { Category } from "@/lib/types/dua"
+import { getChannelHandle } from "@/lib/channels"
 import { cn } from "@/lib/utils"
 
 export type LangFilter = "all" | "en" | "ar"
@@ -53,7 +54,7 @@ export function FeedFilters({
   onCategoryChange,
   onLangChange,
 }: FeedFiltersProps) {
-  const categoryPills = [{ id: "all", name: "All" }, ...categories.map((cat) => ({ id: cat.id.toString(), name: cat.name }))]
+  const categoryPills = [{ id: "all", name: "All" }, ...categories.map((cat) => ({ id: getChannelHandle(cat), name: cat.name }))]
 
   return (
     <div className="flex items-stretch bg-white">

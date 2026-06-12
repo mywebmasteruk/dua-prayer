@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getFeedDuas } from "@/app/actions/duas"
 import type { Category, Dua } from "@/lib/types/dua"
+import { getChannelHandle } from "@/lib/channels"
 import { detectLanguage, type DuaLanguage } from "@/lib/detect-language"
 import { FeedFilters, type LangFilter, type LangPill } from "@/components/feed-filters"
 import { DuaList } from "@/components/dua-list"
@@ -23,16 +24,18 @@ interface FeedSectionProps {
   total: number
   feedActive?: boolean
   emptyCopy?: Pick<HomeEmptyCopy, "homeFeedEmptyTitle" | "homeFeedEmptyDescription">
+  /** Pre-select a channel handle on mount (used by /channel/[handle] page). */
+  initialCategory?: string
 }
 
-function resolveVisibleCategories(topCategories: Category[], allCategories: Category[], activeCategory: string) {
-  if (activeCategory === "all") return topCategories
+function resolveVisibleCategories(topCategories: Category[], allCategories: Category[], activeHandle: string) {
+  if (activeHandle === "all") return topCategories
 
-  if (topCategories.some((category) => category.id.toString() === activeCategory)) {
+  if (topCategories.some((category) => getChannelHandle(category) === activeHandle)) {
     return topCategories
   }
 
-  const active = allCategories.find((category) => category.id.toString() === activeCategory)
+  const active = allCategories.find((category) => getChannelHandle(category) === activeHandle)
   if (!active) return topCategories
 
   const next = [...topCategories]
@@ -58,11 +61,11 @@ function readFiltersFromUrl() {
   }
 }
 
-function syncFiltersToUrl(category: string, lang: LangFilter, page: number, tag: string) {
+function syncFiltersToUrl(lang: LangFilter, page: number, tag: string) {
   const params = new URLSearchParams(window.location.search)
 
-  if (category !== "all") params.set("category", category)
-  else params.delete("category")
+  // Category is now path-based (/channel/handle) — clean up any legacy param
+  params.delete("category")
 
   if (lang !== "all") params.set("lang", lang)
   else params.delete("lang")
@@ -74,8 +77,9 @@ function syncFiltersToUrl(category: string, lang: LangFilter, page: number, tag:
   else params.delete("tag")
 
   const query = params.toString()
-  const nextUrl = query ? `/?${query}` : "/"
-  const currentUrl = `${window.location.pathname}${window.location.search}`
+  const pathname = window.location.pathname
+  const nextUrl = query ? `${pathname}?${query}` : pathname
+  const currentUrl = `${pathname}${window.location.search}`
 
   if (currentUrl !== nextUrl) {
     window.history.replaceState(window.history.state, "", nextUrl)
@@ -105,6 +109,7 @@ export function FeedSection({
   total,
   feedActive = true,
   emptyCopy,
+  initialCategory,
 }: FeedSectionProps) {
   const { query: searchQuery } = useHomeSearch()
   const router = useNavigationRouter()
@@ -126,12 +131,35 @@ export function FeedSection({
   }, [total])
 
   useEffect(() => {
+    // Channel page: category is fixed by the route, skip URL migration
+    if (initialCategory) {
+      setCategory(initialCategory)
+      return
+    }
+
     const initial = readFiltersFromUrl()
-    setCategory(initial.category)
+    let resolvedCategory = initial.category
+
+    // Migrate legacy numeric ?category=<id> to handle
+    if (resolvedCategory !== "all" && /^\d+$/.test(resolvedCategory)) {
+      const match = categories.find((c) => c.id.toString() === resolvedCategory)
+      resolvedCategory = match ? getChannelHandle(match) : "all"
+    }
+
+    // Redirect legacy ?category=<handle> to path-based /channel/<handle>
+    if (resolvedCategory !== "all") {
+      const params = new URLSearchParams(window.location.search)
+      params.delete("category")
+      const query = params.toString()
+      router.replace(`/channel/${resolvedCategory}${query ? `?${query}` : ""}`)
+      return
+    }
+
+    setCategory("all")
     setLang(initial.lang)
     setPage(initial.page)
     setTag(initial.tag)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const visibleCategories = useMemo(
     () => resolveVisibleCategories(topCategories, categories, category),
@@ -146,15 +174,22 @@ export function FeedSection({
     return [...duas, ...extraDuas.filter((dua) => !seen.has(dua.id))]
   }, [duas, extraDuas])
 
+  const categoryIdByHandle = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const cat of categories) map.set(getChannelHandle(cat), cat.id)
+    return map
+  }, [categories])
+
   const filteredDuas = useMemo(() => {
+    const activeCategoryId = category !== "all" ? categoryIdByHandle.get(category) : undefined
     return allDuas.filter((dua) => {
-      if (category !== "all" && dua.category_id?.toString() !== category) return false
+      if (activeCategoryId !== undefined && dua.category_id !== activeCategoryId) return false
       if (tag && !matchesHashtag(dua.text, tag)) return false
       if (!matchesLanguage(dua.text, lang)) return false
       if (!matchesSearch(dua, searchQuery, categories)) return false
       return true
     })
-  }, [allDuas, category, categories, lang, searchQuery, tag])
+  }, [allDuas, category, categoryIdByHandle, categories, lang, searchQuery, tag])
 
   const filtersActive =
     category !== "all" || lang !== "all" || tag !== "" || searchQuery.trim() !== ""
@@ -230,38 +265,47 @@ export function FeedSection({
   }, [searchQuery])
 
   const updateFilters = useCallback(
-    (nextCategory: string, nextLang: LangFilter, nextPage: number) => {
-      setCategory(nextCategory)
+    (nextLang: LangFilter, nextPage: number) => {
       setLang(nextLang)
       setPage(nextPage)
-      syncFiltersToUrl(nextCategory, nextLang, nextPage, tag)
+      syncFiltersToUrl(nextLang, nextPage, tag)
     },
     [tag],
   )
 
   const handleCategoryChange = useCallback(
-    (value: string) => updateFilters(value, lang, 1),
+    (value: string) => {
+      if (value !== "all") {
+        window.history.pushState(null, "", `/channel/${value}`)
+        setCategory(value)
+        setPage(1)
+      } else {
+        window.history.pushState(null, "", "/")
+        setCategory("all")
+        updateFilters(lang, 1)
+      }
+    },
     [lang, updateFilters],
   )
 
   const handleLangChange = useCallback(
     (value: LangPill) => {
       const nextLang: LangFilter = lang === value ? "all" : value
-      updateFilters(category, nextLang, 1)
+      updateFilters(nextLang, 1)
     },
-    [category, lang, updateFilters],
+    [lang, updateFilters],
   )
 
   const handlePageChange = useCallback(
-    (nextPage: number) => updateFilters(category, lang, nextPage),
-    [category, lang, updateFilters],
+    (nextPage: number) => updateFilters(lang, nextPage),
+    [lang, updateFilters],
   )
 
   const clearTagFilter = useCallback(() => {
     setTag("")
     setPage(1)
-    syncFiltersToUrl(category, lang, 1, "")
-  }, [category, lang])
+    syncFiltersToUrl(lang, 1, "")
+  }, [lang])
 
   const isDefaultFeedView =
     feedActive &&
@@ -282,7 +326,7 @@ export function FeedSection({
     dismissNewDuasBanner()
 
     if (page !== 1) {
-      updateFilters(category, lang, 1)
+      updateFilters(lang, 1)
     }
 
     window.scrollTo({ top: 0, behavior: "smooth" })

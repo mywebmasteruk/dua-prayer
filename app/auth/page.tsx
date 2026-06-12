@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { getServerUser } from "@/lib/server-user"
 import { redirect } from "next/navigation"
 import { signInHref } from "@/lib/auth-modal"
 
@@ -8,10 +8,7 @@ export default async function AuthPage({
   searchParams: Promise<{ error?: string; reset?: string; next?: string }>
 }) {
   const params = await searchParams
-  const supabase = await createServerSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getServerUser()
 
   if (user && params.next === "/admin") redirect("/admin")
   if (user) redirect("/")

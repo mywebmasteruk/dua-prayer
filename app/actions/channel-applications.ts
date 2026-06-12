@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { listAllAuthUsers } from "@/lib/auth-users"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { getServerUser } from "@/lib/server-user"
 import { requirePermission } from "@/lib/auth"
 import {
   CHANNEL_STATUS_LABELS,
@@ -253,13 +254,11 @@ export async function reviewChannelApplication(input: {
 export async function getMyPendingChannelApplication(): Promise<
   { application: Category | null } | { error: string }
 > {
-  const supabase = await createServerSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getServerUser()
 
   if (!user) return { application: null }
 
+  const supabase = await createServerSupabaseClient()
   const { data, error } = await supabase
     .from("categories")
     .select(

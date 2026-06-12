@@ -225,6 +225,8 @@ export interface Database {
           events_found: number
           duas_created: number
           message: string | null
+          ai_provider: string | null
+          ai_model: string | null
         }
         Insert: {
           id?: number
@@ -235,6 +237,8 @@ export interface Database {
           events_found?: number
           duas_created?: number
           message?: string | null
+          ai_provider?: string | null
+          ai_model?: string | null
         }
         Update: {
           id?: number
@@ -244,6 +248,8 @@ export interface Database {
           events_found?: number
           duas_created?: number
           message?: string | null
+          ai_provider?: string | null
+          ai_model?: string | null
         }
         Relationships: []
       }

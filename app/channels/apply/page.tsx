@@ -4,7 +4,7 @@ import { InnerPageLayout } from "@/components/inner-page-layout"
 import { ChannelApplySection } from "@/components/channels/channel-apply-section"
 import { getMyPendingChannelApplication } from "@/app/actions/channel-applications"
 import { getChannelFilloutEmbedSrc } from "@/lib/site-settings-server"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { getServerUser } from "@/lib/server-user"
 
 export const metadata: Metadata = {
   title: "Apply for a channel — DuaPrayer",
@@ -13,10 +13,7 @@ export const metadata: Metadata = {
 }
 
 async function ChannelApplyLoader() {
-  const supabase = await createServerSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getServerUser()
 
   // Only signed-in users get the Fillout URL — the auth gate must be
   // server-side, not just hidden in the client component.

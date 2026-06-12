@@ -21,7 +21,11 @@ export async function middleware(request: NextRequest) {
     },
   )
 
-  await supabase.auth.getUser()
+  // getClaims validates the JWT locally (cached JWKS) instead of a network
+  // round trip to Supabase Auth on every request, and still refreshes
+  // expired sessions. Pages/actions that need a verified user keep using
+  // getServerUser().
+  await supabase.auth.getClaims()
   return response
 }
 

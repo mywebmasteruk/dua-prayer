@@ -6,6 +6,16 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "dua-prayer.vercel.app" }],
+        destination: "https://www.duaprayer.com/:path*",
+        permanent: true,
+      },
+    ]
+  },
   async headers() {
     return [
       {

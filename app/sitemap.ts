@@ -23,12 +23,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .eq("is_active", true)
     .eq("status", "approved")
 
-  const channelRoutes: MetadataRoute.Sitemap = (categories ?? []).map((category) => ({
-    url: `${baseUrl}/channels/${getChannelHandle({ name: category.name, handle: category.handle })}`,
-    lastModified: category.updated_at ? new Date(category.updated_at) : new Date(),
+  const categoryEntries = (categories ?? []).map((category) => {
+    const handle = getChannelHandle({ name: category.name, handle: category.handle })
+    const lastModified = category.updated_at ? new Date(category.updated_at) : new Date()
+    return { handle, lastModified }
+  })
+
+  const channelRoutes: MetadataRoute.Sitemap = categoryEntries.map(({ handle, lastModified }) => ({
+    url: `${baseUrl}/channels/${handle}`,
+    lastModified,
     changeFrequency: "daily" as const,
     priority: 0.8,
   }))
 
-  return [...staticRoutes, ...channelRoutes]
+  const categoryRoutes: MetadataRoute.Sitemap = categoryEntries.map(({ handle, lastModified }) => ({
+    url: `${baseUrl}/channel/${handle}`,
+    lastModified,
+    changeFrequency: "daily" as const,
+    priority: 0.8,
+  }))
+
+  return [...staticRoutes, ...channelRoutes, ...categoryRoutes]
 }
