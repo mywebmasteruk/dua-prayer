@@ -15,6 +15,8 @@ export type ChannelWebhookParseFailure = {
   error: string
   hint?: string
   receivedKeys?: string[]
+  bodyKind?: string
+  acceptedPayloads?: string[]
 }
 
 const EMAIL_KEYS = ["email", "e-mail", "email address", "emailaddress", "applicant email", "contact email"]
@@ -34,6 +36,13 @@ const HANDLE_KEYS = ["handle", "channel handle", "slug", "username", "short name
 const MESSAGE_KEYS = ["message", "note", "comments", "comment", "additional info", "anything else"]
 const ORGANIZATION_KEYS = ["organization", "organisation", "org", "community", "masjid", "institution"]
 const WEBSITE_KEYS = ["website", "url", "link", "site"]
+const ACCEPTED_PAYLOADS = [
+  "Fillout default JSON with submission.questions[]",
+  "JSON with email/name/channel fields",
+  "nested submission/data/payload/formResponse/form_response objects",
+  "answers arrays or question-id keyed answers",
+  "application/x-www-form-urlencoded fields",
+]
 
 function normalizeKey(key: string): string {
   return key.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ")
@@ -72,8 +81,50 @@ function pickFromRecord(record: Record<string, unknown>, keys: string[]): string
 }
 
 type FilloutNamedValue = {
+  id?: unknown
+  key?: unknown
   name?: unknown
+  title?: unknown
+  label?: unknown
   value?: unknown
+  field?: unknown
+  question?: unknown
+}
+
+function objectRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function nestedLabel(value: unknown): string | null {
+  const record = objectRecord(value)
+  if (!record) return null
+  return asString(record.name ?? record.title ?? record.label ?? record.ref ?? record.key ?? record.id)
+}
+
+function namedValueLabel(namedValue: FilloutNamedValue): string | null {
+  return (
+    asString(namedValue.name ?? namedValue.title ?? namedValue.label ?? namedValue.key) ??
+    nestedLabel(namedValue.field) ??
+    nestedLabel(namedValue.question)
+  )
+}
+
+function answerValue(namedValue: FilloutNamedValue): unknown {
+  if ("value" in namedValue) return namedValue.value
+
+  const record = namedValue as Record<string, unknown>
+  for (const valueKey of ["email", "text", "url", "phone", "number", "boolean", "date", "file_url"]) {
+    if (valueKey in record) return record[valueKey]
+  }
+
+  const choice = objectRecord(record.choice)
+  if (choice) return choice.label ?? choice.value ?? choice.name
+
+  const choices = objectRecord(record.choices)
+  if (choices) return choices.labels ?? choices.values ?? choices
+
+  return null
 }
 
 function namedValuesToRecord(values: unknown): Record<string, unknown> {
@@ -82,39 +133,67 @@ function namedValuesToRecord(values: unknown): Record<string, unknown> {
   for (const item of values) {
     if (!item || typeof item !== "object") continue
     const namedValue = item as FilloutNamedValue
-    const name = asString(namedValue.name)
+    const name = namedValueLabel(namedValue)
     if (!name) continue
-    record[name] = namedValue.value
+    record[name] = answerValue(namedValue)
   }
   return record
 }
 
+function questionIdLabels(questions: unknown): Record<string, string> {
+  if (!Array.isArray(questions)) return {}
+  const labels: Record<string, string> = {}
+  for (const item of questions) {
+    const question = objectRecord(item)
+    if (!question) continue
+    const id = asString(question.id ?? question.key)
+    const label = asString(question.name ?? question.title ?? question.label)
+    if (id && label) labels[id] = label
+  }
+  return labels
+}
+
+function keyedAnswersToRecord(answers: unknown, questions: unknown): Record<string, unknown> {
+  const answerRecord = objectRecord(answers)
+  if (!answerRecord) return {}
+
+  const labels = questionIdLabels(questions)
+  const record: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(answerRecord)) {
+    record[labels[key] ?? key] = value
+  }
+  return record
+}
+
+function addRecognizedFields(flat: Record<string, unknown>, record: Record<string, unknown>): void {
+  Object.assign(flat, record)
+  Object.assign(flat, namedValuesToRecord(record.questions))
+  Object.assign(flat, namedValuesToRecord(record.urlParameters))
+  Object.assign(flat, namedValuesToRecord(record.url_parameters))
+  Object.assign(flat, namedValuesToRecord(record.calculations))
+  Object.assign(flat, namedValuesToRecord(record.answers))
+  Object.assign(flat, keyedAnswersToRecord(record.answers, record.questions))
+}
+
 function flattenPayload(body: unknown): Record<string, unknown> {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return {}
+  const root = objectRecord(body)
+  if (!root) return {}
 
-  const root = body as Record<string, unknown>
-  const flat: Record<string, unknown> = { ...root }
+  const flat: Record<string, unknown> = {}
+  addRecognizedFields(flat, root)
 
-  for (const nestKey of ["submission", "data", "application", "payload", "formResponse"]) {
-    const nested = root[nestKey]
-    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-      Object.assign(flat, nested as Record<string, unknown>)
-    }
+  for (const nestKey of ["submission", "data", "application", "payload", "formResponse", "form_response", "response"]) {
+    const nested = objectRecord(root[nestKey])
+    if (nested) addRecognizedFields(flat, nested)
   }
-
-  const submission = root.submission
-  if (submission && typeof submission === "object" && !Array.isArray(submission)) {
-    const submissionRecord = submission as Record<string, unknown>
-    Object.assign(flat, namedValuesToRecord(submissionRecord.questions))
-    Object.assign(flat, namedValuesToRecord(submissionRecord.urlParameters))
-    Object.assign(flat, namedValuesToRecord(submissionRecord.calculations))
-  }
-
-  Object.assign(flat, namedValuesToRecord(root.questions))
-  Object.assign(flat, namedValuesToRecord(root.urlParameters))
-  Object.assign(flat, namedValuesToRecord(root.calculations))
 
   return flat
+}
+
+function bodyKind(body: unknown): string {
+  if (body == null) return "empty"
+  if (Array.isArray(body)) return "array"
+  return typeof body
 }
 
 function extractSubmissionId(body: unknown, flat: Record<string, unknown>): string | null {
@@ -128,10 +207,13 @@ function extractSubmissionId(body: unknown, flat: Record<string, unknown>): stri
 
   if (fromFlat) return fromFlat
 
-  if (body && typeof body === "object" && !Array.isArray(body)) {
-    const submission = (body as Record<string, unknown>).submission
-    if (submission && typeof submission === "object" && !Array.isArray(submission)) {
-      return asString((submission as Record<string, unknown>).submissionId ?? (submission as Record<string, unknown>).id)
+  const root = objectRecord(body)
+  if (root) {
+    for (const nestKey of ["submission", "form_response", "formResponse", "response"]) {
+      const nested = objectRecord(root[nestKey])
+      if (!nested) continue
+      const nestedId = asString(nested.submissionId ?? nested.submission_id ?? nested.id ?? nested.token)
+      if (nestedId) return nestedId
     }
   }
 
@@ -154,6 +236,8 @@ export function parseChannelWebhookBody(
           ? `No email field found. Received keys: ${preview.join(", ")}${receivedKeys.length > 20 ? "…" : ""}. Include an Email question or map "email" in the Fillout webhook body.`
           : "Empty or unrecognizable body. Send JSON with email or use Fillout's default webhook payload.",
       receivedKeys: preview,
+      bodyKind: bodyKind(body),
+      acceptedPayloads: ACCEPTED_PAYLOADS,
     }
   }
 
@@ -171,6 +255,8 @@ export function parseChannelWebhookBody(
           ? `No channel name field found. Received keys: ${preview.join(", ")}${receivedKeys.length > 20 ? "…" : ""}. Map a "Channel name" (or similar) question in Fillout.`
           : "Include channelName or a Channel name question in the webhook body.",
       receivedKeys: preview,
+      bodyKind: bodyKind(body),
+      acceptedPayloads: ACCEPTED_PAYLOADS,
     }
   }
 

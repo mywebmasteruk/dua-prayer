@@ -74,6 +74,7 @@ export async function POST(request: Request) {
   const parsed = parseChannelWebhookBody(bodyResult.body)
   if ("error" in parsed) {
     console.error("Channel webhook parse failed:", parsed.error, parsed.hint ?? "", {
+      bodyKind: parsed.bodyKind,
       receivedKeys: parsed.receivedKeys,
     })
     return NextResponse.json(
@@ -81,6 +82,8 @@ export async function POST(request: Request) {
         error: parsed.error,
         hint: parsed.hint,
         receivedKeys: parsed.receivedKeys,
+        bodyKind: parsed.bodyKind,
+        acceptedPayloads: parsed.acceptedPayloads,
       },
       { status: 400 },
     )
