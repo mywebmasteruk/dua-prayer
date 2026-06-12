@@ -4,24 +4,20 @@ import { useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { PostingAccessSettings } from "@/components/admin/posting-access-settings"
 import { CustomCodeSettings } from "@/components/admin/custom-code-settings"
-import { BetaBannerSettings } from "@/components/admin/beta-banner-settings"
 import { VolunteerFormSettings } from "@/components/admin/volunteer-form-settings"
 import { AdminSection } from "@/components/admin/admin-section"
 import { cn } from "@/lib/utils"
 import type { CustomCode } from "@/lib/custom-code-server"
-import type { BetaBannerSettings as BetaBannerSettingsValue } from "@/lib/site-settings-server"
 import { SETTINGS_TABS, resolveSettingsTab, type SettingsTabId } from "@/lib/admin-settings-tabs"
 import type { PostingMode } from "@/lib/posting-settings-shared"
 
 type SettingsHubProps = {
   initialTab: SettingsTabId
   postingMode: PostingMode
-  betaBanner: BetaBannerSettingsValue | null
   volunteerFillout: string
   customCode: CustomCode
   canManageSettings: boolean
   canManageVolunteers: boolean
-  isFoundingAdmin: boolean
 }
 
 function SettingsTabBar({ activeTab, onTabChange }: { activeTab: SettingsTabId; onTabChange: (tab: SettingsTabId) => void }) {
@@ -64,12 +60,10 @@ function SettingsTabBar({ activeTab, onTabChange }: { activeTab: SettingsTabId; 
 export function AdminSettingsHub({
   initialTab,
   postingMode,
-  betaBanner,
   volunteerFillout,
   customCode,
   canManageSettings,
   canManageVolunteers,
-  isFoundingAdmin,
 }: SettingsHubProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -97,22 +91,6 @@ export function AdminSettingsHub({
           className={activeTab === "posting" ? undefined : "hidden"}
         >
           <PostingAccessSettings initialMode={postingMode} canManageSettings={canManageSettings} />
-        </div>
-
-        {/* Beta Banner */}
-        <div
-          id="settings-panel-banner"
-          role="tabpanel"
-          aria-labelledby="settings-tab-banner"
-          className={activeTab === "banner" ? undefined : "hidden"}
-        >
-          {isFoundingAdmin && betaBanner ? (
-            <BetaBannerSettings initialSettings={betaBanner} />
-          ) : (
-            <AdminSection title="Beta Banner" description="Control the announcement banner shown at the top of every page.">
-              <p className="text-sm text-muted-foreground">Beta banner settings are restricted to the founding admin.</p>
-            </AdminSection>
-          )}
         </div>
 
         {/* Forms */}

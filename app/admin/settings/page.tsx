@@ -8,10 +8,7 @@ import { getCustomCodeForAdmin } from "@/app/actions/custom-code"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
 import { getPostingModeForAdmin } from "@/lib/posting-settings"
-import {
-  getBetaBannerSettingsForSuperAdmin,
-  getVolunteerFilloutSettingForAdmin,
-} from "@/app/actions/settings"
+import { getVolunteerFilloutSettingForAdmin } from "@/app/actions/settings"
 
 type PageProps = {
   searchParams: Promise<{ tab?: string }>
@@ -60,13 +57,10 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
       }
     }
 
-    const [postingMode, betaBanner, volunteerFillout, customCode] = await Promise.all([
+    const [postingMode, volunteerFillout, customCode] = await Promise.all([
       canManageSettings
         ? safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const)
         : Promise.resolve("public" as const),
-      ctx.isFoundingAdmin
-        ? safe("getBetaBannerSettings", () => getBetaBannerSettingsForSuperAdmin(), null)
-        : Promise.resolve(null),
       canManageSettings || canManageVolunteers
         ? safe("getVolunteerFillout", () => getVolunteerFilloutSettingForAdmin(), "")
         : Promise.resolve(""),
@@ -80,18 +74,16 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
         <AdminPageHeader
           icon={Settings2}
           title="Settings"
-          description="Posting rules, announcements, forms, and custom code."
+          description="Posting rules, forms, and custom code."
         />
 
         <AdminSettingsHub
           initialTab={isSettingsTabId(tab) ? tab : "posting"}
           postingMode={postingMode}
-          betaBanner={betaBanner}
           volunteerFillout={volunteerFillout}
           customCode={customCode}
           canManageSettings={canManageSettings}
           canManageVolunteers={canManageVolunteers}
-          isFoundingAdmin={ctx.isFoundingAdmin}
         />
       </InnerPageLayout>
     )
