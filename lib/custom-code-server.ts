@@ -3,7 +3,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { isMissingTableError } from "@/lib/db-errors"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
 
-type CustomCode = { header: string; footer: string }
+export type CustomCode = { header: string; footer: string }
 
 async function fetchCustomCode(): Promise<CustomCode> {
   let supabase

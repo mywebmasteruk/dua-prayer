@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
-import { saveCustomCode, type CustomCode } from "@/app/actions/custom-code"
+import { saveCustomCode } from "@/app/actions/custom-code"
+import type { CustomCode } from "@/lib/custom-code-server"
 
 export function CustomCodeSettings({ initialCode }: { initialCode: CustomCode }) {
   const [code, setCode] = useState(initialCode)

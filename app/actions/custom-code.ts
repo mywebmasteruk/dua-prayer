@@ -4,12 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { requirePermission } from "@/lib/auth"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
-import { getCustomCode } from "@/lib/custom-code-server"
-
-export type CustomCode = {
-  header: string
-  footer: string
-}
+import { getCustomCode, type CustomCode } from "@/lib/custom-code-server"
 
 export async function getCustomCodeForAdmin(): Promise<CustomCode> {
   const gate = await requirePermission("manage_settings")

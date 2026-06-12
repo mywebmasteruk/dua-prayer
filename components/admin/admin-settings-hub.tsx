@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
 import { getPostingModeOption, type PostingMode } from "@/lib/posting-settings-shared"
 import type { AiProviderAdminView } from "@/lib/ai-provider"
 import type { BotRuntimeStatus, DuaEventBot } from "@/lib/dua-bots"
-import type { CustomCode } from "@/app/actions/custom-code"
+import type { CustomCode } from "@/lib/custom-code-server"
 
 type SettingsTabId = "general" | "posting" | "ai-provider" | "ai-bots" | "integrations" | "roles" | "custom-code"
 
