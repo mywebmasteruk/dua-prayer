@@ -37,18 +37,18 @@ export function getAdminNavLinks(
       visible: canSee(permissions, isFoundingAdmin, "manage_duas"),
     },
     {
-      key: "channels",
-      href: "/admin/channels",
-      label: "Channels",
-      icon: LayoutGrid,
-      visible: canSee(permissions, isFoundingAdmin, "manage_channels"),
-    },
-    {
       key: "bots",
       href: "/admin/bots",
       label: "Dua bots",
       icon: Bot,
       visible: canSee(permissions, isFoundingAdmin, "manage_duas"),
+    },
+    {
+      key: "channels",
+      href: "/admin/channels",
+      label: "Channels",
+      icon: LayoutGrid,
+      visible: canSee(permissions, isFoundingAdmin, "manage_channels"),
     },
     {
       key: "users",
@@ -65,6 +65,13 @@ export function getAdminNavLinks(
       visible: canSee(permissions, isFoundingAdmin, "manage_volunteers"),
     },
     {
+      key: "copy",
+      href: "/admin/copy",
+      label: "Site Content",
+      icon: Type,
+      visible: canSee(permissions, isFoundingAdmin, "manage_settings"),
+    },
+    {
       key: "settings",
       href: "/admin/settings",
       label: "Settings",
@@ -74,20 +81,14 @@ export function getAdminNavLinks(
         canSee(permissions, isFoundingAdmin, "manage_admins"),
     },
     {
-      key: "copy",
-      href: "/admin/copy",
-      label: "Site Content",
-      icon: Type,
-      visible: canSee(permissions, isFoundingAdmin, "manage_settings"),
-    },
-    {
       key: "integration",
       href: "/admin/integration",
       label: "Integration",
       icon: Plug,
       visible:
         canSee(permissions, isFoundingAdmin, "manage_settings") ||
-        canSee(permissions, isFoundingAdmin, "manage_volunteers"),
+        canSee(permissions, isFoundingAdmin, "manage_volunteers") ||
+        canSee(permissions, isFoundingAdmin, "manage_channels"),
     },
   ]
 
