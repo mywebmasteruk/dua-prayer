@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { buildDuaBotPromptMessages, normalizeBotInput } from "./dua-bots"
+import { buildDuaBotPromptMessages, normalizeBotInput, sanitizeGeneratedBotDuaText } from "./dua-bots"
 
 const event = {
   title: "Flooding displaces families",
@@ -58,5 +58,27 @@ describe("dua bot prompt controls", () => {
     assert.match(messages[1].content, /Tone: gentle\./)
     assert.match(messages[1].content, /User prompt: Focus on duas for children and families who need urgent relief\./)
     assert.match(messages[1].content, /Event title: "Flooding displaces families"/)
+  })
+
+  it("instructs generated bot duas to omit closing affirmation variants", () => {
+    const messages = buildDuaBotPromptMessages({
+      event,
+      tone: "gentle",
+      language: "English",
+    })
+
+    assert.match(messages[0].content, /must not include/i)
+    assert.match(messages[0].content, /Amen/i)
+    assert.match(messages[0].content, /Ameen/i)
+    assert.match(messages[1].content, /must not include/i)
+    assert.match(messages[1].content, /Amen/i)
+    assert.match(messages[1].content, /Ameen/i)
+  })
+
+  it("removes closing affirmation variants from generated bot dua text", () => {
+    assert.equal(sanitizeGeneratedBotDuaText("May Allah protect them. Amen"), "May Allah protect them.")
+    assert.equal(sanitizeGeneratedBotDuaText("amen, may Allah grant relief."), "may Allah grant relief.")
+    assert.equal(sanitizeGeneratedBotDuaText("May Allah grant safety AMEEN."), "May Allah grant safety")
+    assert.equal(sanitizeGeneratedBotDuaText("May Allah grant patience and ameen hope."), "May Allah grant patience and hope.")
   })
 })

@@ -134,6 +134,7 @@ const MAX_EVENTS_PER_BOT = 3
 const MAX_SOURCE_BYTES = 500_000
 const REQUEST_TIMEOUT_MS = 8_000
 const MAX_DUA_LENGTH = 280
+const BOT_DUA_FORBIDDEN_CLOSING_WORDS = /\b(?:amen|ameen)\b[\s,.!?;:،۔]*/gi
 
 function normalizeList(value: string | string[] | undefined): string[] {
   const parts = Array.isArray(value) ? value : (value ?? "").split(/[\n,]/)
@@ -167,6 +168,10 @@ function sanitizeText(value: string | null | undefined, fallback = ""): string {
 function sanitizeOptionalText(value: string | null | undefined): string | null {
   const sanitized = sanitizeText(value)
   return sanitized.length > 0 ? sanitized : null
+}
+
+export function sanitizeGeneratedBotDuaText(value: string): string {
+  return sanitizeText(value.replace(BOT_DUA_FORBIDDEN_CLOSING_WORDS, ""))
 }
 
 function stripXml(value: string): string {
@@ -252,6 +257,7 @@ export function buildDuaBotPromptMessages({
         "No fabricated facts, casualty counts, locations, names, organizations, or religious rulings.",
         "Avoid graphic details and do not sensationalize suffering.",
         "Ask the Ummah to pray, help, donate, volunteer, and support appropriately when relevant.",
+        "The dua must not include the words Amen or Ameen in any capitalization.",
         "Return strict JSON only.",
         botSystemPrompt ? `Bot system prompt: ${botSystemPrompt}` : "",
       ]
@@ -265,6 +271,7 @@ export function buildDuaBotPromptMessages({
         `Tone: ${tone}.`,
         botUserPrompt ? `User prompt: ${botUserPrompt}` : "",
         "The dua should ask the Ummah to pray for people affected by the event, including those suffering, grieving, displaced, injured, or who lost loved ones when relevant.",
+        "The dua must not include the words Amen or Ameen in any capitalization.",
         `Keep it under ${MAX_DUA_LENGTH} characters and return JSON: {"dua": string}.`,
         `Event title: ${JSON.stringify(event.title)}`,
         event.summary ? `Event summary: ${JSON.stringify(event.summary)}` : "",
@@ -484,7 +491,7 @@ async function createDuaFromEvent(
 ): Promise<boolean> {
   if (await alreadyPosted(bot.id, event.key)) return false
 
-  const text = await generateDuaForEvent({
+  const generatedText = await generateDuaForEvent({
     eventTitle: event.title,
     eventSummary: event.summary,
     eventUrl: event.url,
@@ -499,6 +506,7 @@ async function createDuaFromEvent(
     }),
     settings: aiSettings,
   })
+  const text = sanitizeGeneratedBotDuaText(generatedText)
 
   const moderation = await evaluateDuaModeration({ text, settings: aiSettings })
   if (moderation.severity === "block") {
