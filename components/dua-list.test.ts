@@ -18,4 +18,10 @@ describe("dua list footer icons", () => {
     assert.match(source, /dua\.is_bot_generated\s+\? "DuaPrayer"/)
     assert.match(source, /:\s+dua\.user_id \? "Community member" : "Anonymous"/)
   })
+
+  it("applies tighter medium typography only to Latin-script dua text", () => {
+    assert.match(source, /const isLatinScript = isLatinScriptLanguage\(dua\.language, dua\.text\)/)
+    assert.match(source, /isRtl \? "text-right font-medium leading-8" : "leading-7"/)
+    assert.match(source, /isLatinScript && "font-medium leading-\[1\.5\]"/)
+  })
 })

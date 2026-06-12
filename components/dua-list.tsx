@@ -18,6 +18,7 @@ import {
   getArabicOnlyFontClassName,
   getTextDirection,
   hasArabicText,
+  isLatinScriptLanguage,
 } from "@/lib/detect-language"
 import { SITE_COPY_DEFAULTS } from "@/lib/site-copy"
 import { extractHashtags } from "@/lib/hashtags"
@@ -207,6 +208,7 @@ export function DuaList({
         const isRtl = textDirection === "rtl"
         const isReported = reportedDuas[dua.id] ?? dua.flagged
         const isLoved = Boolean(lovedDuas[dua.id])
+        const isLatinScript = isLatinScriptLanguage(dua.language, dua.text)
         const isChannelPost = dua.category_channel_type === "user"
         const sourceLabel = isChannelPost
           ? dua.category_name ?? "Community channel"
@@ -238,8 +240,9 @@ export function DuaList({
             <p
               dir={textDirection}
               className={cn(
-                "mt-2.5 whitespace-pre-wrap break-words text-[15px] leading-7 text-foreground",
-                isRtl ? "text-right font-medium leading-8" : "",
+                "mt-2.5 whitespace-pre-wrap break-words text-[15px] text-foreground",
+                isRtl ? "text-right font-medium leading-8" : "leading-7",
+                isLatinScript && "font-medium leading-[1.5]",
                 getArabicOnlyFontClassName(dua.text),
               )}
             >
