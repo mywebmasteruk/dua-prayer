@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import {
   createAdminDuaBot,
@@ -131,6 +132,7 @@ function statusTone(status: string): "success" | "warning" | "danger" | "neutral
 }
 
 export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtimeStatus }: DuaBotControlPanelProps) {
+  const router = useRouter()
   const [bots, setBots] = useState(initialBots)
   const [draft, setDraft] = useState<BotDraft>(blankDraft)
   const [open, setOpen] = useState(false)
@@ -141,6 +143,10 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category.name])), [categories])
   const languageOptions = useMemo(() => getBotLanguageOptions(draft.language), [draft.language])
+
+  useEffect(() => {
+    setBots(initialBots)
+  }, [initialBots])
 
   const openCreate = () => {
     setDraft(blankDraft)
@@ -165,7 +171,7 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
     } else {
       toast({ title: draft.id ? "Bot updated" : "Bot created" })
       setOpen(false)
-      window.location.reload()
+      router.refresh()
     }
     setIsSaving(false)
   }
@@ -191,7 +197,7 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
         title: "Bot run complete",
         description: `${result.result.duasCreated} dua(s) created. ${result.result.errors.length} error(s).`,
       })
-      window.location.reload()
+      router.refresh()
     }
     setRunningId(null)
   }
@@ -216,7 +222,7 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
     setBots((current) => current.filter((bot) => bot.id !== deletingBot.id))
     setDeletingBot(null)
     toast({ title: "Bot deleted", description: "Bot configuration and run logs were removed. Generated duas were kept." })
-    window.location.reload()
+    router.refresh()
   }
 
   return (

@@ -71,20 +71,20 @@ function pickFromRecord(record: Record<string, unknown>, keys: string[]): string
   return null
 }
 
-type FilloutQuestion = {
+type FilloutNamedValue = {
   name?: unknown
   value?: unknown
 }
 
-function questionsToRecord(questions: unknown): Record<string, unknown> {
-  if (!Array.isArray(questions)) return {}
+function namedValuesToRecord(values: unknown): Record<string, unknown> {
+  if (!Array.isArray(values)) return {}
   const record: Record<string, unknown> = {}
-  for (const q of questions) {
-    if (!q || typeof q !== "object") continue
-    const question = q as FilloutQuestion
-    const name = asString(question.name)
+  for (const item of values) {
+    if (!item || typeof item !== "object") continue
+    const namedValue = item as FilloutNamedValue
+    const name = asString(namedValue.name)
     if (!name) continue
-    record[name] = question.value
+    record[name] = namedValue.value
   }
   return record
 }
@@ -104,10 +104,15 @@ function flattenPayload(body: unknown): Record<string, unknown> {
 
   const submission = root.submission
   if (submission && typeof submission === "object" && !Array.isArray(submission)) {
-    Object.assign(flat, questionsToRecord((submission as Record<string, unknown>).questions))
+    const submissionRecord = submission as Record<string, unknown>
+    Object.assign(flat, namedValuesToRecord(submissionRecord.questions))
+    Object.assign(flat, namedValuesToRecord(submissionRecord.urlParameters))
+    Object.assign(flat, namedValuesToRecord(submissionRecord.calculations))
   }
 
-  Object.assign(flat, questionsToRecord(root.questions))
+  Object.assign(flat, namedValuesToRecord(root.questions))
+  Object.assign(flat, namedValuesToRecord(root.urlParameters))
+  Object.assign(flat, namedValuesToRecord(root.calculations))
 
   return flat
 }

@@ -62,20 +62,20 @@ function pickFromRecord(record: Record<string, unknown>, keys: string[]): string
   return null
 }
 
-type FilloutQuestion = {
+type FilloutNamedValue = {
   name?: unknown
   value?: unknown
 }
 
-function questionsToRecord(questions: unknown): Record<string, unknown> {
-  if (!Array.isArray(questions)) return {}
+function namedValuesToRecord(values: unknown): Record<string, unknown> {
+  if (!Array.isArray(values)) return {}
   const record: Record<string, unknown> = {}
-  for (const q of questions) {
-    if (!q || typeof q !== "object") continue
-    const question = q as FilloutQuestion
-    const name = asString(question.name)
+  for (const item of values) {
+    if (!item || typeof item !== "object") continue
+    const namedValue = item as FilloutNamedValue
+    const name = asString(namedValue.name)
     if (!name) continue
-    record[name] = question.value
+    record[name] = namedValue.value
   }
   return record
 }
@@ -95,10 +95,15 @@ function flattenPayload(body: unknown): Record<string, unknown> {
 
   const submission = root.submission
   if (submission && typeof submission === "object" && !Array.isArray(submission)) {
-    Object.assign(flat, questionsToRecord((submission as Record<string, unknown>).questions))
+    const submissionRecord = submission as Record<string, unknown>
+    Object.assign(flat, namedValuesToRecord(submissionRecord.questions))
+    Object.assign(flat, namedValuesToRecord(submissionRecord.urlParameters))
+    Object.assign(flat, namedValuesToRecord(submissionRecord.calculations))
   }
 
-  Object.assign(flat, questionsToRecord(root.questions))
+  Object.assign(flat, namedValuesToRecord(root.questions))
+  Object.assign(flat, namedValuesToRecord(root.urlParameters))
+  Object.assign(flat, namedValuesToRecord(root.calculations))
 
   return flat
 }
@@ -159,41 +164,68 @@ export function parseVolunteerWebhookBody(
   }
 }
 
+function searchParamsToRecord(request: Request): Record<string, string> {
+  const params = new URL(request.url).searchParams
+  const body: Record<string, string> = {}
+  params.forEach((value, key) => {
+    body[key] = value
+  })
+  return body
+}
+
+function formParamsToRecord(text: string): Record<string, string> {
+  const params = new URLSearchParams(text)
+  const body: Record<string, string> = {}
+  params.forEach((value, key) => {
+    body[key] = value
+  })
+  return body
+}
+
+function mergeParams(body: unknown, params: Record<string, string>): unknown {
+  if (Object.keys(params).length === 0) return body
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    return { ...params, ...(body as Record<string, unknown>) }
+  }
+  return body
+}
+
 export async function readVolunteerWebhookBody(
   request: Request,
 ): Promise<{ ok: true; body: unknown } | { ok: false; error: string }> {
   const contentType = request.headers.get("content-type")?.toLowerCase() ?? ""
+  const queryParams = searchParamsToRecord(request)
 
   try {
     if (contentType.includes("application/x-www-form-urlencoded")) {
       const text = await request.text()
-      const params = new URLSearchParams(text)
-      const body: Record<string, string> = {}
-      params.forEach((value, key) => {
-        body[key] = value
-      })
+      const formBody = formParamsToRecord(text)
+      const body = { ...queryParams, ...formBody }
+      if (Object.keys(body).length === 0) {
+        return { ok: false, error: "Empty request body." }
+      }
       return { ok: true, body }
     }
 
     const text = await request.text()
     if (!text.trim()) {
+      if (Object.keys(queryParams).length > 0) {
+        return { ok: true, body: queryParams }
+      }
       return { ok: false, error: "Empty request body." }
     }
 
     if (contentType.includes("application/json") || contentType === "" || text.trimStart().startsWith("{")) {
       try {
-        return { ok: true, body: JSON.parse(text) as unknown }
+        return { ok: true, body: mergeParams(JSON.parse(text) as unknown, queryParams) }
       } catch {
         // fall through to form-urlencoded attempt
       }
     }
 
     if (text.includes("=")) {
-      const params = new URLSearchParams(text)
-      const body: Record<string, string> = {}
-      params.forEach((value, key) => {
-        body[key] = value
-      })
+      const formBody = formParamsToRecord(text)
+      const body = { ...queryParams, ...formBody }
       if (Object.keys(body).length > 0) {
         return { ok: true, body }
       }
