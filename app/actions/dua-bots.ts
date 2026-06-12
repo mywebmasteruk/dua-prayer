@@ -75,6 +75,19 @@ export async function duplicateDuaBot(id: number) {
   return { success: true as const }
 }
 
+export async function deleteDuaBot(id: number) {
+  const gate = await requirePermission("manage_duas")
+  if (!gate.ok) return { error: "Unauthorized" }
+  if (!Number.isInteger(id)) return { error: "Choose a valid bot." }
+
+  const admin = createAdminSupabaseClient()
+  const { error } = await admin.from("dua_bots").delete().eq("id", id)
+
+  if (error) return { error: error.message }
+  botsPath()
+  return { success: true as const }
+}
+
 export async function setDuaBotStatus(id: number, status: BotStatus) {
   const gate = await requirePermission("manage_duas")
   if (!gate.ok) return { error: "Unauthorized" }

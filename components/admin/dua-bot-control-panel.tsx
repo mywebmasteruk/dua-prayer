@@ -4,13 +4,23 @@ import { useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
 import {
   createAdminDuaBot,
-  duplicateAdminDuaBot,
+  deleteAdminDuaBot,
   pauseAdminDuaBot,
   resumeAdminDuaBot,
   runAdminDuaBotNow,
   updateAdminDuaBot,
 } from "@/app/actions/admin-bots"
 import { AdminEmptyState } from "@/components/admin/admin-empty-state"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { AdminRowActionsMenu } from "@/components/admin/admin-row-actions-menu"
 import { AdminSection } from "@/components/admin/admin-section"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
@@ -24,6 +34,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
 import { getBotLanguageOptions } from "@/lib/bot-language-options"
+import { buildDuplicateDuaBotDraft } from "@/lib/dua-bot-duplicates"
 import type { BotRuntimeStatus, DuaEventBot, DuaBotRun } from "@/lib/dua-bots"
 import type { Category } from "@/lib/types/dua"
 
@@ -90,6 +101,24 @@ function draftFromBot(bot: DuaEventBot): BotDraft {
   }
 }
 
+function duplicateDraftFromBot(bot: DuaEventBot): BotDraft {
+  const draft = buildDuplicateDuaBotDraft(bot)
+
+  return {
+    name: draft.name,
+    description: draft.description ?? "",
+    status: "paused",
+    sourceUrls: Array.isArray(draft.rssUrls) ? draft.rssUrls.join("\n") : (draft.rssUrls ?? ""),
+    keywords: Array.isArray(draft.keywords) ? draft.keywords.join(", ") : (draft.keywords ?? ""),
+    eventCategories: Array.isArray(draft.categories) ? draft.categories.join(", ") : (draft.categories ?? ""),
+    frequencyMinutes: draft.frequencyMinutes ?? 360,
+    tone: draft.tone ?? "compassionate",
+    language: draft.language ?? "English",
+    targetCategoryId: draft.targetCategoryId?.toString() ?? "none",
+    publishMode: draft.publishMode ?? "pending",
+  }
+}
+
 function statusTone(status: string): "success" | "warning" | "danger" | "neutral" {
   if (status === "active" || status === "success") return "success"
   if (status === "error") return "danger"
@@ -103,6 +132,8 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
   const [open, setOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [runningId, setRunningId] = useState<number | null>(null)
+  const [deletingBot, setDeletingBot] = useState<DuaEventBot | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category.name])), [categories])
   const languageOptions = useMemo(() => getBotLanguageOptions(draft.language), [draft.language])
@@ -161,13 +192,26 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
     setRunningId(null)
   }
 
-  const handleDuplicate = async (bot: DuaEventBot) => {
-    const result = await duplicateAdminDuaBot(bot.id)
+  const openDuplicate = (bot: DuaEventBot) => {
+    setDraft(duplicateDraftFromBot(bot))
+    setOpen(true)
+  }
+
+  const handleDelete = async () => {
+    if (!deletingBot) return
+
+    setDeletingId(deletingBot.id)
+    const result = await deleteAdminDuaBot(deletingBot.id)
+    setDeletingId(null)
+
     if ("error" in result && result.error) {
-      toast({ title: "Could not duplicate bot", description: result.error, variant: "destructive" })
+      toast({ title: "Could not delete bot", description: result.error, variant: "destructive" })
       return
     }
-    toast({ title: "Bot duplicated", description: "The copy was created paused so it will not post until resumed." })
+
+    setBots((current) => current.filter((bot) => bot.id !== deletingBot.id))
+    setDeletingBot(null)
+    toast({ title: "Bot deleted", description: "Bot configuration and run logs were removed. Generated duas were kept." })
     window.location.reload()
   }
 
@@ -258,12 +302,18 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
                       disabled={runningId === bot.id}
                       actions={[
                         { label: "Edit", onClick: () => openEdit(bot) },
-                        { label: "Duplicate", onClick: () => handleDuplicate(bot) },
+                        { label: "Duplicate", onClick: () => openDuplicate(bot) },
                         { label: bot.status === "active" ? "Pause" : "Resume", onClick: () => handleStatus(bot) },
                         {
                           label: runningId === bot.id ? "Running…" : "Run now",
                           onClick: () => handleRunNow(bot),
                           disabled: !runtimeStatus.canGenerateDuas,
+                        },
+                        {
+                          label: "Delete",
+                          onClick: () => setDeletingBot(bot),
+                          destructive: true,
+                          separatorBefore: true,
                         },
                       ]}
                     />
@@ -382,6 +432,31 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deletingBot} onOpenChange={(open) => !open && setDeletingBot(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete bot?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete <span className="font-medium text-foreground">{deletingBot?.name}</span>? This removes the bot
+              configuration, run history, and event links. Generated dua posts will be kept.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingId === deletingBot?.id}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deletingId === deletingBot?.id}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleDelete()
+              }}
+            >
+              {deletingId === deletingBot?.id ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

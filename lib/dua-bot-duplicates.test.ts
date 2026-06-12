@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { buildDuplicateDuaBotInsert } from "./dua-bot-duplicates"
+import { buildDuplicateDuaBotDraft, buildDuplicateDuaBotInsert } from "./dua-bot-duplicates"
 import type { DuaBot } from "./dua-bots"
 
 const baseBot: DuaBot = {
@@ -28,6 +28,25 @@ const baseBot: DuaBot = {
 }
 
 describe("dua bot duplicates", () => {
+  it("builds a prefilled draft without runtime fields", () => {
+    const draft = buildDuplicateDuaBotDraft(baseBot)
+
+    assert.deepEqual(draft, {
+      name: "Humanitarian Crisis Watch (copy)",
+      description: "Tracks global humanitarian emergencies",
+      status: "paused",
+      frequencyMinutes: 120,
+      sourceType: "rss",
+      rssUrls: ["https://example.com/feed.xml"],
+      keywords: ["earthquake", "flood"],
+      categories: ["disaster", "humanitarian"],
+      tone: "compassionate",
+      language: "English",
+      targetCategoryId: 42,
+      publishMode: "published",
+    })
+  })
+
   it("copies configuration while pausing and resetting runtime state", () => {
     const duplicate = buildDuplicateDuaBotInsert(baseBot, "admin-user")
 

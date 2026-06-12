@@ -2,6 +2,7 @@
 
 import {
   createDuaBot,
+  deleteDuaBot,
   duplicateDuaBot,
   runDuaBotNow,
   setDuaBotStatus,
@@ -44,6 +45,10 @@ export async function resumeAdminDuaBot(id: number) {
 
 export async function duplicateAdminDuaBot(id: number) {
   return duplicateDuaBot(id)
+}
+
+export async function deleteAdminDuaBot(id: number) {
+  return deleteDuaBot(id)
 }
 
 export async function runAdminDuaBotNow(id: number) {
