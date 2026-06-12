@@ -1,11 +1,10 @@
 import type { LucideIcon } from "lucide-react"
-import { BookOpen, Bot, HandHeart, LayoutGrid, Plug, Settings2, Type, Users } from "lucide-react"
+import { BookOpen, HandHeart, LayoutGrid, Plug, Settings2, Type, Users } from "lucide-react"
 import type { AdminPermission } from "@/lib/admin-permissions"
 
 export type AdminNavKey =
   | "dashboard"
   | "channels"
-  | "bots"
   | "users"
   | "volunteers"
   | "settings"
@@ -34,13 +33,6 @@ export function getAdminNavLinks(
       href: "/admin",
       label: "Duas",
       icon: BookOpen,
-      visible: canSee(permissions, isFoundingAdmin, "manage_duas"),
-    },
-    {
-      key: "bots",
-      href: "/admin/bots",
-      label: "Dua bots",
-      icon: Bot,
       visible: canSee(permissions, isFoundingAdmin, "manage_duas"),
     },
     {
