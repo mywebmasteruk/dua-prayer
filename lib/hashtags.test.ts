@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { buildTrendingHashtags, extractHashtags, matchesHashtag, normalizeHashtag } from "./hashtags"
+import { buildTrendingHashtags, extractHashtags, getTopHashtags, matchesHashtag, normalizeHashtag } from "./hashtags"
 
 describe("hashtags", () => {
   it("extracts normalized unique hashtags from dua text", () => {
@@ -21,6 +21,14 @@ describe("hashtags", () => {
   it("matches text against a normalized hashtag", () => {
     assert.equal(matchesHashtag("Please remember #Flood_Relief", "flood-relief"), true)
     assert.equal(matchesHashtag("Please remember #Flood_Relief", "earthquake"), false)
+  })
+
+  it("returns the first three normalized unique hashtags for card display", () => {
+    assert.deepEqual(getTopHashtags("#One #Two #Three #Four #one"), [
+      { tag: "one", label: "#one" },
+      { tag: "two", label: "#two" },
+      { tag: "three", label: "#three" },
+    ])
   })
 
   it("builds trending hashtags by dua count, ameens, then tag", () => {

@@ -21,7 +21,7 @@ import {
   isLatinScriptLanguage,
 } from "@/lib/detect-language"
 import { SITE_COPY_DEFAULTS } from "@/lib/site-copy"
-import { extractHashtags } from "@/lib/hashtags"
+import { getTopHashtags } from "@/lib/hashtags"
 import { buildDuaShareUrl, type DuaSharePlatform } from "@/lib/dua-share"
 
 interface DuaListProps {
@@ -209,15 +209,12 @@ export function DuaList({
         const isReported = reportedDuas[dua.id] ?? dua.flagged
         const isLoved = Boolean(lovedDuas[dua.id])
         const isLatinScript = isLatinScriptLanguage(dua.language, dua.text)
-        const isChannelPost = dua.category_channel_type === "user"
-        const sourceLabel = isChannelPost
-          ? dua.category_name ?? "Community channel"
-          : dua.is_bot_generated
-            ? "DuaPrayer"
-            : dua.user_id ? "Community member" : "Anonymous"
-        const SourceIcon = isChannelPost ? Building2 : UserRound
+        const sourceLabel = dua.is_bot_generated
+          ? "DuaPrayer"
+          : dua.user_id ? "Community member" : "Anonymous"
+        const SourceIcon = dua.is_bot_generated ? Building2 : UserRound
         const loveCount = isLoved ? 1 : 0
-        const hashtags = extractHashtags(dua.text)
+        const topHashtags = getTopHashtags(dua.text)
 
         return (
           <article
@@ -228,12 +225,21 @@ export function DuaList({
               dir={textDirection}
               className={cn("flex flex-wrap items-center gap-x-2 gap-y-1", isRtl && "justify-end text-right")}
             >
-              {dua.category_name ? (
-                <span className={cn("text-xs font-bold text-primary lg:text-[15px]", getArabicOnlyFontClassName(dua.category_name))}>
-                  {renderWithArabicFont(dua.category_name)}
-                </span>
+              {topHashtags.length > 0 ? (
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5" dir="ltr">
+                  {topHashtags.map((hashtag) => (
+                    <a
+                      key={hashtag.tag}
+                      href={`/?tag=${encodeURIComponent(hashtag.tag)}`}
+                      className="text-xs font-bold text-primary transition hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:text-[15px]"
+                      aria-label={`Show duas tagged ${hashtag.label}`}
+                    >
+                      {hashtag.label}
+                    </a>
+                  ))}
+                </div>
               ) : null}
-              {dua.category_name ? <span className="text-muted-foreground/45" aria-hidden="true">·</span> : null}
+              {topHashtags.length > 0 ? <span className="text-muted-foreground/45" aria-hidden="true">·</span> : null}
               <span className="text-xs font-normal text-muted-foreground lg:text-[15px]">{formatRelativeTime(dua.created_at)}</span>
             </div>
 
@@ -248,21 +254,6 @@ export function DuaList({
             >
               {renderWithArabicFont(dua.text)}
             </p>
-
-            {hashtags.length > 0 ? (
-              <div className={cn("mt-3 flex flex-wrap gap-2", isRtl && "justify-end")} dir="ltr">
-                {hashtags.map((hashtag) => (
-                  <a
-                    key={hashtag.tag}
-                    href={`/?tag=${encodeURIComponent(hashtag.tag)}`}
-                    className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary/80 transition hover:bg-primary/20 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-label={`Show duas tagged ${hashtag.label}`}
-                  >
-                    {hashtag.label}
-                  </a>
-                ))}
-              </div>
-            ) : null}
 
             <div
               className={cn(

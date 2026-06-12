@@ -42,6 +42,10 @@ export function extractHashtags(text: string): Hashtag[] {
   return hashtags
 }
 
+export function getTopHashtags(text: string, limit = 3): Hashtag[] {
+  return extractHashtags(text).slice(0, limit)
+}
+
 export function matchesHashtag(text: string, tag: string) {
   const normalizedTag = normalizeHashtag(tag)
   if (!normalizedTag) return true

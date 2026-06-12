@@ -14,9 +14,10 @@ describe("dua list footer icons", () => {
     assert.doesNotMatch(source, /HeartHandshake/)
   })
 
-  it("labels bot-generated duas as DuaPrayer before anonymous fallback", () => {
-    assert.match(source, /dua\.is_bot_generated\s+\? "DuaPrayer"/)
-    assert.match(source, /:\s+dua\.user_id \? "Community member" : "Anonymous"/)
+  it("shows top hashtags instead of category names in the card metadata", () => {
+    assert.match(source, /const topHashtags = getTopHashtags\(dua\.text\)/)
+    assert.match(source, /topHashtags\.map\(\(hashtag\)/)
+    assert.doesNotMatch(source, /renderWithArabicFont\(dua\.category_name\)/)
   })
 
   it("applies tighter medium typography only to Latin-script dua text", () => {

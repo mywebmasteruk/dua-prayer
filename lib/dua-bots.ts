@@ -9,6 +9,7 @@ import {
   type ChatMessage,
 } from "@/lib/ai-provider"
 import { evaluateDuaModeration } from "@/lib/ai-moderation"
+import { extractHashtags, normalizeHashtag } from "@/lib/hashtags"
 
 export type BotStatus = "active" | "paused"
 export type BotSourceType = "rss"
@@ -174,6 +175,40 @@ export function sanitizeGeneratedBotDuaText(value: string): string {
   return sanitizeText(value.replace(BOT_DUA_FORBIDDEN_CLOSING_WORDS, ""))
 }
 
+function hashtagFromSeed(value: string): string {
+  const words = value
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N}\s_-]/gu, " ")
+    .trim()
+    .split(/[\s_-]+/)
+    .filter((word) => word.length >= 2)
+    .slice(0, 3)
+
+  return normalizeHashtag(words.join("-"))
+}
+
+export function ensureGeneratedBotDuaHasHashtag(
+  text: string,
+  context: {
+    keywords: string[]
+    categories: string[]
+    event: DuaBotPromptEvent
+  },
+): string {
+  if (extractHashtags(text).length > 0) return text
+
+  const candidates = [
+    ...context.keywords,
+    ...context.categories,
+    context.event.title,
+    context.event.summary ?? "",
+  ]
+
+  const tag = candidates.map(hashtagFromSeed).find(Boolean) ?? "duaprayer"
+  const label = tag === "duaprayer" ? "#DuaPrayer" : `#${tag}`
+  return sanitizeText(`${text} ${label}`)
+}
+
 function stripXml(value: string): string {
   return value
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -257,6 +292,7 @@ export function buildDuaBotPromptMessages({
         "No fabricated facts, casualty counts, locations, names, organizations, or religious rulings.",
         "Avoid graphic details and do not sensationalize suffering.",
         "Ask the Ummah to pray, help, donate, volunteer, and support appropriately when relevant.",
+        "The dua must include at least one relevant, safe hashtag at the end.",
         "The dua must not include the words Amen or Ameen in any capitalization.",
         "Return strict JSON only.",
         botSystemPrompt ? `Bot system prompt: ${botSystemPrompt}` : "",
@@ -271,6 +307,7 @@ export function buildDuaBotPromptMessages({
         `Tone: ${tone}.`,
         botUserPrompt ? `User prompt: ${botUserPrompt}` : "",
         "The dua should ask the Ummah to pray for people affected by the event, including those suffering, grieving, displaced, injured, or who lost loved ones when relevant.",
+        "Include at least one relevant hashtag, such as a safe topic, category, or event theme hashtag.",
         "The dua must not include the words Amen or Ameen in any capitalization.",
         `Keep it under ${MAX_DUA_LENGTH} characters and return JSON: {"dua": string}.`,
         `Event title: ${JSON.stringify(event.title)}`,
@@ -506,7 +543,11 @@ async function createDuaFromEvent(
     }),
     settings: aiSettings,
   })
-  const text = sanitizeGeneratedBotDuaText(generatedText)
+  const text = ensureGeneratedBotDuaHasHashtag(sanitizeGeneratedBotDuaText(generatedText), {
+    keywords: bot.keywords,
+    categories: bot.categories,
+    event,
+  })
 
   const moderation = await evaluateDuaModeration({ text, settings: aiSettings })
   if (moderation.severity === "block") {

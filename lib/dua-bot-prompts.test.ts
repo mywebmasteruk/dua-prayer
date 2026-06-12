@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { buildDuaBotPromptMessages, normalizeBotInput, sanitizeGeneratedBotDuaText } from "./dua-bots"
+import { buildDuaBotPromptMessages, ensureGeneratedBotDuaHasHashtag, normalizeBotInput, sanitizeGeneratedBotDuaText } from "./dua-bots"
 
 const event = {
   title: "Flooding displaces families",
@@ -80,5 +80,45 @@ describe("dua bot prompt controls", () => {
     assert.equal(sanitizeGeneratedBotDuaText("amen, may Allah grant relief."), "may Allah grant relief.")
     assert.equal(sanitizeGeneratedBotDuaText("May Allah grant safety AMEEN."), "May Allah grant safety")
     assert.equal(sanitizeGeneratedBotDuaText("May Allah grant patience and ameen hope."), "May Allah grant patience and hope.")
+  })
+
+  it("instructs generated bot duas to include relevant hashtags", () => {
+    const messages = buildDuaBotPromptMessages({
+      event,
+      tone: "gentle",
+      language: "English",
+    })
+
+    assert.match(messages[0].content, /hashtag/i)
+    assert.match(messages[1].content, /at least one relevant hashtag/i)
+  })
+
+  it("appends a relevant hashtag when generated bot text has none", () => {
+    const result = ensureGeneratedBotDuaHasHashtag("May Allah protect displaced families.", {
+      keywords: ["flood relief"],
+      categories: ["Emergency Response"],
+      event,
+    })
+
+    assert.equal(result, "May Allah protect displaced families. #flood-relief")
+  })
+
+  it("keeps existing hashtags and falls back safely when no context is available", () => {
+    assert.equal(
+      ensureGeneratedBotDuaHasHashtag("May Allah grant relief. #FloodRelief", {
+        keywords: [],
+        categories: [],
+        event: { title: "", summary: null, url: null },
+      }),
+      "May Allah grant relief. #FloodRelief",
+    )
+    assert.equal(
+      ensureGeneratedBotDuaHasHashtag("May Allah grant relief.", {
+        keywords: [],
+        categories: [],
+        event: { title: "", summary: null, url: null },
+      }),
+      "May Allah grant relief. #DuaPrayer",
+    )
   })
 })
