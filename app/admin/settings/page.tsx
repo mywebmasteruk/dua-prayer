@@ -7,7 +7,6 @@ import { isSettingsTabId } from "@/lib/admin-settings-tabs"
 import { getCustomCodeForAdmin } from "@/app/actions/custom-code"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
-import { getPostingModeForAdmin } from "@/lib/posting-settings"
 import {
   getBetaBannerSettingsForSuperAdmin,
   getVolunteerFilloutSettingForAdmin,
@@ -45,10 +44,9 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
     if (!ctx) redirect(signInHref({ next: "/admin/settings" }))
 
     const canManageSettings = ctx.isFoundingAdmin || hasPermission(ctx, "manage_settings")
-    const canManageAdmins = ctx.isFoundingAdmin || hasPermission(ctx, "manage_admins")
     const canManageVolunteers = ctx.isFoundingAdmin || hasPermission(ctx, "manage_volunteers")
 
-    if (!canManageSettings && !canManageAdmins && !canManageVolunteers) {
+    if (!canManageSettings && !canManageVolunteers) {
       redirect(signInHref({ error: "not_admin" }))
     }
 
@@ -61,10 +59,7 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
       }
     }
 
-    const [postingMode, betaBanner, volunteerFillout, customCode] = await Promise.all([
-      canManageSettings
-        ? safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const)
-        : Promise.resolve("public" as const),
+    const [betaBanner, volunteerFillout, customCode] = await Promise.all([
       ctx.isFoundingAdmin
         ? safe("getBetaBannerSettings", () => getBetaBannerSettingsForSuperAdmin(), null)
         : Promise.resolve(null),
@@ -81,17 +76,15 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
         <AdminPageHeader
           icon={Settings2}
           title="Settings"
-          description="Posting rules, announcements, forms, roles, and custom code."
+          description="Announcements, forms, and custom code."
         />
 
         <AdminSettingsHub
-          initialTab={isSettingsTabId(tab) ? tab : "posting"}
-          postingMode={postingMode}
+          initialTab={isSettingsTabId(tab) ? tab : "banner"}
           betaBanner={betaBanner}
           volunteerFillout={volunteerFillout}
           customCode={customCode}
           canManageSettings={canManageSettings}
-          canManageAdmins={canManageAdmins}
           canManageVolunteers={canManageVolunteers}
           isFoundingAdmin={ctx.isFoundingAdmin}
         />
