@@ -38,7 +38,13 @@ export function IntegrationAiProviderTab({ initial }: IntegrationAiProviderTabPr
   const [model, setModel] = useState(initial.model)
   const [apiKey, setApiKey] = useState("")
   const [isSaving, setIsSaving] = useState(false)
-  const [availableModels, setAvailableModels] = useState<string[]>(getFallbackModels(initial.provider))
+  const [availableModels, setAvailableModels] = useState<string[]>(() => {
+    const fallbacks = getFallbackModels(initial.provider)
+    if (initial.model && initial.provider !== "none" && !fallbacks.includes(initial.model)) {
+      return [initial.model, ...fallbacks]
+    }
+    return fallbacks
+  })
   const [isLoadingModels, setIsLoadingModels] = useState(false)
 
   const meta = getProviderMeta(provider)
@@ -186,7 +192,7 @@ export function IntegrationAiProviderTab({ initial }: IntegrationAiProviderTabPr
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <Select
-                value={availableModels.includes(model) ? model : (availableModels[0] ?? "")}
+                value={model}
                 onValueChange={setModel}
                 disabled={isSaving || provider === "none" || availableModels.length === 0}
               >
