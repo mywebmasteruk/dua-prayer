@@ -8,7 +8,6 @@ import { getCustomCodeForAdmin } from "@/app/actions/custom-code"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
 import { getPostingModeForAdmin } from "@/lib/posting-settings"
-import { getVolunteerFilloutSettingForAdmin } from "@/app/actions/settings"
 
 type PageProps = {
   searchParams: Promise<{ tab?: string }>
@@ -42,9 +41,8 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
     if (!ctx) redirect(signInHref({ next: "/admin/settings" }))
 
     const canManageSettings = ctx.isFoundingAdmin || hasPermission(ctx, "manage_settings")
-    const canManageVolunteers = ctx.isFoundingAdmin || hasPermission(ctx, "manage_volunteers")
 
-    if (!canManageSettings && !canManageVolunteers) {
+    if (!canManageSettings) {
       redirect(signInHref({ error: "not_admin" }))
     }
 
@@ -57,16 +55,9 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
       }
     }
 
-    const [postingMode, volunteerFillout, customCode] = await Promise.all([
-      canManageSettings
-        ? safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const)
-        : Promise.resolve("public" as const),
-      canManageSettings || canManageVolunteers
-        ? safe("getVolunteerFillout", () => getVolunteerFilloutSettingForAdmin(), "")
-        : Promise.resolve(""),
-      canManageSettings
-        ? safe("getCustomCodeForAdmin", () => getCustomCodeForAdmin(), { header: "", footer: "" })
-        : Promise.resolve({ header: "", footer: "" }),
+    const [postingMode, customCode] = await Promise.all([
+      safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const),
+      safe("getCustomCodeForAdmin", () => getCustomCodeForAdmin(), { header: "", footer: "" }),
     ])
 
     return (
@@ -74,16 +65,14 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
         <AdminPageHeader
           icon={Settings2}
           title="Settings"
-          description="Posting rules, forms, and custom code."
+          description="Posting rules and custom code."
         />
 
         <AdminSettingsHub
           initialTab={isSettingsTabId(tab) ? tab : "posting"}
           postingMode={postingMode}
-          volunteerFillout={volunteerFillout}
           customCode={customCode}
           canManageSettings={canManageSettings}
-          canManageVolunteers={canManageVolunteers}
         />
       </InnerPageLayout>
     )

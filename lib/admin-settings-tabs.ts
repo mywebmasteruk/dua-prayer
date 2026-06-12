@@ -1,8 +1,7 @@
-export type SettingsTabId = "posting" | "forms" | "custom-code"
+export type SettingsTabId = "posting" | "custom-code"
 
 export const SETTINGS_TABS: ReadonlyArray<{ id: SettingsTabId; label: string }> = [
   { id: "posting", label: "Posting & Access" },
-  { id: "forms", label: "Forms" },
   { id: "custom-code", label: "Custom Code" },
 ]
 

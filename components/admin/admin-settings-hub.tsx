@@ -4,7 +4,6 @@ import { useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { PostingAccessSettings } from "@/components/admin/posting-access-settings"
 import { CustomCodeSettings } from "@/components/admin/custom-code-settings"
-import { VolunteerFormSettings } from "@/components/admin/volunteer-form-settings"
 import { AdminSection } from "@/components/admin/admin-section"
 import { cn } from "@/lib/utils"
 import type { CustomCode } from "@/lib/custom-code-server"
@@ -14,10 +13,8 @@ import type { PostingMode } from "@/lib/posting-settings-shared"
 type SettingsHubProps = {
   initialTab: SettingsTabId
   postingMode: PostingMode
-  volunteerFillout: string
   customCode: CustomCode
   canManageSettings: boolean
-  canManageVolunteers: boolean
 }
 
 function SettingsTabBar({ activeTab, onTabChange }: { activeTab: SettingsTabId; onTabChange: (tab: SettingsTabId) => void }) {
@@ -60,10 +57,8 @@ function SettingsTabBar({ activeTab, onTabChange }: { activeTab: SettingsTabId; 
 export function AdminSettingsHub({
   initialTab,
   postingMode,
-  volunteerFillout,
   customCode,
   canManageSettings,
-  canManageVolunteers,
 }: SettingsHubProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -91,22 +86,6 @@ export function AdminSettingsHub({
           className={activeTab === "posting" ? undefined : "hidden"}
         >
           <PostingAccessSettings initialMode={postingMode} canManageSettings={canManageSettings} />
-        </div>
-
-        {/* Forms */}
-        <div
-          id="settings-panel-forms"
-          role="tabpanel"
-          aria-labelledby="settings-tab-forms"
-          className={activeTab === "forms" ? undefined : "hidden"}
-        >
-          {canManageSettings || canManageVolunteers ? (
-            <VolunteerFormSettings initialValue={volunteerFillout} />
-          ) : (
-            <AdminSection title="Forms" description="Configure embedded Fillout forms for volunteer applications.">
-              <p className="text-sm text-muted-foreground">You do not have permission to manage form settings.</p>
-            </AdminSection>
-          )}
         </div>
 
         {/* Custom Code */}
