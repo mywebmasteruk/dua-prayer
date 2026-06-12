@@ -14,8 +14,7 @@ import { getPostingModeOption, type PostingMode } from "@/lib/posting-settings-s
 import type { AiProviderAdminView } from "@/lib/ai-provider"
 import type { BotRuntimeStatus, DuaEventBot } from "@/lib/dua-bots"
 import type { CustomCode } from "@/lib/custom-code-server"
-
-type SettingsTabId = "general" | "posting" | "ai-provider" | "ai-bots" | "integrations" | "roles" | "custom-code"
+import { SETTINGS_TABS, resolveSettingsTab, type SettingsTabId } from "@/lib/admin-settings-tabs"
 
 type SettingsHubProps = {
   initialTab: SettingsTabId
@@ -28,20 +27,6 @@ type SettingsHubProps = {
   canManageBots: boolean
   canManageAdmins: boolean
   canManageVolunteers: boolean
-}
-
-const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string }> = [
-  { id: "general", label: "General / Site Content" },
-  { id: "posting", label: "Posting & Access" },
-  { id: "ai-provider", label: "AI Provider" },
-  { id: "ai-bots", label: "AI Bots" },
-  { id: "integrations", label: "Integrations" },
-  { id: "roles", label: "Roles & Permissions" },
-  { id: "custom-code", label: "Custom Code" },
-]
-
-function resolveTab(value: string | null | undefined, fallback: SettingsTabId): SettingsTabId {
-  return SETTINGS_TABS.some((tab) => tab.id === value) ? (value as SettingsTabId) : fallback
 }
 
 function SettingsTabBar({ activeTab, onTabChange }: { activeTab: SettingsTabId; onTabChange: (tab: SettingsTabId) => void }) {
@@ -136,7 +121,7 @@ export function AdminSettingsHub({
 }: SettingsHubProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const activeTab = resolveTab(searchParams?.get("tab"), initialTab)
+  const activeTab = resolveSettingsTab(searchParams?.get("tab"), initialTab)
   const postingOption = getPostingModeOption(postingMode)
   const activeBots = bots.filter((bot) => bot.status === "active").length
 
@@ -370,9 +355,4 @@ export function AdminSettingsHub({
       </div>
     </div>
   )
-}
-
-export type { SettingsTabId }
-export function isSettingsTabId(value: string | undefined): value is SettingsTabId {
-  return SETTINGS_TABS.some((tab) => tab.id === value)
 }

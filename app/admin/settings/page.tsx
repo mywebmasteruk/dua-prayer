@@ -2,7 +2,8 @@ import { redirect } from "next/navigation"
 import { Settings2 } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
-import { AdminSettingsHub, isSettingsTabId } from "@/components/admin/admin-settings-hub"
+import { AdminSettingsHub } from "@/components/admin/admin-settings-hub"
+import { isSettingsTabId } from "@/lib/admin-settings-tabs"
 import { getAdminDuaBotRuntimeStatus, listAdminDuaBots } from "@/app/actions/admin-bots"
 import { getCustomCodeForAdmin } from "@/app/actions/custom-code"
 import { getAdminContext, hasPermission } from "@/lib/auth"
@@ -14,57 +15,87 @@ type PageProps = {
   searchParams: Promise<{ tab?: string }>
 }
 
-export default async function AdminSettingsPage({ searchParams }: PageProps) {
-  const [{ tab }, ctx] = await Promise.all([searchParams, getAdminContext()])
-
-  if (!ctx) redirect(signInHref({ next: "/admin/settings" }))
-
-  const canManageSettings = ctx.isFoundingAdmin || hasPermission(ctx, "manage_settings")
-  const canManageAdmins = ctx.isFoundingAdmin || hasPermission(ctx, "manage_admins")
-  const canManageBots = ctx.isFoundingAdmin || hasPermission(ctx, "manage_duas")
-  const canManageVolunteers = ctx.isFoundingAdmin || hasPermission(ctx, "manage_volunteers")
-
-  if (!canManageSettings && !canManageAdmins && !canManageBots && !canManageVolunteers) {
-    redirect(signInHref({ error: "not_admin" }))
-  }
-
-  async function safe<T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> {
-    try {
-      return await fn()
-    } catch (error) {
-      console.error(`[admin/settings] ${label} failed:`, error)
-      return fallback
-    }
-  }
-
-  const [postingMode, aiProvider, bots, botRuntimeStatus, customCode] = await Promise.all([
-    canManageSettings ? safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const) : Promise.resolve("public" as const),
-    canManageSettings ? safe("getAiProviderAdminView", () => getAiProviderAdminView(), null) : Promise.resolve(null),
-    canManageBots ? safe("listAdminDuaBots", () => listAdminDuaBots(), []) : Promise.resolve([]),
-    canManageBots ? safe("getAdminDuaBotRuntimeStatus", () => getAdminDuaBotRuntimeStatus(), null) : Promise.resolve(null),
-    canManageSettings ? safe("getCustomCodeForAdmin", () => getCustomCodeForAdmin(), { header: "", footer: "" }) : Promise.resolve({ header: "", footer: "" }),
-  ])
-
+function ErrorPanel({ stage, error }: { stage: string; error: unknown }) {
+  const message = error instanceof Error ? error.message : String(error)
+  const stack = error instanceof Error ? error.stack : undefined
   return (
-    <InnerPageLayout activePath="/admin/settings">
-      <AdminPageHeader
-        icon={Settings2}
-        title="Settings"
-        description="Control center for site content, posting access, AI Provider, bots, integrations, and roles."
-      />
-
-      <AdminSettingsHub
-        initialTab={isSettingsTabId(tab) ? tab : "general"}
-        postingMode={postingMode}
-        aiProvider={aiProvider}
-        bots={bots}
-        botRuntimeStatus={botRuntimeStatus}
-        customCode={customCode}
-        canManageSettings={canManageSettings}
-        canManageBots={canManageBots}
-        canManageAdmins={canManageAdmins}
-        canManageVolunteers={canManageVolunteers}
-      />
-    </InnerPageLayout>
+    <div className="mx-auto max-w-3xl space-y-4 px-4 py-12">
+      <h1 className="text-xl font-semibold text-foreground">Settings diagnostic</h1>
+      <p className="text-sm text-muted-foreground">
+        Stage <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{stage}</code> threw the following error. This
+        diagnostic view replaces the production error boundary so we can see the real message.
+      </p>
+      <pre className="whitespace-pre-wrap break-words rounded-md bg-muted px-3 py-2 font-mono text-xs text-foreground">
+        {message}
+      </pre>
+      {stack ? (
+        <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/60 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
+          {stack}
+        </pre>
+      ) : null}
+    </div>
   )
+}
+
+export default async function AdminSettingsPage({ searchParams }: PageProps) {
+  try {
+    const [{ tab }, ctx] = await Promise.all([searchParams, getAdminContext()])
+
+    if (!ctx) redirect(signInHref({ next: "/admin/settings" }))
+
+    const canManageSettings = ctx.isFoundingAdmin || hasPermission(ctx, "manage_settings")
+    const canManageAdmins = ctx.isFoundingAdmin || hasPermission(ctx, "manage_admins")
+    const canManageBots = ctx.isFoundingAdmin || hasPermission(ctx, "manage_duas")
+    const canManageVolunteers = ctx.isFoundingAdmin || hasPermission(ctx, "manage_volunteers")
+
+    if (!canManageSettings && !canManageAdmins && !canManageBots && !canManageVolunteers) {
+      redirect(signInHref({ error: "not_admin" }))
+    }
+
+    async function safe<T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> {
+      try {
+        return await fn()
+      } catch (error) {
+        console.error(`[admin/settings] ${label} failed:`, error)
+        return fallback
+      }
+    }
+
+    const [postingMode, aiProvider, bots, botRuntimeStatus, customCode] = await Promise.all([
+      canManageSettings ? safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const) : Promise.resolve("public" as const),
+      canManageSettings ? safe("getAiProviderAdminView", () => getAiProviderAdminView(), null) : Promise.resolve(null),
+      canManageBots ? safe("listAdminDuaBots", () => listAdminDuaBots(), []) : Promise.resolve([]),
+      canManageBots ? safe("getAdminDuaBotRuntimeStatus", () => getAdminDuaBotRuntimeStatus(), null) : Promise.resolve(null),
+      canManageSettings ? safe("getCustomCodeForAdmin", () => getCustomCodeForAdmin(), { header: "", footer: "" }) : Promise.resolve({ header: "", footer: "" }),
+    ])
+
+    return (
+      <InnerPageLayout activePath="/admin/settings">
+        <AdminPageHeader
+          icon={Settings2}
+          title="Settings"
+          description="Control center for site content, posting access, AI Provider, bots, integrations, and roles."
+        />
+
+        <AdminSettingsHub
+          initialTab={isSettingsTabId(tab) ? tab : "general"}
+          postingMode={postingMode}
+          aiProvider={aiProvider}
+          bots={bots}
+          botRuntimeStatus={botRuntimeStatus}
+          customCode={customCode}
+          canManageSettings={canManageSettings}
+          canManageBots={canManageBots}
+          canManageAdmins={canManageAdmins}
+          canManageVolunteers={canManageVolunteers}
+        />
+      </InnerPageLayout>
+    )
+  } catch (error) {
+    if (error instanceof Error && (error as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) {
+      throw error
+    }
+    console.error("[admin/settings] page render failed:", error)
+    return <ErrorPanel stage="render" error={error} />
+  }
 }
