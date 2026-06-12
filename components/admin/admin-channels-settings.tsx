@@ -25,7 +25,12 @@ import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
 import { AdminTableShell } from "@/components/admin/admin-table-shell"
 import { useAdminSelection } from "@/components/admin/use-admin-selection"
 import { VerifiedChannelBadge } from "@/components/verified-channel-badge"
-import { CHANNEL_TYPE_LABELS } from "@/lib/channel-types"
+import {
+  CHANNEL_STATUS_LABELS,
+  CHANNEL_TYPE_LABELS,
+  type ChannelStatus,
+  type ChannelType,
+} from "@/lib/channel-types"
 
 type AdminChannelsSettingsProps = {
   initialChannels: AdminChannelRecord[]
@@ -33,16 +38,53 @@ type AdminChannelsSettingsProps = {
 
 type DraftChannel = {
   name: string
+  handle: string
   description: string
+  channelType: ChannelType
+  status: ChannelStatus
   isActive: boolean
+  isVerified: boolean
+  applicantName: string
+  applicantEmail: string
+  organization: string
+  website: string
+  message: string
+  source: string
   sortOrder: number
+}
+
+const emptyDraft: DraftChannel = {
+  name: "",
+  handle: "",
+  description: "",
+  channelType: "user",
+  status: "approved",
+  isActive: true,
+  isVerified: true,
+  applicantName: "",
+  applicantEmail: "",
+  organization: "",
+  website: "",
+  message: "",
+  source: "manual-admin",
+  sortOrder: 0,
 }
 
 function toDraft(channel: AdminChannelRecord): DraftChannel {
   return {
     name: channel.name,
+    handle: channel.handle ?? channel.application?.handle ?? "",
     description: channel.description,
+    channelType: channel.channel_type,
+    status: channel.status,
     isActive: channel.is_active,
+    isVerified: channel.is_verified,
+    applicantName: channel.application?.applicantName ?? "",
+    applicantEmail: channel.application?.applicantEmail ?? "",
+    organization: channel.application?.organization ?? "",
+    website: channel.application?.website ?? "",
+    message: channel.application?.message ?? "",
+    source: channel.application?.source ?? "manual-admin",
     sortOrder: channel.sort_order,
   }
 }
@@ -52,18 +94,170 @@ function truncateText(text: string, max = 60) {
   return `${text.slice(0, max).trim()}…`
 }
 
+type ChannelDraftFormProps = {
+  draft: DraftChannel
+  onChange: (draft: DraftChannel) => void
+  mode: "add" | "edit"
+}
+
+function ChannelDraftForm({ draft, onChange, mode }: ChannelDraftFormProps) {
+  return (
+    <div className="space-y-4 py-2">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${mode}-channel-name`}>Organization / channel name</Label>
+          <Input
+            id={`${mode}-channel-name`}
+            value={draft.name}
+            onChange={(event) => onChange({ ...draft, name: event.target.value })}
+            placeholder="e.g. Masjid Al-Noor"
+            required
+            autoFocus={mode === "add"}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${mode}-channel-handle`}>Handle / slug</Label>
+          <Input
+            id={`${mode}-channel-handle`}
+            value={draft.handle}
+            onChange={(event) => onChange({ ...draft, handle: event.target.value })}
+            placeholder="alnoor"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor={`${mode}-channel-description`}>Description / mission</Label>
+        <Textarea
+          id={`${mode}-channel-description`}
+          value={draft.description}
+          onChange={(event) => onChange({ ...draft, description: event.target.value })}
+          rows={3}
+          required
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${mode}-channel-type`}>Channel type</Label>
+          <select
+            id={`${mode}-channel-type`}
+            value={draft.channelType}
+            onChange={(event) => onChange({ ...draft, channelType: event.target.value as ChannelType })}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="user">{CHANNEL_TYPE_LABELS.user}</option>
+            <option value="category">{CHANNEL_TYPE_LABELS.category}</option>
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${mode}-channel-status`}>Review status</Label>
+          <select
+            id={`${mode}-channel-status`}
+            value={draft.status}
+            onChange={(event) => {
+              const status = event.target.value as ChannelStatus
+              onChange({
+                ...draft,
+                status,
+                isActive: status === "approved" ? draft.isActive : false,
+                isVerified: status === "approved" ? draft.isVerified : false,
+              })
+            }}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="approved">{CHANNEL_STATUS_LABELS.approved}</option>
+            <option value="pending_review">{CHANNEL_STATUS_LABELS.pending_review}</option>
+            <option value="rejected">{CHANNEL_STATUS_LABELS.rejected}</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${mode}-contact-name`}>Contact name</Label>
+          <Input
+            id={`${mode}-contact-name`}
+            value={draft.applicantName}
+            onChange={(event) => onChange({ ...draft, applicantName: event.target.value })}
+            placeholder="Imam Yusuf"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${mode}-contact-email`}>Contact email</Label>
+          <Input
+            id={`${mode}-contact-email`}
+            type="email"
+            value={draft.applicantEmail}
+            onChange={(event) => onChange({ ...draft, applicantEmail: event.target.value })}
+            placeholder="imam@example.org"
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${mode}-organization`}>Organization / masjid</Label>
+          <Input
+            id={`${mode}-organization`}
+            value={draft.organization}
+            onChange={(event) => onChange({ ...draft, organization: event.target.value })}
+            placeholder="Masjid Al-Noor"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${mode}-website`}>Website / social link</Label>
+          <Input
+            id={`${mode}-website`}
+            value={draft.website}
+            onChange={(event) => onChange({ ...draft, website: event.target.value })}
+            placeholder="https://example.org"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor={`${mode}-message`}>Why / notes</Label>
+        <Textarea
+          id={`${mode}-message`}
+          value={draft.message}
+          onChange={(event) => onChange({ ...draft, message: event.target.value })}
+          rows={3}
+          placeholder="Additional context from the application."
+        />
+      </div>
+
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 px-3 py-2.5">
+        <div>
+          <p className="text-sm font-medium">Active</p>
+          <p className="text-xs text-muted-foreground">Inactive channels are hidden from the public feed.</p>
+        </div>
+        <Switch checked={draft.isActive} onCheckedChange={(checked) => onChange({ ...draft, isActive: checked })} />
+      </div>
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 px-3 py-2.5">
+        <div>
+          <p className="text-sm font-medium">Verified</p>
+          <p className="text-xs text-muted-foreground">Verified approved channels show the badge.</p>
+        </div>
+        <Switch
+          checked={draft.isVerified}
+          onCheckedChange={(checked) => onChange({ ...draft, isVerified: checked })}
+        />
+      </div>
+    </div>
+  )
+}
+
 export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettingsProps) {
   const [channels, setChannels] = useState(initialChannels)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
-  const [newName, setNewName] = useState("")
-  const [newDescription, setNewDescription] = useState("")
+  const [newDraft, setNewDraft] = useState<DraftChannel>(emptyDraft)
   const [savingId, setSavingId] = useState<number | "new" | "reorder" | "bulk" | null>(null)
   const [editingChannel, setEditingChannel] = useState<AdminChannelRecord | null>(null)
   const [editDraft, setEditDraft] = useState<DraftChannel | null>(null)
 
   const resetAddForm = () => {
-    setNewName("")
-    setNewDescription("")
+    setNewDraft(emptyDraft)
   }
 
   const closeAddDialog = () => {
@@ -88,7 +282,7 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault()
     setSavingId("new")
-    const result = await createChannel({ name: newName, description: newDescription, isActive: true })
+    const result = await createChannel(newDraft)
     setSavingId(null)
 
     if ("error" in result && result.error) {
@@ -110,13 +304,7 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
     if (!editingChannel || !editDraft) return
 
     setSavingId(editingChannel.id)
-    const result = await updateChannel({
-      id: editingChannel.id,
-      name: editDraft.name,
-      description: editDraft.description,
-      isActive: editDraft.isActive,
-      sortOrder: editDraft.sortOrder,
-    })
+    const result = await updateChannel({ id: editingChannel.id, ...editDraft })
     setSavingId(null)
 
     if ("error" in result && result.error) {
@@ -131,8 +319,23 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
               ...item,
               name: editDraft.name,
               description: editDraft.description,
+              handle: editDraft.handle || null,
+              channel_type: editDraft.channelType,
+              status: editDraft.status,
               is_active: editDraft.isActive,
+              is_verified: editDraft.isVerified,
               sort_order: editDraft.sortOrder,
+              application: {
+                name: editDraft.name,
+                description: editDraft.description,
+                handle: editDraft.handle || undefined,
+                applicantName: editDraft.applicantName || undefined,
+                applicantEmail: editDraft.applicantEmail || undefined,
+                organization: editDraft.organization || undefined,
+                website: editDraft.website || undefined,
+                message: editDraft.message || undefined,
+                source: editDraft.source || undefined,
+              },
             }
           : item,
       ),
@@ -433,32 +636,12 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
           else closeAddDialog()
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Add channel</DialogTitle>
           </DialogHeader>
-          <form id="add-channel-form" onSubmit={handleCreate} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="new-channel-name">Name</Label>
-              <Input
-                id="new-channel-name"
-                value={newName}
-                onChange={(event) => setNewName(event.target.value)}
-                placeholder="e.g. Ramadan"
-                required
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="new-channel-description">Description</Label>
-              <Textarea
-                id="new-channel-description"
-                value={newDescription}
-                onChange={(event) => setNewDescription(event.target.value)}
-                rows={3}
-                required
-              />
-            </div>
+          <form id="add-channel-form" onSubmit={handleCreate}>
+            <ChannelDraftForm draft={newDraft} onChange={setNewDraft} mode="add" />
           </form>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={closeAddDialog} disabled={savingId === "new"}>
@@ -487,41 +670,11 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit channel</DialogTitle>
           </DialogHeader>
-          {editDraft ? (
-            <div className="space-y-4 py-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-channel-name">Name</Label>
-                <Input
-                  id="edit-channel-name"
-                  value={editDraft.name}
-                  onChange={(event) => setEditDraft({ ...editDraft, name: event.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-channel-description">Description</Label>
-                <Textarea
-                  id="edit-channel-description"
-                  value={editDraft.description}
-                  onChange={(event) => setEditDraft({ ...editDraft, description: event.target.value })}
-                  rows={3}
-                />
-              </div>
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 px-3 py-2.5">
-                <div>
-                  <p className="text-sm font-medium">Active</p>
-                  <p className="text-xs text-muted-foreground">Inactive channels are hidden from the public feed.</p>
-                </div>
-                <Switch
-                  checked={editDraft.isActive}
-                  onCheckedChange={(checked) => setEditDraft({ ...editDraft, isActive: checked })}
-                />
-              </div>
-            </div>
-          ) : null}
+          {editDraft ? <ChannelDraftForm draft={editDraft} onChange={setEditDraft} mode="edit" /> : null}
           <DialogFooter>
             <Button
               variant="outline"
