@@ -2,6 +2,7 @@
 
 import { useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { PostingAccessSettings } from "@/components/admin/posting-access-settings"
 import { CustomCodeSettings } from "@/components/admin/custom-code-settings"
 import { BetaBannerSettings } from "@/components/admin/beta-banner-settings"
 import { VolunteerFormSettings } from "@/components/admin/volunteer-form-settings"
@@ -10,9 +11,11 @@ import { cn } from "@/lib/utils"
 import type { CustomCode } from "@/lib/custom-code-server"
 import type { BetaBannerSettings as BetaBannerSettingsValue } from "@/lib/site-settings-server"
 import { SETTINGS_TABS, resolveSettingsTab, type SettingsTabId } from "@/lib/admin-settings-tabs"
+import type { PostingMode } from "@/lib/posting-settings-shared"
 
 type SettingsHubProps = {
   initialTab: SettingsTabId
+  postingMode: PostingMode
   betaBanner: BetaBannerSettingsValue | null
   volunteerFillout: string
   customCode: CustomCode
@@ -60,6 +63,7 @@ function SettingsTabBar({ activeTab, onTabChange }: { activeTab: SettingsTabId; 
 
 export function AdminSettingsHub({
   initialTab,
+  postingMode,
   betaBanner,
   volunteerFillout,
   customCode,
@@ -85,6 +89,16 @@ export function AdminSettingsHub({
       <SettingsTabBar activeTab={activeTab} onTabChange={handleTabChange} />
 
       <div className="pt-6">
+        {/* Posting & Access */}
+        <div
+          id="settings-panel-posting"
+          role="tabpanel"
+          aria-labelledby="settings-tab-posting"
+          className={activeTab === "posting" ? undefined : "hidden"}
+        >
+          <PostingAccessSettings initialMode={postingMode} canManageSettings={canManageSettings} />
+        </div>
+
         {/* Beta Banner */}
         <div
           id="settings-panel-banner"

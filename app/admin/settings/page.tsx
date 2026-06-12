@@ -7,6 +7,7 @@ import { isSettingsTabId } from "@/lib/admin-settings-tabs"
 import { getCustomCodeForAdmin } from "@/app/actions/custom-code"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
+import { getPostingModeForAdmin } from "@/lib/posting-settings"
 import {
   getBetaBannerSettingsForSuperAdmin,
   getVolunteerFilloutSettingForAdmin,
@@ -59,7 +60,10 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
       }
     }
 
-    const [betaBanner, volunteerFillout, customCode] = await Promise.all([
+    const [postingMode, betaBanner, volunteerFillout, customCode] = await Promise.all([
+      canManageSettings
+        ? safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const)
+        : Promise.resolve("public" as const),
       ctx.isFoundingAdmin
         ? safe("getBetaBannerSettings", () => getBetaBannerSettingsForSuperAdmin(), null)
         : Promise.resolve(null),
@@ -76,11 +80,12 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
         <AdminPageHeader
           icon={Settings2}
           title="Settings"
-          description="Announcements, forms, and custom code."
+          description="Posting rules, announcements, forms, and custom code."
         />
 
         <AdminSettingsHub
-          initialTab={isSettingsTabId(tab) ? tab : "banner"}
+          initialTab={isSettingsTabId(tab) ? tab : "posting"}
+          postingMode={postingMode}
           betaBanner={betaBanner}
           volunteerFillout={volunteerFillout}
           customCode={customCode}
