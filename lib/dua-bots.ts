@@ -131,6 +131,12 @@ type EventDiscovery = {
   warnings: string[]
 }
 
+type EventSelection = {
+  events: EventCandidate[]
+  totalMatched: number
+  skippedDuplicates: number
+}
+
 const MAX_EVENTS_PER_BOT = 3
 const MAX_SOURCE_BYTES = 500_000
 const REQUEST_TIMEOUT_MS = 8_000
@@ -265,6 +271,17 @@ function matchesBot(bot: DuaBot, event: EventCandidate): boolean {
   if (filters.length === 0) return true
   const haystack = `${event.title} ${event.summary ?? ""}`.toLowerCase()
   return filters.some((filter) => haystack.includes(filter))
+}
+
+export function selectUnpostedDuaBotEvents(events: EventCandidate[], postedKeys: ReadonlySet<string>, limit = MAX_EVENTS_PER_BOT): EventSelection {
+  const sortedEvents = [...events].sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""))
+  const unpostedEvents = sortedEvents.filter((event) => !postedKeys.has(event.key))
+
+  return {
+    events: unpostedEvents.slice(0, limit),
+    totalMatched: sortedEvents.length,
+    skippedDuplicates: sortedEvents.length - unpostedEvents.length,
+  }
 }
 
 export function buildDuaBotPromptMessages({
@@ -504,20 +521,28 @@ async function updateBotRunState(bot: DuaBot, status: Exclude<BotRunStatus, "run
   if (error) console.error("Error updating dua bot state:", error)
 }
 
-async function alreadyPosted(botId: number, key: string): Promise<boolean> {
+async function getPostedEventKeys(botId: number, keys: string[]): Promise<Set<string>> {
+  const uniqueKeys = [...new Set(keys)]
+  if (uniqueKeys.length === 0) return new Set()
+
   const admin = createAdminSupabaseClient()
   const { data, error } = await admin
     .from("dua_bot_event_posts")
-    .select("id")
+    .select("event_key")
     .eq("bot_id", botId)
-    .eq("event_key", key)
-    .maybeSingle()
+    .in("event_key", uniqueKeys)
 
   if (error) {
     console.error("Error checking bot event dedupe:", error)
-    return true
+    return new Set(uniqueKeys)
   }
-  return Boolean(data)
+
+  return new Set((data ?? []).map((row) => row.event_key as string))
+}
+
+async function alreadyPosted(botId: number, key: string): Promise<boolean> {
+  const postedKeys = await getPostedEventKeys(botId, [key])
+  return postedKeys.has(key)
 }
 
 async function createDuaFromEvent(
@@ -600,16 +625,25 @@ async function runOneBot(bot: DuaBot): Promise<{ created: number; error: string 
     }
 
     const discovery = await discoverEvents(bot)
-    events = discovery.events
-      .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""))
-      .slice(0, MAX_EVENTS_PER_BOT)
+    const matchedEvents = discovery.events
     warnings = discovery.warnings
 
-    if (events.length === 0) {
+    if (matchedEvents.length === 0) {
       const message = warnings.length > 0
         ? `No matching events found. Source warnings: ${warnings.join("; ")}`
         : "No matching recent events found from configured RSS/news sources."
       await finishRun(runId, "skipped", 0, 0, message)
+      await updateBotRunState(bot, "skipped", message)
+      return { created: 0, error: null }
+    }
+
+    const postedKeys = await getPostedEventKeys(bot.id, matchedEvents.map((event) => event.key))
+    const selection = selectUnpostedDuaBotEvents(matchedEvents, postedKeys, MAX_EVENTS_PER_BOT)
+    events = selection.events
+
+    if (events.length === 0) {
+      const message = `No new matching events found. ${selection.totalMatched} matched event(s), ${selection.skippedDuplicates} already posted.${warnings.length > 0 ? ` Source warnings: ${warnings.join("; ")}` : ""}`
+      await finishRun(runId, "skipped", selection.totalMatched, 0, message)
       await updateBotRunState(bot, "skipped", message)
       return { created: 0, error: null }
     }
@@ -619,8 +653,10 @@ async function runOneBot(bot: DuaBot): Promise<{ created: number; error: string 
     }
 
     const status = created > 0 ? "success" : "skipped"
-    const message = created > 0 ? (warnings.length > 0 ? `Source warnings: ${warnings.join("; ")}` : null) : "Matching events were already posted by this bot."
-    await finishRun(runId, status, events.length, created, message)
+    const message = created > 0
+      ? `${selection.totalMatched} matched event(s), ${selection.skippedDuplicates} duplicate(s) skipped.${warnings.length > 0 ? ` Source warnings: ${warnings.join("; ")}` : ""}`
+      : `Selected matching events were already posted before insert. ${selection.totalMatched} matched event(s), ${selection.skippedDuplicates} duplicate(s) skipped.`
+    await finishRun(runId, status, selection.totalMatched, created, message)
     await updateBotRunState(bot, status, message)
     return { created, error: null }
   } catch (error) {
