@@ -1,18 +1,14 @@
 export type SettingsTabId =
-  | "general"
   | "posting"
-  | "ai-provider"
-  | "ai-bots"
-  | "integrations"
+  | "banner"
+  | "forms"
   | "roles"
   | "custom-code"
 
 export const SETTINGS_TABS: ReadonlyArray<{ id: SettingsTabId; label: string }> = [
-  { id: "general", label: "General / Site Content" },
   { id: "posting", label: "Posting & Access" },
-  { id: "ai-provider", label: "AI Provider" },
-  { id: "ai-bots", label: "AI Bots" },
-  { id: "integrations", label: "Integrations" },
+  { id: "banner", label: "Beta Banner" },
+  { id: "forms", label: "Forms" },
   { id: "roles", label: "Roles & Permissions" },
   { id: "custom-code", label: "Custom Code" },
 ]

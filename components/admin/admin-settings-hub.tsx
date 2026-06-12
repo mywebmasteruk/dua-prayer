@@ -1,32 +1,32 @@
 "use client"
 
-import Link from "next/link"
-import { useCallback, type ReactNode } from "react"
+import { useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronRight, FileText, KeyRound, Plug, Shield, SlidersHorizontal, Type, type LucideIcon } from "lucide-react"
-import { AdminSection } from "@/components/admin/admin-section"
-import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
 import { PostingAccessSettings } from "@/components/admin/posting-access-settings"
 import { CustomCodeSettings } from "@/components/admin/custom-code-settings"
+import { BetaBannerSettings } from "@/components/admin/beta-banner-settings"
+import { VolunteerFormSettings } from "@/components/admin/volunteer-form-settings"
+import { AdminSection } from "@/components/admin/admin-section"
+import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { getPostingModeOption, type PostingMode } from "@/lib/posting-settings-shared"
-import type { AiProviderAdminView } from "@/lib/ai-provider"
-import type { BotRuntimeStatus, DuaEventBot } from "@/lib/dua-bots"
 import type { CustomCode } from "@/lib/custom-code-server"
+import type { BetaBannerSettings as BetaBannerSettingsValue } from "@/lib/site-settings-server"
 import { SETTINGS_TABS, resolveSettingsTab, type SettingsTabId } from "@/lib/admin-settings-tabs"
+import Link from "next/link"
+import { Shield, SlidersHorizontal } from "lucide-react"
 
 type SettingsHubProps = {
   initialTab: SettingsTabId
   postingMode: PostingMode
-  aiProvider: AiProviderAdminView | null
-  bots: DuaEventBot[]
-  botRuntimeStatus: BotRuntimeStatus | null
+  betaBanner: BetaBannerSettingsValue | null
+  volunteerFillout: string
   customCode: CustomCode
   canManageSettings: boolean
-  canManageBots: boolean
   canManageAdmins: boolean
   canManageVolunteers: boolean
+  isFoundingAdmin: boolean
 }
 
 function SettingsTabBar({ activeTab, onTabChange }: { activeTab: SettingsTabId; onTabChange: (tab: SettingsTabId) => void }) {
@@ -66,64 +66,21 @@ function SettingsTabBar({ activeTab, onTabChange }: { activeTab: SettingsTabId; 
   )
 }
 
-function SettingsLinkCard({
-  title,
-  description,
-  href,
-  icon: Icon,
-  label = "Open",
-  status,
-}: {
-  title: string
-  description: string
-  href: string
-  icon: LucideIcon
-  label?: string
-  status?: ReactNode
-}) {
-  return (
-    <div className="rounded-xl border border-border/70 bg-background p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 gap-3">
-          <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-primary">
-            <Icon className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold text-foreground">{title}</h3>
-              {status}
-            </div>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
-          </div>
-        </div>
-        <Button variant="outline" size="sm" asChild className="shrink-0 rounded-full">
-          <Link href={href}>
-            {label}
-            <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
-        </Button>
-      </div>
-    </div>
-  )
-}
-
 export function AdminSettingsHub({
   initialTab,
   postingMode,
-  aiProvider,
-  bots,
-  botRuntimeStatus,
+  betaBanner,
+  volunteerFillout,
   customCode,
   canManageSettings,
-  canManageBots,
   canManageAdmins,
   canManageVolunteers,
+  isFoundingAdmin,
 }: SettingsHubProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const activeTab = resolveSettingsTab(searchParams?.get("tab"), initialTab)
   const postingOption = getPostingModeOption(postingMode)
-  const activeBots = bots.filter((bot) => bot.status === "active").length
 
   const handleTabChange = useCallback(
     (tab: SettingsTabId) => {
@@ -139,215 +96,115 @@ export function AdminSettingsHub({
       <SettingsTabBar activeTab={activeTab} onTabChange={handleTabChange} />
 
       <div className="pt-6">
-        <div
-          id="settings-panel-general"
-          role="tabpanel"
-          aria-labelledby="settings-tab-general"
-          hidden={activeTab !== "general"}
-          className={activeTab === "general" ? "space-y-4" : "hidden"}
-        >
-          <AdminSection
-            title="General / Site Content"
-            description="Central links for copy, homepage content, channels, beta messaging, and other visible site surfaces."
-          >
-            <div className="grid gap-4 lg:grid-cols-2">
-              {canManageSettings ? (
-                <SettingsLinkCard
-                  title="Site Content"
-                  description="Edit homepage, composer, channels, donate, auth, sidebar, footer, and About page text."
-                  href="/admin/copy"
-                  icon={Type}
-                  label="Edit content"
-                />
-              ) : null}
-              {canManageSettings ? (
-                <SettingsLinkCard
-                  title="Channels"
-                  description="Create, sort, verify, and archive public dua categories and member channels."
-                  href="/admin/channels"
-                  icon={FileText}
-                  label="Manage channels"
-                />
-              ) : null}
-            </div>
-          </AdminSection>
-        </div>
-
+        {/* Posting & Access */}
         <div
           id="settings-panel-posting"
           role="tabpanel"
           aria-labelledby="settings-tab-posting"
-          hidden={activeTab !== "posting"}
           className={activeTab === "posting" ? undefined : "hidden"}
         >
           <PostingAccessSettings initialMode={postingMode} canManageSettings={canManageSettings} />
         </div>
 
+        {/* Beta Banner */}
         <div
-          id="settings-panel-ai-provider"
+          id="settings-panel-banner"
           role="tabpanel"
-          aria-labelledby="settings-tab-ai-provider"
-          hidden={activeTab !== "ai-provider"}
-          className={activeTab === "ai-provider" ? undefined : "hidden"}
+          aria-labelledby="settings-tab-banner"
+          className={activeTab === "banner" ? undefined : "hidden"}
         >
-          <AdminSection
-            title="AI Provider"
-            description="Provider settings are shared by dua moderation and event-aware bots."
-            action={
-              <Button variant="outline" size="sm" asChild className="rounded-full">
-                <Link href="/admin/integration?tab=ai-moderation">
-                  Configure provider
-                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </Button>
-            }
-          >
-            <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
-              <div className="rounded-lg border border-border/60 p-3">
-                <p className="font-medium text-foreground">Status</p>
-                <div className="mt-2">
-                  <AdminStatusBadge
-                    label={aiProvider?.ready ? "Ready" : "Needs setup"}
-                    tone={aiProvider?.ready ? "success" : "warning"}
-                  />
-                </div>
-              </div>
-              <div className="rounded-lg border border-border/60 p-3">
-                <p className="font-medium text-foreground">Provider</p>
-                <p className="mt-1">{aiProvider?.provider && aiProvider.provider !== "none" ? aiProvider.provider : "Not configured"}</p>
-              </div>
-              <div className="rounded-lg border border-border/60 p-3">
-                <p className="font-medium text-foreground">API key</p>
-                <p className="mt-1">{aiProvider?.hasApiKey ? `Saved ·•••• ${aiProvider.apiKeyLast4}` : "Not saved"}</p>
-              </div>
-            </div>
-          </AdminSection>
+          {isFoundingAdmin && betaBanner ? (
+            <BetaBannerSettings initialSettings={betaBanner} />
+          ) : (
+            <AdminSection title="Beta Banner" description="Control the announcement banner shown at the top of every page.">
+              <p className="text-sm text-muted-foreground">Beta banner settings are restricted to the founding admin.</p>
+            </AdminSection>
+          )}
         </div>
 
+        {/* Forms */}
         <div
-          id="settings-panel-ai-bots"
+          id="settings-panel-forms"
           role="tabpanel"
-          aria-labelledby="settings-tab-ai-bots"
-          hidden={activeTab !== "ai-bots"}
-          className={activeTab === "ai-bots" ? undefined : "hidden"}
+          aria-labelledby="settings-tab-forms"
+          className={activeTab === "forms" ? undefined : "hidden"}
         >
-          <AdminSection
-            title="AI Bots"
-            description="Create, edit, pause, resume, schedule, and run event-aware dua bots."
-            action={
-              canManageBots ? (
-                <Button variant="outline" size="sm" asChild className="rounded-full">
-                  <Link href="/admin/bots">
-                    Open bot controls
-                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                  </Link>
-                </Button>
-              ) : null
-            }
-          >
-            <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
-              <div className="rounded-lg border border-border/60 p-3">
-                <p className="font-medium text-foreground">Configured bots</p>
-                <p className="mt-1">{bots.length} total · {activeBots} active</p>
-              </div>
-              <div className="rounded-lg border border-border/60 p-3">
-                <p className="font-medium text-foreground">Runtime</p>
-                <div className="mt-2">
-                  <AdminStatusBadge
-                    label={botRuntimeStatus?.canGenerateDuas ? "Ready" : "Needs AI Provider"}
-                    tone={botRuntimeStatus?.canGenerateDuas ? "success" : "warning"}
-                  />
-                </div>
-              </div>
-              <div className="rounded-lg border border-border/60 p-3">
-                <p className="font-medium text-foreground">Cron endpoint</p>
-                <p className="mt-1 font-mono text-xs">/api/bots/run</p>
-              </div>
-            </div>
-            <p className="mt-4 text-sm text-muted-foreground">
-              {botRuntimeStatus?.helperText ?? "Bot controls require dua management access."}
-            </p>
-          </AdminSection>
+          {canManageSettings || canManageVolunteers ? (
+            <VolunteerFormSettings initialValue={volunteerFillout} />
+          ) : (
+            <AdminSection title="Forms" description="Configure embedded Fillout forms for volunteer applications.">
+              <p className="text-sm text-muted-foreground">You do not have permission to manage form settings.</p>
+            </AdminSection>
+          )}
         </div>
 
-        <div
-          id="settings-panel-integrations"
-          role="tabpanel"
-          aria-labelledby="settings-tab-integrations"
-          hidden={activeTab !== "integrations"}
-          className={activeTab === "integrations" ? undefined : "hidden"}
-        >
-          <AdminSection
-            title="Integrations / Webhooks / API Keys"
-            description="Connect payments, Fillout forms, Supabase, auth, webhooks, API keys, MCP, and AI Provider settings."
-          >
-            <div className="grid gap-4 lg:grid-cols-2">
-              {(canManageSettings || canManageVolunteers) ? (
-                <SettingsLinkCard
-                  title="Integration hub"
-                  description="Review Stripe, Fillout, webhooks, Supabase, auth, API keys, MCP, and AI Provider configuration."
-                  href="/admin/integration"
-                  icon={Plug}
-                  label="Open integration"
-                />
-              ) : null}
-              {canManageSettings ? (
-                <SettingsLinkCard
-                  title="API keys & MCP"
-                  description="Check environment-backed service keys and MCP integration guidance without exposing secrets."
-                  href="/admin/integration?tab=api-keys"
-                  icon={KeyRound}
-                  label="Review keys"
-                />
-              ) : null}
-            </div>
-          </AdminSection>
-        </div>
-
+        {/* Roles & Permissions */}
         <div
           id="settings-panel-roles"
           role="tabpanel"
           aria-labelledby="settings-tab-roles"
-          hidden={activeTab !== "roles"}
           className={activeTab === "roles" ? undefined : "hidden"}
         >
           <AdminSection
             title="Roles & Permissions"
-            description="Invite admins, assign role presets, and review access to admin capabilities."
+            description="Invite admins, assign role presets, and control who can submit duas."
           >
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               {canManageAdmins ? (
-                <SettingsLinkCard
-                  title="Admin roles"
-                  description="Manage admin access, role presets, and the current admin team."
-                  href="/admin/users/roles"
-                  icon={Shield}
-                  label="Manage roles"
-                />
+                <div className="rounded-xl border border-border/70 bg-background p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex min-w-0 gap-3">
+                      <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-primary">
+                        <Shield className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <div>
+                        <h3 className="font-semibold">Admin roles</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">Manage admin access, role presets, and the current admin team.</p>
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" asChild className="shrink-0 rounded-full">
+                      <Link href="/admin/users/roles">Manage</Link>
+                    </Button>
+                  </div>
+                </div>
               ) : null}
-              <SettingsLinkCard
-                title="Current posting policy"
-                description={postingOption?.helper ?? "Visitors and signed-in members can submit public duas."}
-                href="/admin/settings?tab=posting"
-                icon={SlidersHorizontal}
-                label={postingOption?.label ?? "Anyone can post"}
-                status={<AdminStatusBadge label={postingOption?.label ?? "Anyone can post"} tone={postingMode === "closed" ? "danger" : postingMode === "registered_only" ? "warning" : "success"} />}
-              />
+              <div className="rounded-xl border border-border/70 bg-background p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 gap-3">
+                    <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-primary">
+                      <SlidersHorizontal className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold">Posting policy</h3>
+                        <AdminStatusBadge
+                          label={postingOption?.label ?? "Anyone can post"}
+                          tone={postingMode === "closed" ? "danger" : postingMode === "registered_only" ? "warning" : "success"}
+                        />
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">{postingOption?.helper ?? "Visitors and signed-in members can submit public duas."}</p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" className="shrink-0 rounded-full" onClick={() => handleTabChange("posting")}>
+                    Change
+                  </Button>
+                </div>
+              </div>
             </div>
           </AdminSection>
         </div>
 
+        {/* Custom Code */}
         <div
           id="settings-panel-custom-code"
           role="tabpanel"
           aria-labelledby="settings-tab-custom-code"
-          hidden={activeTab !== "custom-code"}
           className={activeTab === "custom-code" ? undefined : "hidden"}
         >
           {canManageSettings ? (
             <CustomCodeSettings initialCode={customCode} />
           ) : (
-            <AdminSection title="Custom Code" description="You do not have permission to manage custom code.">
+            <AdminSection title="Custom Code" description="Inject scripts into the page header and footer.">
               <p className="text-sm text-muted-foreground">Settings access required.</p>
             </AdminSection>
           )}

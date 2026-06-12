@@ -4,12 +4,14 @@ import { InnerPageLayout } from "@/components/inner-page-layout"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import { AdminSettingsHub } from "@/components/admin/admin-settings-hub"
 import { isSettingsTabId } from "@/lib/admin-settings-tabs"
-import { getAdminDuaBotRuntimeStatus, listAdminDuaBots } from "@/app/actions/admin-bots"
 import { getCustomCodeForAdmin } from "@/app/actions/custom-code"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
-import { getAiProviderAdminView } from "@/lib/ai-provider"
 import { getPostingModeForAdmin } from "@/lib/posting-settings"
+import {
+  getBetaBannerSettingsForSuperAdmin,
+  getVolunteerFilloutSettingForAdmin,
+} from "@/app/actions/settings"
 
 type PageProps = {
   searchParams: Promise<{ tab?: string }>
@@ -22,8 +24,7 @@ function ErrorPanel({ stage, error }: { stage: string; error: unknown }) {
     <div className="mx-auto max-w-3xl space-y-4 px-4 py-12">
       <h1 className="text-xl font-semibold text-foreground">Settings diagnostic</h1>
       <p className="text-sm text-muted-foreground">
-        Stage <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{stage}</code> threw the following error. This
-        diagnostic view replaces the production error boundary so we can see the real message.
+        Stage <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{stage}</code> threw the following error.
       </p>
       <pre className="whitespace-pre-wrap break-words rounded-md bg-muted px-3 py-2 font-mono text-xs text-foreground">
         {message}
@@ -45,10 +46,9 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
 
     const canManageSettings = ctx.isFoundingAdmin || hasPermission(ctx, "manage_settings")
     const canManageAdmins = ctx.isFoundingAdmin || hasPermission(ctx, "manage_admins")
-    const canManageBots = ctx.isFoundingAdmin || hasPermission(ctx, "manage_duas")
     const canManageVolunteers = ctx.isFoundingAdmin || hasPermission(ctx, "manage_volunteers")
 
-    if (!canManageSettings && !canManageAdmins && !canManageBots && !canManageVolunteers) {
+    if (!canManageSettings && !canManageAdmins && !canManageVolunteers) {
       redirect(signInHref({ error: "not_admin" }))
     }
 
@@ -61,12 +61,19 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
       }
     }
 
-    const [postingMode, aiProvider, bots, botRuntimeStatus, customCode] = await Promise.all([
-      canManageSettings ? safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const) : Promise.resolve("public" as const),
-      canManageSettings ? safe("getAiProviderAdminView", () => getAiProviderAdminView(), null) : Promise.resolve(null),
-      canManageBots ? safe("listAdminDuaBots", () => listAdminDuaBots(), []) : Promise.resolve([]),
-      canManageBots ? safe("getAdminDuaBotRuntimeStatus", () => getAdminDuaBotRuntimeStatus(), null) : Promise.resolve(null),
-      canManageSettings ? safe("getCustomCodeForAdmin", () => getCustomCodeForAdmin(), { header: "", footer: "" }) : Promise.resolve({ header: "", footer: "" }),
+    const [postingMode, betaBanner, volunteerFillout, customCode] = await Promise.all([
+      canManageSettings
+        ? safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const)
+        : Promise.resolve("public" as const),
+      ctx.isFoundingAdmin
+        ? safe("getBetaBannerSettings", () => getBetaBannerSettingsForSuperAdmin(), null)
+        : Promise.resolve(null),
+      canManageSettings || canManageVolunteers
+        ? safe("getVolunteerFillout", () => getVolunteerFilloutSettingForAdmin(), "")
+        : Promise.resolve(""),
+      canManageSettings
+        ? safe("getCustomCodeForAdmin", () => getCustomCodeForAdmin(), { header: "", footer: "" })
+        : Promise.resolve({ header: "", footer: "" }),
     ])
 
     return (
@@ -74,20 +81,19 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
         <AdminPageHeader
           icon={Settings2}
           title="Settings"
-          description="Control center for site content, posting access, AI Provider, bots, integrations, and roles."
+          description="Posting rules, announcements, forms, roles, and custom code."
         />
 
         <AdminSettingsHub
-          initialTab={isSettingsTabId(tab) ? tab : "general"}
+          initialTab={isSettingsTabId(tab) ? tab : "posting"}
           postingMode={postingMode}
-          aiProvider={aiProvider}
-          bots={bots}
-          botRuntimeStatus={botRuntimeStatus}
+          betaBanner={betaBanner}
+          volunteerFillout={volunteerFillout}
           customCode={customCode}
           canManageSettings={canManageSettings}
-          canManageBots={canManageBots}
           canManageAdmins={canManageAdmins}
           canManageVolunteers={canManageVolunteers}
+          isFoundingAdmin={ctx.isFoundingAdmin}
         />
       </InnerPageLayout>
     )
