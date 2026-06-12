@@ -33,7 +33,9 @@ export type EvaluateDuaModerationInput = {
   providerClient?: ProviderClient
 }
 
-const MODERATION_TIMEOUT_MS = 8_000
+// Caps worst-case submit latency; on timeout the dua falls back to manual
+// review (see evaluateDuaModeration catch), so slow providers fail safe.
+const MODERATION_TIMEOUT_MS = 4_000
 const MAX_REASON_LENGTH = 240
 
 const LOCAL_BLOCK_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [

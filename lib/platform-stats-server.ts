@@ -8,13 +8,15 @@ function compactNumber(value: number) {
 async function fetchPlatformStats() {
   const supabase = createAdminSupabaseClient()
 
-  const [{ count: totalDuas }, { count: totalCategories }, { data: likesRows }] = await Promise.all([
-    supabase.from("duas").select("*", { count: "exact", head: true }).eq("published", true),
+  const [{ data: totals, error: totalsError }, { count: totalCategories }] = await Promise.all([
+    supabase.rpc("platform_dua_totals"),
     supabase.from("categories").select("*", { count: "exact", head: true }),
-    supabase.from("duas").select("likes").eq("published", true),
   ])
 
-  const totalAmeens = (likesRows ?? []).reduce((sum, row) => sum + (row.likes ?? 0), 0)
+  if (totalsError) console.error("Error fetching platform dua totals:", totalsError)
+  const row = (totals as Array<{ total_duas: number; total_ameens: number }> | null)?.[0]
+  const totalDuas = Number(row?.total_duas ?? 0)
+  const totalAmeens = Number(row?.total_ameens ?? 0)
 
   return {
     totalDuas: totalDuas ?? 0,

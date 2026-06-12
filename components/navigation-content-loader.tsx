@@ -26,7 +26,11 @@ export function NavigationContentLoader({ children, className }: NavigationConte
           <span className="sr-only">Loading page content</span>
         </div>
       ) : null}
-      <div className={cn(isNavigating && "pointer-events-none invisible")}>{children}</div>
+      {/* Keep outgoing content visible but dimmed — blanking it makes every
+          navigation feel like a full reload. */}
+      <div className={cn("transition-opacity duration-150", isNavigating && "pointer-events-none opacity-40")}>
+        {children}
+      </div>
     </div>
   )
 }

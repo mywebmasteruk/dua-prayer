@@ -314,17 +314,16 @@ export async function getFeedDuas(options: { offset?: number } = {}) {
 
 export async function getTopCategories(limit = 3) {
   const supabase = await createServerSupabaseClient()
-  const [{ data: duas, error: duasError }, categories] = await Promise.all([
-    supabase.from("duas").select("category_id").eq("published", true).not("category_id", "is", null),
+  const [{ data: categoryCounts, error: countsError }, categories] = await Promise.all([
+    supabase.rpc("dua_category_counts"),
     fetchCategoriesFromDb(supabase),
   ])
 
-  if (duasError) console.error("Error fetching category usage:", duasError)
+  if (countsError) console.error("Error fetching category usage:", countsError)
 
   const counts = new Map<number, number>()
-  for (const dua of duas ?? []) {
-    if (!dua.category_id) continue
-    counts.set(dua.category_id, (counts.get(dua.category_id) ?? 0) + 1)
+  for (const row of (categoryCounts ?? []) as Array<{ category_id: number; dua_count: number }>) {
+    counts.set(Number(row.category_id), Number(row.dua_count))
   }
 
   return categories
