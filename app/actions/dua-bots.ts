@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { requirePermission } from "@/lib/auth"
-import { normalizeBotInput, runDueDuaBots, type BotFormInput, type BotStatus } from "@/lib/dua-bots"
+import { buildDuplicateDuaBotInsert } from "@/lib/dua-bot-duplicates"
+import { normalizeBotInput, runDueDuaBots, type BotFormInput, type BotStatus, type DuaBot } from "@/lib/dua-bots"
 
 function botsPath() {
   revalidatePath("/admin/bots")
@@ -46,6 +47,30 @@ export async function updateDuaBot(input: BotFormInput & { id: number }) {
     .eq("id", input.id)
 
   if (error) return { error: error.message }
+  botsPath()
+  return { success: true as const }
+}
+
+export async function duplicateDuaBot(id: number) {
+  const gate = await requirePermission("manage_duas")
+  if (!gate.ok) return { error: "Unauthorized" }
+  if (!Number.isInteger(id)) return { error: "Choose a valid bot." }
+
+  const admin = createAdminSupabaseClient()
+  const { data: bot, error: loadError } = await admin
+    .from("dua_bots")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle()
+
+  if (loadError) return { error: loadError.message }
+  if (!bot) return { error: "Bot not found." }
+
+  const { error: insertError } = await admin
+    .from("dua_bots")
+    .insert(buildDuplicateDuaBotInsert(bot as DuaBot, gate.user.id))
+
+  if (insertError) return { error: insertError.message }
   botsPath()
   return { success: true as const }
 }

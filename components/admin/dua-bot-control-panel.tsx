@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
 import {
   createAdminDuaBot,
+  duplicateAdminDuaBot,
   pauseAdminDuaBot,
   resumeAdminDuaBot,
   runAdminDuaBotNow,
@@ -160,6 +161,16 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
     setRunningId(null)
   }
 
+  const handleDuplicate = async (bot: DuaEventBot) => {
+    const result = await duplicateAdminDuaBot(bot.id)
+    if ("error" in result && result.error) {
+      toast({ title: "Could not duplicate bot", description: result.error, variant: "destructive" })
+      return
+    }
+    toast({ title: "Bot duplicated", description: "The copy was created paused so it will not post until resumed." })
+    window.location.reload()
+  }
+
   return (
     <div className="space-y-6">
       <AdminSection
@@ -247,6 +258,7 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
                       disabled={runningId === bot.id}
                       actions={[
                         { label: "Edit", onClick: () => openEdit(bot) },
+                        { label: "Duplicate", onClick: () => handleDuplicate(bot) },
                         { label: bot.status === "active" ? "Pause" : "Resume", onClick: () => handleStatus(bot) },
                         {
                           label: runningId === bot.id ? "Running…" : "Run now",
