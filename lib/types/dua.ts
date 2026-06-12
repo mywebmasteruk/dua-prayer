@@ -9,6 +9,7 @@ export interface Dua {
   created_at: string
   category_name?: string
   category_channel_type?: ChannelType
+  is_bot_generated?: boolean
   user_has_prayed?: boolean
   published: boolean
   flagged: boolean

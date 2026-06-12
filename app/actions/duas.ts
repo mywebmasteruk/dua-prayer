@@ -207,6 +207,24 @@ async function enrichDuas(
   const supabase = await createServerSupabaseClient()
   const { data: categories } = await supabase.from("categories").select("id, name, channel_type")
   const categoryMap = new Map(categories?.map((c) => [c.id, c]) ?? [])
+  const duaIds = duas.map((dua) => dua.id)
+  const botGeneratedIds = new Set<number>()
+
+  if (duaIds.length > 0) {
+    const admin = createAdminSupabaseClient()
+    const { data: botPosts, error: botPostsError } = await admin
+      .from("dua_bot_event_posts")
+      .select("dua_id")
+      .in("dua_id", duaIds)
+
+    if (botPostsError) {
+      console.error("Error fetching bot-generated dua markers:", botPostsError)
+    } else {
+      for (const post of botPosts ?? []) {
+        if (typeof post.dua_id === "number") botGeneratedIds.add(post.dua_id)
+      }
+    }
+  }
 
   const {
     data: { user },
@@ -232,6 +250,7 @@ async function enrichDuas(
       ...dua,
       category_name: category?.name,
       category_channel_type: category?.channel_type === "user" ? "user" : "category",
+      is_bot_generated: botGeneratedIds.has(dua.id),
       user_has_prayed: prayedIds.has(dua.id),
     }
   })

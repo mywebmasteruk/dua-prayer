@@ -13,4 +13,9 @@ describe("dua list footer icons", () => {
     assert.doesNotMatch(source, /PrayerHandsIcon/)
     assert.doesNotMatch(source, /HeartHandshake/)
   })
+
+  it("labels bot-generated duas as DuaPrayer before anonymous fallback", () => {
+    assert.match(source, /dua\.is_bot_generated\s+\? "DuaPrayer"/)
+    assert.match(source, /:\s+dua\.user_id \? "Community member" : "Anonymous"/)
+  })
 })

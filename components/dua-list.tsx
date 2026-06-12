@@ -208,7 +208,11 @@ export function DuaList({
         const isReported = reportedDuas[dua.id] ?? dua.flagged
         const isLoved = Boolean(lovedDuas[dua.id])
         const isChannelPost = dua.category_channel_type === "user"
-        const sourceLabel = isChannelPost ? dua.category_name ?? "Community channel" : dua.user_id ? "Community member" : "Anonymous"
+        const sourceLabel = isChannelPost
+          ? dua.category_name ?? "Community channel"
+          : dua.is_bot_generated
+            ? "DuaPrayer"
+            : dua.user_id ? "Community member" : "Anonymous"
         const SourceIcon = isChannelPost ? Building2 : UserRound
         const loveCount = isLoved ? 1 : 0
         const hashtags = extractHashtags(dua.text)
