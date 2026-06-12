@@ -49,6 +49,7 @@ type BotDraft = {
   id?: number
   name: string
   description: string
+  systemPrompt: string
   status: "active" | "paused"
   sourceUrls: string
   keywords: string
@@ -63,6 +64,7 @@ type BotDraft = {
 const blankDraft: BotDraft = {
   name: "",
   description: "",
+  systemPrompt: "",
   status: "paused",
   sourceUrls: "https://www.un.org/press/en/rss.xml",
   keywords: "earthquake, flood, wildfire, conflict, refugees, disaster",
@@ -89,6 +91,7 @@ function draftFromBot(bot: DuaEventBot): BotDraft {
     id: bot.id,
     name: bot.name,
     description: bot.description,
+    systemPrompt: bot.system_prompt ?? "",
     status: bot.status,
     sourceUrls: bot.source_urls.join("\n"),
     keywords: bot.keywords.join(", "),
@@ -107,6 +110,7 @@ function duplicateDraftFromBot(bot: DuaEventBot): BotDraft {
   return {
     name: draft.name,
     description: draft.description ?? "",
+    systemPrompt: draft.systemPrompt ?? "",
     status: "paused",
     sourceUrls: Array.isArray(draft.rssUrls) ? draft.rssUrls.join("\n") : (draft.rssUrls ?? ""),
     keywords: Array.isArray(draft.keywords) ? draft.keywords.join(", ") : (draft.keywords ?? ""),
@@ -355,8 +359,14 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
               <Input id="bot-name" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="bot-description">Description</Label>
+              <Label htmlFor="bot-description">User prompt / instructions</Label>
               <Textarea id="bot-description" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} />
+              <p className="text-xs text-muted-foreground">Guides the dua content this bot generates, such as who to focus on and what kind of support to encourage.</p>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="bot-system-prompt">System prompt</Label>
+              <Textarea id="bot-system-prompt" value={draft.systemPrompt} onChange={(event) => setDraft({ ...draft, systemPrompt: event.target.value })} />
+              <p className="text-xs text-muted-foreground">Optional higher-level guardrails for style, boundaries, or religious guidance. The app still adds safety defaults.</p>
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="bot-sources">RSS/news source URLs</Label>

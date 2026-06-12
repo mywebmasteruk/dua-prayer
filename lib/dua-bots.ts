@@ -6,6 +6,7 @@ import {
   getAiProviderAdminView,
   isAiProviderReady,
   type AiProviderSettings,
+  type ChatMessage,
 } from "@/lib/ai-provider"
 import { evaluateDuaModeration } from "@/lib/ai-moderation"
 
@@ -19,6 +20,7 @@ export type DuaBot = {
   id: number
   name: string
   description: string
+  system_prompt: string | null
   status: BotStatus
   frequency_minutes: number
   source_type: BotSourceType
@@ -61,6 +63,8 @@ export type BotFormInput = {
   id?: number
   name: string
   description?: string
+  systemPrompt?: string
+  system_prompt?: string | null
   status?: BotStatus
   sourceType?: BotSourceType
   rssUrls?: string | string[]
@@ -78,6 +82,7 @@ export type BotFormInput = {
 export type NormalizedBotInput = {
   name: string
   description: string
+  system_prompt: string | null
   status: BotStatus
   frequency_minutes: number
   source_type: BotSourceType
@@ -114,6 +119,12 @@ type EventCandidate = {
   sourceUrl: string
 }
 
+type DuaBotPromptEvent = {
+  title: string
+  summary?: string | null
+  url?: string | null
+}
+
 type EventDiscovery = {
   events: EventCandidate[]
   warnings: string[]
@@ -122,6 +133,7 @@ type EventDiscovery = {
 const MAX_EVENTS_PER_BOT = 3
 const MAX_SOURCE_BYTES = 500_000
 const REQUEST_TIMEOUT_MS = 8_000
+const MAX_DUA_LENGTH = 280
 
 function normalizeList(value: string | string[] | undefined): string[] {
   const parts = Array.isArray(value) ? value : (value ?? "").split(/[\n,]/)
@@ -148,8 +160,13 @@ function nextRunDate(frequencyMinutes: number): string {
   return new Date(Date.now() + frequencyMinutes * 60_000).toISOString()
 }
 
-function sanitizeText(value: string | undefined, fallback = ""): string {
+function sanitizeText(value: string | null | undefined, fallback = ""): string {
   return (value ?? fallback).replace(/\s+/g, " ").trim()
+}
+
+function sanitizeOptionalText(value: string | null | undefined): string | null {
+  const sanitized = sanitizeText(value)
+  return sanitized.length > 0 ? sanitized : null
 }
 
 function stripXml(value: string): string {
@@ -210,6 +227,55 @@ function matchesBot(bot: DuaBot, event: EventCandidate): boolean {
   return filters.some((filter) => haystack.includes(filter))
 }
 
+export function buildDuaBotPromptMessages({
+  userPrompt,
+  systemPrompt,
+  event,
+  tone,
+  language,
+}: {
+  userPrompt?: string | null
+  systemPrompt?: string | null
+  event: DuaBotPromptEvent
+  tone: string
+  language: string
+}): ChatMessage[] {
+  const botSystemPrompt = sanitizeOptionalText(systemPrompt)
+  const botUserPrompt = sanitizeOptionalText(userPrompt)
+
+  return [
+    {
+      role: "system",
+      content: [
+        "You write concise, compassionate duas for a Muslim community platform.",
+        "Duas must be compassionate, non-political, and non-sectarian.",
+        "No fabricated facts, casualty counts, locations, names, organizations, or religious rulings.",
+        "Avoid graphic details and do not sensationalize suffering.",
+        "Ask the Ummah to pray, help, donate, volunteer, and support appropriately when relevant.",
+        "Return strict JSON only.",
+        botSystemPrompt ? `Bot system prompt: ${botSystemPrompt}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    },
+    {
+      role: "user",
+      content: [
+        `Write one dua in ${language}.`,
+        `Tone: ${tone}.`,
+        botUserPrompt ? `User prompt: ${botUserPrompt}` : "",
+        "The dua should ask the Ummah to pray for people affected by the event, including those suffering, grieving, displaced, injured, or who lost loved ones when relevant.",
+        `Keep it under ${MAX_DUA_LENGTH} characters and return JSON: {"dua": string}.`,
+        `Event title: ${JSON.stringify(event.title)}`,
+        event.summary ? `Event summary: ${JSON.stringify(event.summary)}` : "",
+        event.url ? `Event URL: ${JSON.stringify(event.url)}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    },
+  ]
+}
+
 function toDuaEventBot(bot: DuaBot): DuaEventBot {
   return {
     ...bot,
@@ -250,11 +316,13 @@ export function normalizeBotInput(input: BotFormInput): { value: NormalizedBotIn
   const tone = sanitizeText(input.tone, "compassionate")
   const language = sanitizeText(input.language, "English")
   const description = sanitizeText(input.description)
+  const systemPrompt = sanitizeOptionalText(input.systemPrompt ?? input.system_prompt)
 
   return {
     value: {
       name,
       description,
+      system_prompt: systemPrompt,
       status: input.status === "active" ? "active" : "paused",
       frequency_minutes: normalizeFrequency(input.frequencyMinutes),
       source_type: sourceType,
@@ -422,6 +490,13 @@ async function createDuaFromEvent(
     eventUrl: event.url,
     tone: bot.tone,
     language: bot.language,
+    messages: buildDuaBotPromptMessages({
+      userPrompt: bot.description,
+      systemPrompt: bot.system_prompt,
+      event,
+      tone: bot.tone,
+      language: bot.language,
+    }),
     settings: aiSettings,
   })
 

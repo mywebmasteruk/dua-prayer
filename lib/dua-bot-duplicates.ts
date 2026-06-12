@@ -16,6 +16,7 @@ export function buildDuplicateDuaBotDraft(bot: DuaBot): BotFormInput {
   return {
     name: duplicateBotName(bot.name),
     description: bot.description,
+    systemPrompt: bot.system_prompt ?? undefined,
     status: "paused",
     frequencyMinutes: bot.frequency_minutes,
     sourceType: bot.source_type,
@@ -35,6 +36,7 @@ export function buildDuplicateDuaBotInsert(bot: DuaBot, userId: string): DuaBotI
   return {
     name: draft.name,
     description: draft.description,
+    system_prompt: draft.systemPrompt ?? null,
     status: "paused",
     frequency_minutes: draft.frequencyMinutes,
     source_type: draft.sourceType,

@@ -146,6 +146,7 @@ export interface Database {
           id: number
           name: string
           description: string
+          system_prompt: string | null
           status: "active" | "paused"
           frequency_minutes: number
           source_type: "rss"
@@ -169,6 +170,7 @@ export interface Database {
           id?: number
           name: string
           description?: string
+          system_prompt?: string | null
           status?: "active" | "paused"
           frequency_minutes?: number
           source_type?: "rss"
@@ -192,6 +194,7 @@ export interface Database {
           id?: number
           name?: string
           description?: string
+          system_prompt?: string | null
           status?: "active" | "paused"
           frequency_minutes?: number
           source_type?: "rss"

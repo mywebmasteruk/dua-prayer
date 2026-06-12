@@ -27,6 +27,7 @@ type GenerateDuaInput = {
   eventUrl?: string | null
   tone: string
   language: string
+  messages?: ChatMessage[]
   settings: AiProviderSettings
   signal?: AbortSignal
 }
@@ -239,6 +240,7 @@ export async function generateDuaForEvent({
   eventUrl,
   tone,
   language,
+  messages: customMessages,
   settings,
   signal,
 }: GenerateDuaInput): Promise<string> {
@@ -251,7 +253,7 @@ export async function generateDuaForEvent({
     )
   }
 
-  const messages: ChatMessage[] = [
+  const messages: ChatMessage[] = customMessages ?? [
     {
       role: "system",
       content: "You write concise, compassionate duas for a Muslim community platform. Return strict JSON only.",

@@ -7,6 +7,7 @@ const baseBot: DuaBot = {
   id: 7,
   name: "Humanitarian Crisis Watch",
   description: "Tracks global humanitarian emergencies",
+  system_prompt: "Avoid graphic details and keep the duas compassionate.",
   status: "active",
   frequency_minutes: 120,
   source_type: "rss",
@@ -34,6 +35,7 @@ describe("dua bot duplicates", () => {
     assert.deepEqual(draft, {
       name: "Humanitarian Crisis Watch (copy)",
       description: "Tracks global humanitarian emergencies",
+      systemPrompt: "Avoid graphic details and keep the duas compassionate.",
       status: "paused",
       frequencyMinutes: 120,
       sourceType: "rss",
@@ -53,6 +55,7 @@ describe("dua bot duplicates", () => {
     assert.deepEqual(duplicate, {
       name: "Humanitarian Crisis Watch (copy)",
       description: "Tracks global humanitarian emergencies",
+      system_prompt: "Avoid graphic details and keep the duas compassionate.",
       status: "paused",
       frequency_minutes: 120,
       source_type: "rss",
