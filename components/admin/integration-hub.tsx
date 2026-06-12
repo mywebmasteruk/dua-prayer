@@ -18,21 +18,25 @@ import type { AiModerationAdminView } from "@/lib/ai-moderation"
 type IntegrationHubProps = {
   initialTab: IntegrationTabId
   stripeSettings: StripeSettingsAdminView
-  filloutValue: string
+  volunteerFilloutValue: string
+  channelFilloutValue: string
   envStatus: IntegrationEnvStatus
   aiModerationSettings: AiModerationAdminView
   canManageStripe: boolean
-  canManageFillout: boolean
+  canManageVolunteer: boolean
+  canManageChannels: boolean
 }
 
 export function IntegrationHub({
   initialTab,
   stripeSettings,
-  filloutValue,
+  volunteerFilloutValue,
+  channelFilloutValue,
   envStatus,
   aiModerationSettings,
   canManageStripe,
-  canManageFillout,
+  canManageVolunteer,
+  canManageChannels,
 }: IntegrationHubProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -59,11 +63,13 @@ export function IntegrationHub({
         {activeTab === "stripe" && !canManageStripe ? (
           <p className="text-sm text-muted-foreground">You don&apos;t have permission to manage Stripe settings.</p>
         ) : null}
-        {activeTab === "fillout" && canManageFillout ? (
-          <IntegrationFilloutTab initialValue={filloutValue} />
-        ) : null}
-        {activeTab === "fillout" && !canManageFillout ? (
-          <p className="text-sm text-muted-foreground">You don&apos;t have permission to manage Fillout settings.</p>
+        {activeTab === "fillout" ? (
+          <IntegrationFilloutTab
+            volunteerFilloutValue={volunteerFilloutValue}
+            channelFilloutValue={channelFilloutValue}
+            canManageVolunteer={canManageVolunteer}
+            canManageChannels={canManageChannels}
+          />
         ) : null}
         {activeTab === "webhooks" ? (
           <IntegrationWebhooksTab
@@ -81,7 +87,7 @@ export function IntegrationHub({
           <IntegrationApiKeysMcpTab
             envStatus={envStatus}
             stripeSettings={stripeSettings}
-            filloutConfigured={Boolean(filloutValue.trim())}
+            filloutConfigured={Boolean(volunteerFilloutValue.trim()) || Boolean(channelFilloutValue.trim())}
           />
         ) : null}
         {activeTab === "ai-moderation" && canManageStripe ? (

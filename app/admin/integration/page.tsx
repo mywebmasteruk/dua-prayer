@@ -10,7 +10,7 @@ import {
   getStripeSettingsForAdmin,
 } from "@/lib/stripe-settings-server"
 import { getAiModerationAdminView, type AiModerationAdminView } from "@/lib/ai-moderation"
-import { getVolunteerFilloutSettingValue } from "@/lib/site-settings-server"
+import { getVolunteerFilloutSettingValue, getChannelFilloutSettingValue } from "@/lib/site-settings-server"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
 import {
@@ -64,10 +64,10 @@ export default async function AdminIntegrationPage({ searchParams }: PageProps) 
   if (!ctx) redirect(signInHref({ next: "/admin/integration" }))
 
   const canManageSettings = ctx.isFoundingAdmin || hasPermission(ctx, "manage_settings")
-  const canVolunteer =
-    hasPermission(ctx, "manage_settings") || hasPermission(ctx, "manage_volunteers")
+  const canVolunteer = canManageSettings || hasPermission(ctx, "manage_volunteers")
+  const canManageChannels = canManageSettings || hasPermission(ctx, "manage_channels")
 
-  if (!canManageSettings && !canVolunteer) redirect(signInHref({ error: "not_admin" }))
+  if (!canManageSettings && !canVolunteer && !canManageChannels) redirect(signInHref({ error: "not_admin" }))
 
   let stripeSettings = emptyStripeSettingsAdminView()
   let aiModerationSettings: AiModerationAdminView = {
@@ -78,18 +78,21 @@ export default async function AdminIntegrationPage({ searchParams }: PageProps) 
     apiKeyLast4: null,
     ready: false,
   }
-  let filloutValue = ""
+  let volunteerFilloutValue = ""
+  let channelFilloutValue = ""
   const warnings: string[] = []
 
   try {
-    const [loadedStripe, loadedAiModeration, loadedFillout] = await Promise.all([
+    const [loadedStripe, loadedAiModeration, loadedVolunteerFillout, loadedChannelFillout] = await Promise.all([
       canManageSettings ? getStripeSettingsForAdmin() : Promise.resolve(null),
       canManageSettings ? getAiModerationAdminView() : Promise.resolve(null),
       canVolunteer ? getVolunteerFilloutSettingValue() : Promise.resolve(""),
+      canManageChannels ? getChannelFilloutSettingValue() : Promise.resolve(""),
     ])
     if (loadedStripe) stripeSettings = loadedStripe
     if (loadedAiModeration) aiModerationSettings = loadedAiModeration
-    filloutValue = loadedFillout
+    volunteerFilloutValue = loadedVolunteerFillout
+    channelFilloutValue = loadedChannelFillout
   } catch (error) {
     console.error("Admin integration page failed to load settings:", error)
     warnings.push(
@@ -140,11 +143,13 @@ export default async function AdminIntegrationPage({ searchParams }: PageProps) 
         <IntegrationHub
           initialTab={initialTab}
           stripeSettings={stripeSettings}
-          filloutValue={filloutValue}
+          volunteerFilloutValue={volunteerFilloutValue}
+          channelFilloutValue={channelFilloutValue}
           envStatus={envStatus}
           aiModerationSettings={aiModerationSettings}
           canManageStripe={canManageSettings}
-          canManageFillout={canVolunteer}
+          canManageVolunteer={canVolunteer}
+          canManageChannels={canManageChannels}
         />
       </Suspense>
     </InnerPageLayout>
