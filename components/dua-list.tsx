@@ -249,6 +249,7 @@ export function DuaList({
                 "mt-2.5 whitespace-pre-wrap break-words text-[15px] text-foreground",
                 isRtl ? "text-right font-medium leading-8" : "leading-7",
                 isLatinScript && "font-medium leading-[1.5]",
+                isLatinScript && 'font-[Georgia,Cambria,_"Times_New_Roman",Times,serif]',
                 getArabicOnlyFontClassName(dua.text),
               )}
             >

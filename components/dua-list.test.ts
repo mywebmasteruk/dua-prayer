@@ -20,9 +20,10 @@ describe("dua list footer icons", () => {
     assert.doesNotMatch(source, /renderWithArabicFont\(dua\.category_name\)/)
   })
 
-  it("applies tighter medium typography only to Latin-script dua text", () => {
+  it("applies tighter medium serif typography only to Latin-script dua text", () => {
     assert.match(source, /const isLatinScript = isLatinScriptLanguage\(dua\.language, dua\.text\)/)
     assert.match(source, /isRtl \? "text-right font-medium leading-8" : "leading-7"/)
     assert.match(source, /isLatinScript && "font-medium leading-\[1\.5\]"/)
+    assert.match(source, /isLatinScript && 'font-\[Georgia,Cambria,_"Times_New_Roman",Times,serif\]'/)
   })
 })
