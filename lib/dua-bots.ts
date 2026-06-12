@@ -53,6 +53,8 @@ export type DuaBotRun = {
   events_found: number
   duas_created: number
   message: string | null
+  ai_provider: AiProviderSettings["provider"] | null
+  ai_model: string | null
 }
 
 export type BotFormInput = {
@@ -345,9 +347,13 @@ async function discoverEvents(bot: DuaBot): Promise<EventDiscovery> {
   }
 }
 
-async function createRun(botId: number): Promise<number | null> {
+async function createRun(botId: number, aiSettings: AiProviderSettings): Promise<number | null> {
   const admin = createAdminSupabaseClient()
-  const { data, error } = await admin.from("dua_bot_runs").insert({ bot_id: botId }).select("id").single()
+  const { data, error } = await admin
+    .from("dua_bot_runs")
+    .insert({ bot_id: botId, ai_provider: aiSettings.provider, ai_model: aiSettings.model })
+    .select("id")
+    .single()
   if (error) {
     console.error("Error creating dua bot run:", error)
     return null
@@ -457,13 +463,14 @@ async function createDuaFromEvent(
 }
 
 async function runOneBot(bot: DuaBot): Promise<{ created: number; error: string | null }> {
-  const runId = await createRun(bot.id)
+  let runId: number | null = null
   let events: EventCandidate[] = []
   let warnings: string[] = []
   let created = 0
 
   try {
     const aiSettings = await fetchAiProviderSettings()
+    runId = await createRun(bot.id, aiSettings)
     if (!isAiProviderReady(aiSettings)) {
       throw new Error("AI Provider is not configured. Enable a provider and save an API key under Admin → Integration → AI Provider before running dua bots.")
     }
