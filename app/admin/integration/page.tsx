@@ -10,6 +10,7 @@ import {
   getStripeSettingsForAdmin,
 } from "@/lib/stripe-settings-server"
 import { getAiModerationAdminView, type AiModerationAdminView } from "@/lib/ai-moderation"
+import { DEFAULT_MODERATION_TIMEOUT_MS } from "@/lib/ai-provider"
 import { getVolunteerFilloutSettingValue, getChannelFilloutSettingValue } from "@/lib/site-settings-server"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
@@ -77,6 +78,9 @@ export default async function AdminIntegrationPage({ searchParams }: PageProps) 
     hasApiKey: false,
     apiKeyLast4: null,
     ready: false,
+    modelMode: "manual",
+    moderationTimeoutMs: DEFAULT_MODERATION_TIMEOUT_MS,
+    autoModel: null,
   }
   let volunteerFilloutValue = ""
   let channelFilloutValue = ""

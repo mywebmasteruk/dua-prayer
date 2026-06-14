@@ -13,7 +13,7 @@ import { toast } from "@/components/ui/use-toast"
 import { updateAiProviderSettings } from "@/app/actions/ai-provider-settings"
 import { fetchProviderModels } from "@/app/actions/fetch-provider-models"
 import { PROVIDER_CATALOG, AI_PROVIDER_IDS, type AiProvider } from "@/lib/ai-provider-catalog"
-import type { AiProviderAdminView } from "@/lib/ai-provider"
+import type { AiProviderAdminView, ModelMode } from "@/lib/ai-provider"
 
 type IntegrationAiProviderTabProps = {
   initial: AiProviderAdminView
@@ -36,8 +36,12 @@ export function IntegrationAiProviderTab({ initial }: IntegrationAiProviderTabPr
   const [enabled, setEnabled] = useState(initial.enabled)
   const [provider, setProvider] = useState<AiProvider>(initial.provider)
   const [model, setModel] = useState(initial.model)
+  const [modelMode, setModelMode] = useState<ModelMode>(initial.modelMode)
+  const [timeoutSec, setTimeoutSec] = useState(Math.round(initial.moderationTimeoutMs / 1000))
   const [apiKey, setApiKey] = useState("")
   const [isSaving, setIsSaving] = useState(false)
+  const autoSupported = provider === "openrouter"
+  const autoActive = modelMode === "auto" && autoSupported
   const [availableModels, setAvailableModels] = useState<string[]>(() => {
     const fallbacks = getFallbackModels(initial.provider)
     if (initial.model && initial.provider !== "none" && !fallbacks.includes(initial.model)) {
@@ -90,7 +94,8 @@ export function IntegrationAiProviderTab({ initial }: IntegrationAiProviderTabPr
     event.preventDefault()
     setIsSaving(true)
 
-    const result = await updateAiProviderSettings({ enabled, provider, model, apiKey })
+    const moderationTimeoutMs = timeoutSec * 1000
+    const result = await updateAiProviderSettings({ enabled, provider, model, apiKey, modelMode, moderationTimeoutMs })
     if ("error" in result && result.error) {
       toast({ title: "Could not save AI Provider", description: result.error, variant: "destructive" })
     } else {
@@ -103,9 +108,17 @@ export function IntegrationAiProviderTab({ initial }: IntegrationAiProviderTabPr
         hasApiKey: trimmedKey ? true : view.hasApiKey,
         apiKeyLast4: trimmedKey ? trimmedKey.slice(-4) : view.apiKeyLast4,
         ready: providerReady,
+        modelMode,
+        moderationTimeoutMs,
+        autoModel: modelMode === "auto" && provider === "openrouter" ? view.autoModel : null,
       })
       setApiKey("")
-      toast({ title: "AI Provider saved", description: "Moderation and dua bots will use this provider." })
+      toast({
+        title: "AI Provider saved",
+        description: autoActive
+          ? "Auto mode: the latest free model will be used (refreshes daily)."
+          : "Moderation and dua bots will use this provider.",
+      })
     }
 
     setIsSaving(false)
@@ -186,6 +199,36 @@ export function IntegrationAiProviderTab({ initial }: IntegrationAiProviderTabPr
             <p className="text-xs text-muted-foreground">Choose None to keep saved credentials but stop provider calls.</p>
           </div>
 
+          {autoSupported && (
+            <>
+              <Label htmlFor="ai-provider-model-mode" className="sm:pt-2.5">
+                Model selection
+              </Label>
+              <div className="space-y-1.5">
+                <Select
+                  value={modelMode}
+                  onValueChange={(v) => setModelMode(v as ModelMode)}
+                  disabled={isSaving}
+                >
+                  <SelectTrigger id="ai-provider-model-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto — always use the latest free model</SelectItem>
+                    <SelectItem value="manual">Manual — pick a specific model</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {autoActive
+                    ? `Auto mode picks the newest capable free model from OpenRouter (refreshed daily)${
+                        view.autoModel ? `. Currently: ${view.autoModel}` : ""
+                      }. No need to update this manually.`
+                    : "Manual mode uses the exact model selected below."}
+                </p>
+              </div>
+            </>
+          )}
+
           <Label htmlFor="ai-provider-model" className="sm:pt-2.5">
             Model
           </Label>
@@ -194,7 +237,7 @@ export function IntegrationAiProviderTab({ initial }: IntegrationAiProviderTabPr
               <Select
                 value={model}
                 onValueChange={setModel}
-                disabled={isSaving || provider === "none" || availableModels.length === 0}
+                disabled={isSaving || provider === "none" || availableModels.length === 0 || autoActive}
               >
                 <SelectTrigger id="ai-provider-model" className="flex-1">
                   <SelectValue placeholder={isLoadingModels ? "Loading models…" : "Choose model"} />
@@ -228,6 +271,35 @@ export function IntegrationAiProviderTab({ initial }: IntegrationAiProviderTabPr
                 : "Model list loads automatically after entering your API key."}
             </p>
           </div>
+
+          {provider !== "none" && (
+            <>
+              <Label htmlFor="ai-moderation-timeout" className="sm:pt-2.5">
+                Moderation timeout
+              </Label>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="ai-moderation-timeout"
+                    type="number"
+                    min={2}
+                    max={30}
+                    step={1}
+                    value={timeoutSec}
+                    onChange={(event) => setTimeoutSec(Number(event.target.value))}
+                    disabled={isSaving}
+                    className="w-24"
+                  />
+                  <span className="text-sm text-muted-foreground">seconds (2–30)</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  How long to wait for a moderation verdict before publishing anyway. Free models are slower, so
+                  allow more time. If the check times out or errors, the dua publishes and the local keyword filter
+                  still applies.
+                </p>
+              </div>
+            </>
+          )}
 
           {provider !== "none" && meta?.requiresApiKey && (
             <>

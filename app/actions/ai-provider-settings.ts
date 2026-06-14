@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { getAdminContext, hasPermission } from "@/lib/auth"
-import { getAiProviderAdminView, isAiProvider, type AiProvider } from "@/lib/ai-provider"
+import { getAiProviderAdminView, isAiProvider, clampModerationTimeout, type AiProvider, type ModelMode } from "@/lib/ai-provider"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
 
 type AiProviderSettingsInput = {
@@ -12,6 +12,8 @@ type AiProviderSettingsInput = {
   apiKey?: string
   model?: string
   clearApiKey?: boolean
+  modelMode?: ModelMode
+  moderationTimeoutMs?: number
 }
 
 function canManageAiProviderSettings(ctx: NonNullable<Awaited<ReturnType<typeof getAdminContext>>>) {
@@ -61,6 +63,18 @@ export async function updateAiProviderSettings(input: AiProviderSettingsInput) {
 
   if (input.model !== undefined) {
     const { error } = await upsertSetting(SITE_SETTING_KEYS.aiProviderModel, normalizeModel(input.model))
+    if (error) return { error: error.message }
+  }
+
+  if (input.modelMode !== undefined) {
+    const mode: ModelMode = input.modelMode === "auto" ? "auto" : "manual"
+    const { error } = await upsertSetting(SITE_SETTING_KEYS.aiProviderModelMode, mode)
+    if (error) return { error: error.message }
+  }
+
+  if (input.moderationTimeoutMs !== undefined) {
+    const ms = clampModerationTimeout(input.moderationTimeoutMs)
+    const { error } = await upsertSetting(SITE_SETTING_KEYS.aiModerationTimeoutMs, String(ms))
     if (error) return { error: error.message }
   }
 

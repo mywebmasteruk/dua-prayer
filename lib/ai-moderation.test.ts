@@ -6,7 +6,7 @@ describe("AI dua moderation", () => {
   it("keeps hardship prayer language safe without AI", async () => {
     const result = await evaluateDuaModeration({
       text: "Please make dua for my mother who is ill and grieving after a disaster.",
-      settings: { enabled: false, provider: "none", model: "", apiKey: null },
+      settings: { enabled: false, provider: "none", model: "", apiKey: null, modelMode: "manual", moderationTimeoutMs: 9000 },
     })
 
     assert.equal(result.flagged, false)
@@ -17,7 +17,7 @@ describe("AI dua moderation", () => {
     let providerCalled = false
     const result = await evaluateDuaModeration({
       text: "I will kill you and destroy your family",
-      settings: { enabled: true, provider: "openai", model: "gpt-4o-mini", apiKey: "sk-test" },
+      settings: { enabled: true, provider: "openai", model: "gpt-4o-mini", apiKey: "sk-test", modelMode: "manual", moderationTimeoutMs: 9000 },
       providerClient: async () => {
         providerCalled = true
         return { flagged: false, severity: "safe", reason: "safe" }
@@ -32,7 +32,7 @@ describe("AI dua moderation", () => {
   it("uses provider review results for ambiguous unsafe context", async () => {
     const result = await evaluateDuaModeration({
       text: "A phrase that needs context-aware review from the provider.",
-      settings: { enabled: true, provider: "openai", model: "gpt-4o-mini", apiKey: "sk-test" },
+      settings: { enabled: true, provider: "openai", model: "gpt-4o-mini", apiKey: "sk-test", modelMode: "manual", moderationTimeoutMs: 9000 },
       providerClient: async () => ({
         flagged: true,
         severity: "review",
@@ -45,17 +45,20 @@ describe("AI dua moderation", () => {
     assert.match(result.reason, /harassment/i)
   })
 
-  it("fails safely to manual review when provider errors", async () => {
+  it("fails open (publishes) when the provider errors or times out", async () => {
     const result = await evaluateDuaModeration({
       text: "Please review this dua through the configured AI provider.",
-      settings: { enabled: true, provider: "openai", model: "gpt-4o-mini", apiKey: "sk-test" },
+      settings: { enabled: true, provider: "openai", model: "gpt-4o-mini", apiKey: "sk-test", modelMode: "manual", moderationTimeoutMs: 9000 },
       providerClient: async () => {
         throw new Error("network timeout")
       },
     })
 
-    assert.equal(result.flagged, true)
-    assert.equal(result.severity, "review")
+    // A provider error/timeout carries no content signal — publish rather than
+    // bury the dua. The local keyword pre-filter still screens obvious abuse.
+    assert.equal(result.flagged, false)
+    assert.equal(result.severity, "safe")
+    assert.equal(result.source, "error")
     assert.match(result.reason, /unavailable/i)
   })
 })

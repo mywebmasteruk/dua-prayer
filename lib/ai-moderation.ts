@@ -33,12 +33,11 @@ export type EvaluateDuaModerationInput = {
   providerClient?: ProviderClient
 }
 
-// Caps worst-case submit latency. Free-tier models are slow and variable
-// (observed 3-6s), so 4s aborted legitimate calls; 9s gives normal responses
-// headroom. A timeout/error fails OPEN (publishes) — see evaluateDuaModeration
-// catch — because an aborted or rate-limited request carries no signal about
-// the content, and the local keyword pre-filter has already screened it.
-const MODERATION_TIMEOUT_MS = 9_000
+// The moderation request timeout is configurable in Admin → Settings → AI
+// (settings.moderationTimeoutMs). A timeout/error fails OPEN (publishes) — see
+// the evaluateDuaModeration catch — because an aborted or rate-limited request
+// carries no signal about the content, and the local keyword pre-filter has
+// already screened it.
 const MAX_REASON_LENGTH = 240
 
 const LOCAL_BLOCK_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
@@ -122,9 +121,9 @@ async function callProviderModeration({ text, settings, signal }: Parameters<Pro
   }
 }
 
-async function withTimeout<T>(callback: (signal: AbortSignal) => Promise<T>): Promise<T> {
+async function withTimeout<T>(timeoutMs: number, callback: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), MODERATION_TIMEOUT_MS)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
     return await callback(controller.signal)
   } finally {
@@ -147,7 +146,9 @@ export async function evaluateDuaModeration({
 
   const client = providerClient ?? callProviderModeration
   try {
-    const result = await withTimeout((signal) => client({ text: normalized, settings, signal }))
+    const result = await withTimeout(settings.moderationTimeoutMs, (signal) =>
+      client({ text: normalized, settings, signal }),
+    )
     const severity = normalizeSeverity(result.severity, result.flagged)
     return {
       flagged: severity !== "safe" || result.flagged,

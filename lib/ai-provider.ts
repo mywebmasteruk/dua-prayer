@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { isMissingTableError } from "@/lib/db-errors"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
@@ -5,11 +6,17 @@ import { PROVIDER_CATALOG, AI_PROVIDER_IDS, type AiProvider } from "@/lib/ai-pro
 
 export type { AiProvider } from "@/lib/ai-provider-catalog"
 
+export type ModelMode = "auto" | "manual"
+
 export type AiProviderSettings = {
   enabled: boolean
   provider: AiProvider
+  /** The effective model to call (auto-resolved when modelMode === "auto"). */
   model: string
   apiKey: string | null
+  modelMode: ModelMode
+  /** Max ms to wait for a moderation verdict before failing open. */
+  moderationTimeoutMs: number
 }
 
 export type AiProviderAdminView = {
@@ -19,7 +26,85 @@ export type AiProviderAdminView = {
   hasApiKey: boolean
   apiKeyLast4: string | null
   ready: boolean
+  modelMode: ModelMode
+  moderationTimeoutMs: number
+  /** When modelMode === "auto", the model auto-resolution picked (for display). */
+  autoModel: string | null
 }
+
+export const DEFAULT_MODERATION_TIMEOUT_MS = 9_000
+export const MIN_MODERATION_TIMEOUT_MS = 2_000
+export const MAX_MODERATION_TIMEOUT_MS = 30_000
+
+/** Safe free model used if auto-resolution can't reach OpenRouter. */
+const AUTO_FREE_FALLBACK_MODEL = "openai/gpt-oss-120b:free"
+
+export function clampModerationTimeout(value: number | null | undefined): number {
+  if (!value || !Number.isFinite(value)) return DEFAULT_MODERATION_TIMEOUT_MS
+  return Math.min(MAX_MODERATION_TIMEOUT_MS, Math.max(MIN_MODERATION_TIMEOUT_MS, Math.round(value)))
+}
+
+// Preferred free model families, best first. Auto-mode picks the NEWEST free
+// model whose id matches one of these (so new releases in a trusted family are
+// adopted automatically); falls back to the newest free chat model otherwise.
+// This list rarely changes — the actual model is resolved live, not hardcoded.
+const PREFERRED_FREE_FAMILIES = [
+  "gpt-oss-120b",
+  "llama-3.3-70b",
+  "qwen3",
+  "gemma-4",
+  "gemma-3",
+  "mistral",
+  "deepseek",
+  "llama-3.1-70b",
+]
+
+// Free models that don't fit text moderation (wrong I/O or non-JSON output).
+const EXCLUDED_FREE_MODEL_RE = /audio|whisper|tts|image|vision|embed|lyria|guard|safety|content-safety|coder|owl|clip/i
+
+type OpenRouterModel = {
+  id: string
+  created?: number
+  pricing?: { prompt?: string; completion?: string }
+  architecture?: { modality?: string; input_modalities?: string[]; output_modalities?: string[] }
+}
+
+function isFreeTextModel(m: OpenRouterModel): boolean {
+  const promptFree = Number(m.pricing?.prompt ?? "1") === 0
+  const completionFree = Number(m.pricing?.completion ?? "1") === 0
+  if (!promptFree || !completionFree) return false
+  if (EXCLUDED_FREE_MODEL_RE.test(m.id)) return false
+  const modality = m.architecture?.modality ?? ""
+  // Require a text-producing chat model.
+  if (modality && !modality.includes("text")) return false
+  return m.id.endsWith(":free") || m.id.startsWith("openrouter/")
+}
+
+async function fetchLatestFreeModel(): Promise<string> {
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/models", { signal: AbortSignal.timeout(8_000) })
+    if (!res.ok) return AUTO_FREE_FALLBACK_MODEL
+    const data = (await res.json()) as { data?: OpenRouterModel[] }
+    const free = (data.data ?? []).filter(isFreeTextModel)
+    if (free.length === 0) return AUTO_FREE_FALLBACK_MODEL
+
+    const byCreatedDesc = [...free].sort((a, b) => (b.created ?? 0) - (a.created ?? 0))
+    // Prefer the newest model from a trusted family; else the newest free chat model.
+    for (const family of PREFERRED_FREE_FAMILIES) {
+      const match = byCreatedDesc.find((m) => m.id.includes(family))
+      if (match) return match.id
+    }
+    return byCreatedDesc[0]?.id ?? AUTO_FREE_FALLBACK_MODEL
+  } catch {
+    return AUTO_FREE_FALLBACK_MODEL
+  }
+}
+
+/** Latest capable free OpenRouter model, refreshed daily. */
+export const resolveLatestFreeModel = unstable_cache(fetchLatestFreeModel, ["latest-free-model"], {
+  revalidate: 86_400,
+  tags: ["ai-provider-settings"],
+})
 
 type GenerateDuaInput = {
   eventTitle: string
@@ -58,10 +143,21 @@ export function isAiProvider(value: string | null | undefined): value is AiProvi
   return AI_PROVIDER_IDS.includes(value as AiProvider)
 }
 
-export function isAiProviderReady(settings: AiProviderSettings): boolean {
+export function isAiProviderReady(
+  settings: Pick<AiProviderSettings, "enabled" | "provider" | "apiKey">,
+): boolean {
   if (!settings.enabled || settings.provider === "none") return false
   if (settings.provider === "ollama") return true
   return Boolean(settings.apiKey)
+}
+
+const DISABLED_SETTINGS: AiProviderSettings = {
+  enabled: false,
+  provider: "none",
+  model: "gpt-4o-mini",
+  apiKey: null,
+  modelMode: "manual",
+  moderationTimeoutMs: DEFAULT_MODERATION_TIMEOUT_MS,
 }
 
 export async function fetchAiProviderSettings(): Promise<AiProviderSettings> {
@@ -70,7 +166,7 @@ export async function fetchAiProviderSettings(): Promise<AiProviderSettings> {
     supabase = createAdminSupabaseClient()
   } catch (error) {
     console.error("AI provider settings: Supabase admin client unavailable", error)
-    return { enabled: false, provider: "none", model: "gpt-4o-mini", apiKey: null }
+    return { ...DISABLED_SETTINGS }
   }
 
   const keys = [
@@ -78,6 +174,8 @@ export async function fetchAiProviderSettings(): Promise<AiProviderSettings> {
     SITE_SETTING_KEYS.aiProviderProvider,
     SITE_SETTING_KEYS.aiProviderModel,
     SITE_SETTING_KEYS.aiProviderApiKey,
+    SITE_SETTING_KEYS.aiProviderModelMode,
+    SITE_SETTING_KEYS.aiModerationTimeoutMs,
   ]
   const { data, error } = await supabase.from("site_settings").select("key, value").in("key", keys)
 
@@ -85,19 +183,28 @@ export async function fetchAiProviderSettings(): Promise<AiProviderSettings> {
     if (!isMissingTableError(error)) {
       console.error("Error fetching AI provider settings:", error)
     }
-    return { enabled: false, provider: "none", model: "gpt-4o-mini", apiKey: null }
+    return { ...DISABLED_SETTINGS }
   }
 
   const byKey = new Map((data ?? []).map((row) => [row.key, row.value]))
   const providerRaw = trimOrNull(byKey.get(SITE_SETTING_KEYS.aiProviderProvider))
   const provider = isAiProvider(providerRaw) ? providerRaw : "none"
   const defaultModel = provider !== "none" ? (PROVIDER_CATALOG[provider]?.defaultModel ?? "gpt-4o-mini") : "gpt-4o-mini"
+  const modelMode: ModelMode = byKey.get(SITE_SETTING_KEYS.aiProviderModelMode) === "auto" ? "auto" : "manual"
+  const storedModel = trimOrNull(byKey.get(SITE_SETTING_KEYS.aiProviderModel)) ?? defaultModel
+
+  // Auto mode self-updates the model — only meaningful for OpenRouter's free
+  // catalog. Resolution is cached daily and falls back safely on error.
+  const model =
+    modelMode === "auto" && provider === "openrouter" ? await resolveLatestFreeModel() : storedModel
 
   return {
     enabled: byKey.get(SITE_SETTING_KEYS.aiProviderEnabled) === "true",
     provider,
-    model: trimOrNull(byKey.get(SITE_SETTING_KEYS.aiProviderModel)) ?? defaultModel,
+    model,
     apiKey: trimOrNull(byKey.get(SITE_SETTING_KEYS.aiProviderApiKey)),
+    modelMode,
+    moderationTimeoutMs: clampModerationTimeout(Number(byKey.get(SITE_SETTING_KEYS.aiModerationTimeoutMs))),
   }
 }
 
@@ -110,6 +217,9 @@ export async function getAiProviderAdminView(): Promise<AiProviderAdminView> {
     hasApiKey: Boolean(settings.apiKey),
     apiKeyLast4: settings.apiKey ? lastFour(settings.apiKey) : null,
     ready: isAiProviderReady(settings),
+    modelMode: settings.modelMode,
+    moderationTimeoutMs: settings.moderationTimeoutMs,
+    autoModel: settings.modelMode === "auto" && settings.provider === "openrouter" ? settings.model : null,
   }
 }
 

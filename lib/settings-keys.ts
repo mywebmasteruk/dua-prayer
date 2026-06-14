@@ -53,6 +53,11 @@ export const SITE_SETTING_KEYS = {
   aiProviderProvider: "ai_moderation.provider",
   aiProviderApiKey: "ai_moderation.api_key",
   aiProviderModel: "ai_moderation.model",
+  // "auto" = resolve the latest capable free model automatically (OpenRouter);
+  // "manual" = use aiProviderModel as entered.
+  aiProviderModelMode: "ai_moderation.model_mode",
+  // Max ms to wait for a moderation verdict before failing open (publishing).
+  aiModerationTimeoutMs: "ai_moderation.timeout_ms",
   postingMode: "posting.mode",
   customCodeHeader: "custom_code.header",
   customCodeFooter: "custom_code.footer",
