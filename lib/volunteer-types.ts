@@ -4,13 +4,17 @@ export type AccountStatus = (typeof ACCOUNT_STATUSES)[number]
 export const MEMBER_ROLES = ["volunteer", "moderator", "admin"] as const
 export type MemberRole = (typeof MEMBER_ROLES)[number]
 
+import type { FormAnswerValue } from "@/lib/form-fields"
+
 export type VolunteerApplicationPayload = {
   message?: string | null
   skills?: string | null
   timezone?: string | null
   availability?: string | null
   source?: string | null
-  [key: string]: string | null | undefined
+  /** Registry-driven answers keyed by field id (includes custom + file fields). */
+  fields?: Record<string, FormAnswerValue>
+  [key: string]: FormAnswerValue | Record<string, FormAnswerValue> | null | undefined
 }
 
 export type VolunteerRegistrationInput = {

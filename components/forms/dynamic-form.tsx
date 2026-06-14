@@ -1,0 +1,336 @@
+"use client"
+
+import { useRef, useState } from "react"
+import { Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
+import { toast } from "@/components/ui/use-toast"
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/turnstile-widget"
+import { createClientSupabaseClient } from "@/lib/supabase/client"
+import { requestApplicationUpload } from "@/app/actions/application-uploads"
+import {
+  validateAnswers,
+  visibleFields,
+  type FormAnswerValue,
+  type FormFieldDefinition,
+  type FormFileAnswer,
+  type FormKind,
+  type FormRegistry,
+} from "@/lib/form-fields"
+import { HONEYPOT_FIELD, TURNSTILE_FIELD } from "@/lib/form-submit"
+
+type SubmitResult = { success: true } | { error: string } | { success: true; status: string }
+
+type DynamicFormProps = {
+  formKind: FormKind
+  registry: FormRegistry
+  action: (formData: FormData) => Promise<SubmitResult>
+  prefill?: { email?: string | null }
+  turnstileSiteKey?: string | null
+  submitLabel: string
+  onSuccess?: () => void
+}
+
+const SELECT_CLASS =
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+
+export function DynamicForm({
+  formKind,
+  registry,
+  action,
+  prefill,
+  turnstileSiteKey,
+  submitLabel,
+  onSuccess,
+}: DynamicFormProps) {
+  const fields = visibleFields(registry)
+
+  const [values, setValues] = useState<Record<string, FormAnswerValue>>(() => {
+    const initial: Record<string, FormAnswerValue> = {}
+    for (const field of fields) {
+      if (field.systemBinding === "email" && prefill?.email) initial[field.id] = prefill.email
+      if (field.type === "checkbox") initial[field.id] = false
+    }
+    return initial
+  })
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [uploading, setUploading] = useState<Record<string, boolean>>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null)
+
+  const setValue = (id: string, value: FormAnswerValue | undefined) => {
+    setValues((prev) => {
+      const next = { ...prev }
+      if (value === undefined) delete next[id]
+      else next[id] = value
+      return next
+    })
+    setErrors((prev) => {
+      if (!prev[id]) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+  }
+
+  async function handleFile(field: FormFieldDefinition, file: File | undefined) {
+    if (!file) {
+      setValue(field.id, undefined)
+      return
+    }
+    setUploading((p) => ({ ...p, [field.id]: true }))
+    try {
+      const signed = await requestApplicationUpload({
+        form: formKind,
+        fieldId: field.id,
+        filename: file.name,
+        contentType: file.type || "application/octet-stream",
+        sizeBytes: file.size,
+      })
+      if (!signed.ok) {
+        setErrors((p) => ({ ...p, [field.id]: signed.error }))
+        return
+      }
+      const supabase = createClientSupabaseClient()
+      const { error } = await supabase.storage
+        .from(signed.bucket)
+        .uploadToSignedUrl(signed.path, signed.token, file)
+      if (error) {
+        setErrors((p) => ({ ...p, [field.id]: "Upload failed. Please try again." }))
+        return
+      }
+      const answer: FormFileAnswer = { path: signed.path, name: file.name, size: file.size, type: file.type }
+      setValue(field.id, answer)
+    } finally {
+      setUploading((p) => ({ ...p, [field.id]: false }))
+    }
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    if (submitting) return
+
+    const validation = validateAnswers(registry, values)
+    if (!validation.ok) {
+      setErrors(validation.errors)
+      return
+    }
+    if (turnstileSiteKey && !turnstileToken) {
+      toast({ title: "Please complete the verification.", variant: "destructive" })
+      return
+    }
+
+    setSubmitting(true)
+    const formData = new FormData()
+    formData.set(HONEYPOT_FIELD, "")
+    if (turnstileToken) formData.set(TURNSTILE_FIELD, turnstileToken)
+
+    for (const field of fields) {
+      const value = values[field.id]
+      if (value === undefined) continue
+      if (field.type === "file" && typeof value === "object" && !Array.isArray(value)) {
+        formData.set(field.id, JSON.stringify(value))
+      } else if (field.type === "multiselect" && Array.isArray(value)) {
+        for (const entry of value) formData.append(field.id, entry)
+      } else if (field.type === "checkbox") {
+        formData.set(field.id, value === true ? "true" : "")
+      } else if (typeof value === "string") {
+        formData.set(field.id, value)
+      }
+    }
+
+    const result = await action(formData)
+    setSubmitting(false)
+
+    if ("error" in result) {
+      toast({ title: "Could not submit", description: result.error, variant: "destructive" })
+      turnstileRef.current?.reset()
+      setTurnstileToken(null)
+      return
+    }
+
+    toast({ title: "Application submitted", description: "Thanks — we'll review it and follow up by email." })
+    onSuccess?.()
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5">
+      {fields.map((field) => (
+        <FieldRow
+          key={field.id}
+          field={field}
+          value={values[field.id]}
+          error={errors[field.id]}
+          uploading={!!uploading[field.id]}
+          onChange={(value) => setValue(field.id, value)}
+          onFile={(file) => handleFile(field, file)}
+          selectClass={SELECT_CLASS}
+        />
+      ))}
+
+      {/* Honeypot — visually hidden, ignored by users, filled only by bots. */}
+      <div aria-hidden="true" className="absolute left-[-9999px] h-0 w-0 overflow-hidden">
+        <label>
+          Company URL
+          <input
+            type="text"
+            tabIndex={-1}
+            autoComplete="off"
+            name={HONEYPOT_FIELD}
+            onChange={() => {}}
+          />
+        </label>
+      </div>
+
+      {turnstileSiteKey ? (
+        <TurnstileWidget
+          ref={turnstileRef}
+          siteKey={turnstileSiteKey}
+          onVerify={setTurnstileToken}
+          onExpire={() => setTurnstileToken(null)}
+        />
+      ) : null}
+
+      <Button type="submit" size="lg" className="rounded-full" disabled={submitting}>
+        {submitting ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Submitting…
+          </>
+        ) : (
+          submitLabel
+        )}
+      </Button>
+    </form>
+  )
+}
+
+type FieldRowProps = {
+  field: FormFieldDefinition
+  value: FormAnswerValue | undefined
+  error?: string
+  uploading: boolean
+  onChange: (value: FormAnswerValue | undefined) => void
+  onFile: (file: File | undefined) => void
+  selectClass: string
+}
+
+function FieldRow({ field, value, error, uploading, onChange, onFile, selectClass }: FieldRowProps) {
+  const id = `field-${field.id}`
+  const labelText = field.required ? `${field.label} *` : field.label
+
+  const control = () => {
+    switch (field.type) {
+      case "textarea":
+        return (
+          <Textarea
+            id={id}
+            rows={4}
+            placeholder={field.placeholder}
+            value={typeof value === "string" ? value : ""}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        )
+      case "select":
+        return (
+          <select
+            id={id}
+            className={selectClass}
+            value={typeof value === "string" ? value : ""}
+            onChange={(e) => onChange(e.target.value || undefined)}
+          >
+            <option value="">Select…</option>
+            {(field.options ?? []).map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        )
+      case "multiselect":
+        return (
+          <div className="space-y-2">
+            {(field.options ?? []).map((opt) => {
+              const selected = Array.isArray(value) ? value.includes(opt.value) : false
+              return (
+                <label key={opt.value} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={selected}
+                    onCheckedChange={(checked) => {
+                      const current = Array.isArray(value) ? [...value] : []
+                      if (checked) onChange([...current, opt.value])
+                      else onChange(current.filter((v) => v !== opt.value))
+                    }}
+                  />
+                  {opt.label}
+                </label>
+              )
+            })}
+          </div>
+        )
+      case "radio":
+        return (
+          <div className="space-y-2">
+            {(field.options ?? []).map((opt) => (
+              <label key={opt.value} className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name={id}
+                  value={opt.value}
+                  checked={value === opt.value}
+                  onChange={() => onChange(opt.value)}
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+        )
+      case "checkbox":
+        return (
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox checked={value === true} onCheckedChange={(checked) => onChange(checked === true)} />
+            <span>{field.label}{field.required ? " *" : ""}</span>
+          </label>
+        )
+      case "file":
+        return (
+          <div className="space-y-1.5">
+            <input
+              id={id}
+              type="file"
+              accept={field.fileConfig?.accept?.join(",")}
+              onChange={(e) => onFile(e.target.files?.[0])}
+              className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-full file:border-0 file:bg-primary/10 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary"
+            />
+            {uploading ? <p className="text-xs text-muted-foreground">Uploading…</p> : null}
+            {value && typeof value === "object" && !Array.isArray(value) ? (
+              <p className="text-xs text-emerald-700">Attached: {(value as FormFileAnswer).name}</p>
+            ) : null}
+          </div>
+        )
+      default:
+        return (
+          <Input
+            id={id}
+            type={field.type === "email" ? "email" : field.type === "url" ? "url" : field.type === "tel" ? "tel" : "text"}
+            placeholder={field.placeholder}
+            value={typeof value === "string" ? value : ""}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        )
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {field.type !== "checkbox" ? <Label htmlFor={id}>{labelText}</Label> : null}
+      {control()}
+      {field.helpText ? <p className="text-xs text-muted-foreground">{field.helpText}</p> : null}
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+    </div>
+  )
+}

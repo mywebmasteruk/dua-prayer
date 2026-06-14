@@ -94,6 +94,14 @@ export async function registerChannelApplication(
     message: input.payload?.message ?? undefined,
     organization: input.payload?.organization ?? undefined,
     website: input.payload?.website ?? undefined,
+    channelType: input.payload?.channelType ?? undefined,
+    socialMediaLink: input.payload?.socialMediaLink ?? undefined,
+    location: input.payload?.location ?? undefined,
+    languages: input.payload?.languages ?? undefined,
+    registrationNumber: input.payload?.registrationNumber ?? undefined,
+    role: input.payload?.role ?? undefined,
+    agreedToTerms: input.payload?.agreedToTerms ?? undefined,
+    fields: input.payload?.fields ?? undefined,
     source: input.source ?? input.payload?.source ?? "webhook",
   }
 

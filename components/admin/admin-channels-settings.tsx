@@ -28,6 +28,7 @@ import { VerifiedChannelBadge } from "@/components/verified-channel-badge"
 import {
   CHANNEL_STATUS_LABELS,
   CHANNEL_TYPE_LABELS,
+  type ChannelApplicationPayload,
   type ChannelStatus,
   type ChannelType,
 } from "@/lib/channel-types"
@@ -92,6 +93,42 @@ function toDraft(channel: AdminChannelRecord): DraftChannel {
 function truncateText(text: string, max = 60) {
   if (text.length <= max) return text
   return `${text.slice(0, max).trim()}…`
+}
+
+function SubmittedApplicationDetails({ application }: { application: ChannelApplicationPayload | null }) {
+  if (!application) return null
+
+  const rows: Array<{ label: string; value: string }> = []
+  const add = (label: string, value: string | undefined) => {
+    if (value && value.trim()) rows.push({ label, value: value.trim() })
+  }
+
+  add("Channel type", application.channelType)
+  add("Applicant role", application.role)
+  add("Location", application.location)
+  add("Languages", application.languages)
+  add("Social media", application.socialMediaLink)
+  add("Registration no.", application.registrationNumber)
+  if (application.agreedToTerms !== undefined) {
+    rows.push({ label: "Agreed to terms", value: application.agreedToTerms ? "Yes" : "No" })
+  }
+  add("Submission ID", application.filloutSubmissionId)
+
+  if (rows.length === 0) return null
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5">
+      <p className="text-sm font-medium">Submitted application details</p>
+      <dl className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
+        {rows.map((row) => (
+          <div key={row.label} className="flex flex-col">
+            <dt className="text-xs text-muted-foreground">{row.label}</dt>
+            <dd className="break-words">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
 }
 
 type ChannelDraftFormProps = {
@@ -326,6 +363,7 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
               is_verified: editDraft.isVerified,
               sort_order: editDraft.sortOrder,
               application: {
+                ...item.application,
                 name: editDraft.name,
                 description: editDraft.description,
                 handle: editDraft.handle || undefined,
@@ -675,6 +713,7 @@ export function AdminChannelsSettings({ initialChannels }: AdminChannelsSettings
             <DialogTitle>Edit channel</DialogTitle>
           </DialogHeader>
           {editDraft ? <ChannelDraftForm draft={editDraft} onChange={setEditDraft} mode="edit" /> : null}
+          {editingChannel ? <SubmittedApplicationDetails application={editingChannel.application} /> : null}
           <DialogFooter>
             <Button
               variant="outline"

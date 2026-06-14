@@ -59,6 +59,36 @@ describe("parseChannelWebhookBody", () => {
     assert.equal(parsed.filloutSubmissionId, "sub_456")
   })
 
+  it("captures the extended Fillout channel fields into the payload", () => {
+    const parsed = parseChannelWebhookBody({
+      email: "imam@example.com",
+      "channel name": "Masjid Al-Noor",
+      type: "Masjid",
+      socialmedialink: "https://instagram.com/alnoor",
+      location: "United Kingdom",
+      username: "alnoor",
+      langs: "Arabic, English",
+      orgNo: "12345678",
+      website: "https://masjid.example",
+      role: "Imam",
+      agreeTC: "I agree to follow platform Term & Conditions",
+      submissionId: "sub_999",
+    })
+
+    assert.ok(!("error" in parsed))
+    assert.equal(parsed.channelName, "Masjid Al-Noor")
+    assert.equal(parsed.handle, "alnoor")
+    assert.equal(parsed.filloutSubmissionId, "sub_999")
+    assert.equal(parsed.payload.channelType, "Masjid")
+    assert.equal(parsed.payload.socialMediaLink, "https://instagram.com/alnoor")
+    assert.equal(parsed.payload.location, "United Kingdom")
+    assert.equal(parsed.payload.languages, "Arabic, English")
+    assert.equal(parsed.payload.registrationNumber, "12345678")
+    assert.equal(parsed.payload.website, "https://masjid.example")
+    assert.equal(parsed.payload.role, "Imam")
+    assert.equal(parsed.payload.agreedToTerms, true)
+  })
+
   it("parses common nested answer arrays", () => {
     const parsed = parseChannelWebhookBody({
       form_response: {

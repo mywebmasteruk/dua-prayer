@@ -1,8 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
-import { LayoutGrid, Mail } from "lucide-react"
+import { LayoutGrid } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -11,110 +11,64 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { toast } from "@/components/ui/use-toast"
-import { createFilloutEmbedSession, FILLOUT_EMBED_ORIGIN } from "@/lib/fillout"
+import { DynamicForm } from "@/components/forms/dynamic-form"
+import { submitChannelApplication } from "@/app/actions/channel-applications"
 import { signInHref } from "@/lib/auth-modal"
+import type { FormRegistry } from "@/lib/form-fields"
 
 const CHANNEL_CONTACT_EMAIL = "volunteers@duaprayer.app"
 
 type ChannelApplySectionProps = {
-  filloutSrc: string | null
+  registry: FormRegistry
   isSignedIn: boolean
   userEmail?: string | null
   pendingChannelName?: string | null
+  turnstileSiteKey?: string | null
   /** When true, opens the form inline instead of behind a button + dialog. */
   inline?: boolean
 }
 
 export function ChannelApplySection({
-  filloutSrc,
+  registry,
   isSignedIn,
   userEmail,
   pendingChannelName,
+  turnstileSiteKey,
   inline = false,
 }: ChannelApplySectionProps) {
   const [open, setOpen] = useState(inline)
-  const [submittedInline, setSubmittedInline] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const contactMailto = `mailto:${CHANNEL_CONTACT_EMAIL}?subject=${encodeURIComponent("DuaPrayer channel application")}`
 
-  const filloutEmbed = useMemo(
-    () => (filloutSrc ? createFilloutEmbedSession(filloutSrc, { email: isSignedIn ? userEmail : null }) : null),
-    [filloutSrc, isSignedIn, userEmail],
+  const formEl = (
+    <DynamicForm
+      formKind="channel"
+      registry={registry}
+      action={submitChannelApplication}
+      prefill={{ email: isSignedIn ? userEmail : null }}
+      turnstileSiteKey={turnstileSiteKey}
+      submitLabel="Submit application"
+      onSuccess={() => {
+        setSubmitted(true)
+        if (!inline) setOpen(false)
+      }}
+    />
   )
 
-  const handleFilloutSubmit = useCallback(() => {
-    if (inline) setSubmittedInline(true)
-    else setOpen(false)
-    toast({
-      title: "Application submitted",
-      description: "Thanks — we'll review your channel application and follow up by email.",
-    })
-  }, [inline])
+  const pendingMessage = pendingChannelName || submitted
 
-  useEffect(() => {
-    if ((!open && !inline) || !filloutEmbed?.listensForSubmit) return
-
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== FILLOUT_EMBED_ORIGIN) return
-
-      const data = event.data
-      if (
-        data &&
-        typeof data === "object" &&
-        "type" in data &&
-        "embedId" in data &&
-        data.type === "form_submit" &&
-        data.embedId === filloutEmbed.embedId
-      ) {
-        handleFilloutSubmit()
-      }
-    }
-
-    window.addEventListener("message", onMessage)
-    return () => window.removeEventListener("message", onMessage)
-  }, [open, inline, filloutEmbed, handleFilloutSubmit])
-
-  const handleApplyClick = () => {
-    if (!isSignedIn) {
-      window.location.href = signInHref({ next: "/channels/apply" })
-      return
-    }
-    if (filloutSrc) {
-      setOpen(true)
-      return
-    }
-    window.location.href = contactMailto
-  }
-
-  const filloutFrame = filloutSrc ? (
-    <div className={inline ? "w-full" : "relative min-h-[420px] w-full bg-muted/20"}>
-      <iframe
-        src={filloutEmbed?.iframeSrc ?? filloutSrc}
-        title="DuaPrayer channel application"
-        className={
-          inline
-            ? "h-[min(75vh,720px)] w-full rounded-2xl border border-border/60 bg-muted/20"
-            : "h-[min(70vh,640px)] w-full border-0"
-        }
-        loading="lazy"
-        allow="clipboard-write"
-      />
-    </div>
-  ) : (
-    <div className="flex flex-col items-center gap-4 px-6 py-10 text-center">
-      <p className="text-sm text-muted-foreground">
-        The external Fillout form isn&apos;t configured yet. Please email us instead.
+  const pendingBlock = (
+    <div className="mt-6 rounded-2xl border border-border/60 bg-primary/[0.04] p-5">
+      <p className="text-sm font-medium text-foreground">
+        {pendingChannelName
+          ? `Your application for “${pendingChannelName}” is under review.`
+          : "Your channel application was submitted and is under review."}
       </p>
-      <Button asChild className="rounded-full">
-        <a href={contactMailto}>
-          <Mail className="h-4 w-4" aria-hidden="true" />
-          Email {CHANNEL_CONTACT_EMAIL}
-        </a>
-      </Button>
+      <p className="mt-2 text-sm text-muted-foreground">
+        We&apos;ll email you when it&apos;s approved or if we need more information.
+      </p>
     </div>
   )
-
-  const pendingMessage = pendingChannelName || submittedInline
 
   if (inline) {
     return (
@@ -135,21 +89,20 @@ export function ChannelApplySection({
             </Button>
           </div>
         ) : pendingMessage ? (
-          <div className="mt-6 rounded-2xl border border-border/60 bg-primary/[0.04] p-5">
-            <p className="text-sm font-medium text-foreground">
-              {pendingChannelName
-                ? `Your application for “${pendingChannelName}” is under review.`
-                : "Your channel application was submitted and is under review."}
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              We&apos;ll email you when it&apos;s approved or if we need more information.
-            </p>
-          </div>
+          pendingBlock
         ) : (
-          <div className="mt-6">{filloutFrame}</div>
+          <div className="mt-6">{formEl}</div>
         )}
       </section>
     )
+  }
+
+  const handleApplyClick = () => {
+    if (!isSignedIn) {
+      window.location.href = signInHref({ next: "/channels/apply" })
+      return
+    }
+    setOpen(true)
   }
 
   return (
@@ -175,14 +128,14 @@ export function ChannelApplySection({
       </section>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-hidden border-border/70 bg-white/95 p-0 shadow-2xl backdrop-blur-xl sm:rounded-[1.5rem]">
-          <DialogHeader className="space-y-1 border-b border-border/60 px-6 pb-4 pt-6 pr-12">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto border-border/70 bg-white/95 shadow-2xl backdrop-blur-xl sm:rounded-[1.5rem]">
+          <DialogHeader className="space-y-1">
             <DialogTitle className="text-xl font-semibold tracking-tight">Channel application</DialogTitle>
             <DialogDescription className="text-sm leading-6">
               Apply to open a channel — we&apos;ll review your application and follow up by email.
             </DialogDescription>
           </DialogHeader>
-          {filloutFrame}
+          {submitted ? pendingBlock : formEl}
         </DialogContent>
       </Dialog>
     </>

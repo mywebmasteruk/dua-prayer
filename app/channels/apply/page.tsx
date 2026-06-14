@@ -3,7 +3,7 @@ import { LayoutGrid } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { ChannelApplySection } from "@/components/channels/channel-apply-section"
 import { getMyPendingChannelApplication } from "@/app/actions/channel-applications"
-import { getChannelFilloutEmbedSrc } from "@/lib/site-settings-server"
+import { getChannelFormRegistry } from "@/lib/site-settings-server"
 import { getServerUser } from "@/lib/server-user"
 
 export const metadata: Metadata = {
@@ -15,10 +15,9 @@ export const metadata: Metadata = {
 async function ChannelApplyLoader() {
   const user = await getServerUser()
 
-  // Only signed-in users get the Fillout URL — the auth gate must be
-  // server-side, not just hidden in the client component.
-  const [filloutSrc, pendingResult] = await Promise.all([
-    user ? getChannelFilloutEmbedSrc() : Promise.resolve(null),
+  // The auth gate is enforced server-side here and again in submitChannelApplication.
+  const [registry, pendingResult] = await Promise.all([
+    getChannelFormRegistry(),
     user ? getMyPendingChannelApplication() : Promise.resolve({ application: null }),
   ])
 
@@ -27,10 +26,11 @@ async function ChannelApplyLoader() {
 
   return (
     <ChannelApplySection
-      filloutSrc={filloutSrc}
+      registry={registry}
       isSignedIn={!!user}
       userEmail={user?.email ?? null}
       pendingChannelName={pendingChannelName}
+      turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? null}
       inline
     />
   )

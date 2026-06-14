@@ -58,6 +58,14 @@ function parseApplication(value: unknown): ChannelApplicationPayload | null {
     organization: typeof record.organization === "string" ? record.organization : undefined,
     website: typeof record.website === "string" ? record.website : undefined,
     source: typeof record.source === "string" ? record.source : undefined,
+    channelType: typeof record.channelType === "string" ? record.channelType : undefined,
+    socialMediaLink: typeof record.socialMediaLink === "string" ? record.socialMediaLink : undefined,
+    location: typeof record.location === "string" ? record.location : undefined,
+    languages: typeof record.languages === "string" ? record.languages : undefined,
+    registrationNumber:
+      typeof record.registrationNumber === "string" ? record.registrationNumber : undefined,
+    role: typeof record.role === "string" ? record.role : undefined,
+    agreedToTerms: typeof record.agreedToTerms === "boolean" ? record.agreedToTerms : undefined,
   }
 }
 
@@ -86,6 +94,14 @@ function buildApplicationPayload(
       input.source === undefined
         ? (input.existing?.source ?? "manual-admin")
         : (optionalTrim(input.source) ?? "manual-admin"),
+    // Applicant-submitted metadata (from the Fillout webhook) — preserved as-is.
+    channelType: input.existing?.channelType,
+    socialMediaLink: input.existing?.socialMediaLink,
+    location: input.existing?.location,
+    languages: input.existing?.languages,
+    registrationNumber: input.existing?.registrationNumber,
+    role: input.existing?.role,
+    agreedToTerms: input.existing?.agreedToTerms,
   }
 }
 

@@ -1,3 +1,5 @@
+import type { FormAnswerValue } from "@/lib/form-fields"
+
 export const CHANNEL_TYPES = ["category", "user"] as const
 export type ChannelType = (typeof CHANNEL_TYPES)[number]
 
@@ -26,6 +28,15 @@ export type ChannelApplicationPayload = {
   organization?: string
   website?: string
   source?: string
+  channelType?: string
+  socialMediaLink?: string
+  location?: string
+  languages?: string
+  registrationNumber?: string
+  role?: string
+  agreedToTerms?: boolean
+  /** Registry-driven answers keyed by field id (includes custom + file fields). */
+  fields?: Record<string, FormAnswerValue>
 }
 
 export type ChannelTypeFilter = "all" | ChannelType

@@ -36,6 +36,29 @@ const HANDLE_KEYS = ["handle", "channel handle", "slug", "username", "short name
 const MESSAGE_KEYS = ["message", "note", "comments", "comment", "additional info", "anything else"]
 const ORGANIZATION_KEYS = ["organization", "organisation", "org", "community", "masjid", "institution"]
 const WEBSITE_KEYS = ["website", "url", "link", "site"]
+const CHANNEL_TYPE_KEYS = ["type", "channel type", "channeltype"]
+const SOCIAL_MEDIA_KEYS = [
+  "socialmedialink",
+  "social media link",
+  "social media",
+  "social media profile",
+  "your social media profile",
+  "social",
+]
+const LOCATION_KEYS = ["location", "country", "country location", "region", "city"]
+const LANGUAGE_KEYS = ["langs", "language", "languages", "primary posting language", "posting language"]
+const ROLE_KEYS = ["role", "i am", "your role"]
+const REGISTRATION_NUMBER_KEYS = [
+  "orgno",
+  "org no",
+  "organization number",
+  "organisation number",
+  "registration number",
+  "legal entity registration no",
+  "legal entity registration number",
+  "company number",
+]
+const AGREE_KEYS = ["agreetc", "agree tc", "agree", "i agree", "terms", "agree to terms", "agreed"]
 const ACCEPTED_PAYLOADS = [
   "Fillout default JSON with submission.questions[]",
   "JSON with email/name/channel fields",
@@ -67,6 +90,15 @@ function asString(value: unknown): string | null {
     return parts.length > 0 ? parts.join(", ") : null
   }
   return null
+}
+
+function asBoolean(value: string | null): boolean | undefined {
+  if (value == null) return undefined
+  const v = value.trim().toLowerCase()
+  if (["false", "no", "n", "0", "off", "unchecked"].includes(v)) return false
+  if (v.length === 0) return undefined
+  // A single checkbox sends "true"/"yes"/the option label when ticked.
+  return true
 }
 
 function pickFromRecord(record: Record<string, unknown>, keys: string[]): string | null {
@@ -269,6 +301,13 @@ export function parseChannelWebhookBody(
     message: pickFromRecord(flat, MESSAGE_KEYS) ?? undefined,
     organization: pickFromRecord(flat, ORGANIZATION_KEYS) ?? undefined,
     website: pickFromRecord(flat, WEBSITE_KEYS) ?? undefined,
+    channelType: pickFromRecord(flat, CHANNEL_TYPE_KEYS) ?? undefined,
+    socialMediaLink: pickFromRecord(flat, SOCIAL_MEDIA_KEYS) ?? undefined,
+    location: pickFromRecord(flat, LOCATION_KEYS) ?? undefined,
+    languages: pickFromRecord(flat, LANGUAGE_KEYS) ?? undefined,
+    registrationNumber: pickFromRecord(flat, REGISTRATION_NUMBER_KEYS) ?? undefined,
+    role: pickFromRecord(flat, ROLE_KEYS) ?? undefined,
+    agreedToTerms: asBoolean(pickFromRecord(flat, AGREE_KEYS)),
     source,
   }
 

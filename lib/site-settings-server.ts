@@ -4,6 +4,12 @@ import { isMissingTableError } from "@/lib/db-errors"
 import { parseFilloutEmbed } from "@/lib/fillout"
 import { sanitizeBannerColor } from "@/lib/banner-rich-text"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
+import {
+  DEFAULT_CHANNEL_REGISTRY,
+  DEFAULT_VOLUNTEER_REGISTRY,
+  parseFormRegistry,
+  type FormRegistry,
+} from "@/lib/form-fields"
 
 async function fetchSiteSettingValue(key: string): Promise<string | null> {
   let supabase
@@ -116,4 +122,33 @@ export async function getChannelFilloutEmbedSrc(): Promise<string | null> {
 export async function getChannelFilloutSettingValue(): Promise<string> {
   const value = await fetchSiteSettingValue(SITE_SETTING_KEYS.channelFilloutEmbed)
   return value ?? ""
+}
+
+const getChannelFormRegistryCached = unstable_cache(
+  () => fetchSiteSettingValue(SITE_SETTING_KEYS.channelFormFields),
+  ["site-setting-channel-form"],
+  { revalidate: 300, tags: ["site-setting-channel-form"] },
+)
+
+const getVolunteerFormRegistryCached = unstable_cache(
+  () => fetchSiteSettingValue(SITE_SETTING_KEYS.volunteerFormFields),
+  ["site-setting-volunteer-form"],
+  { revalidate: 300, tags: ["site-setting-volunteer-form"] },
+)
+
+export async function getChannelFormRegistry(): Promise<FormRegistry> {
+  return parseFormRegistry(await getChannelFormRegistryCached(), DEFAULT_CHANNEL_REGISTRY)
+}
+
+export async function getVolunteerFormRegistry(): Promise<FormRegistry> {
+  return parseFormRegistry(await getVolunteerFormRegistryCached(), DEFAULT_VOLUNTEER_REGISTRY)
+}
+
+/** Uncached reads for the admin form builder — caller must enforce RBAC. */
+export async function getChannelFormRegistryForAdmin(): Promise<FormRegistry> {
+  return parseFormRegistry(await fetchSiteSettingValue(SITE_SETTING_KEYS.channelFormFields), DEFAULT_CHANNEL_REGISTRY)
+}
+
+export async function getVolunteerFormRegistryForAdmin(): Promise<FormRegistry> {
+  return parseFormRegistry(await fetchSiteSettingValue(SITE_SETTING_KEYS.volunteerFormFields), DEFAULT_VOLUNTEER_REGISTRY)
 }

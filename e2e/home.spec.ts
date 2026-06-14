@@ -1,15 +1,13 @@
 import { expect, test } from "@playwright/test"
 
 test.describe("Homepage", () => {
-  test("loads category filters", async ({ page }) => {
+  test("loads feed filters", async ({ page }) => {
     await page.goto("/")
 
-    const categoryFilters = page.getByRole("tablist", { name: "Filter duas by category" })
-    await expect(categoryFilters).toBeVisible()
-
-    // "All" plus at least one real category pill; pill names depend on seed data.
-    await expect(categoryFilters.getByRole("tab", { name: "All", exact: true })).toBeVisible()
-    expect(await categoryFilters.getByRole("tab").count()).toBeGreaterThan(1)
+    // Feed filtering is by trending hashtag (with an "All" reset) plus language.
+    const hashtagFilters = page.getByRole("tablist", { name: "Filter duas by trending hashtag" })
+    await expect(hashtagFilters).toBeVisible()
+    await expect(hashtagFilters.getByRole("tab", { name: "All", exact: true })).toBeVisible()
 
     const languageFilters = page.getByRole("tablist", { name: "Filter duas by language" })
     await expect(languageFilters.getByRole("tab", { name: "EN" })).toBeVisible()

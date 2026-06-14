@@ -42,6 +42,13 @@ JSON object (or Fillout default payload with `submission.questions[]`):
 | `message` | no | Extra notes |
 | `organization` | no | Organization / masjid name |
 | `website` | no | Website URL |
+| `type` | no | Channel type |
+| `socialmedialink` | no | Social media profile link |
+| `location` | no | Country / location |
+| `langs` | no | Primary posting language(s) |
+| `orgNo` | no | Legal entity / registration number |
+| `role` | no | Applicant's role (e.g. "Imam") |
+| `agreeTC` | no | Terms & conditions agreement (stored as boolean) |
 | `source` | no | Origin label (default: `fillout`) |
 
 Fillout question name mapping (case-insensitive):

@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Code2, HandHeart, Palette, ShieldCheck } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { VolunteerApplySection } from "@/components/volunteer/volunteer-apply-section"
-import { getVolunteerFilloutEmbedSrc } from "@/lib/site-settings-server"
+import { getVolunteerFormRegistry } from "@/lib/site-settings-server"
 
 export const metadata: Metadata = {
   title: "Volunteer — DuaPrayer",
@@ -32,8 +32,13 @@ const waysToHelp = [
 ] as const
 
 async function VolunteerApplyLoader() {
-  const filloutSrc = await getVolunteerFilloutEmbedSrc()
-  return <VolunteerApplySection filloutSrc={filloutSrc} />
+  const registry = await getVolunteerFormRegistry()
+  return (
+    <VolunteerApplySection
+      registry={registry}
+      turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? null}
+    />
+  )
 }
 
 export default function VolunteerPage() {

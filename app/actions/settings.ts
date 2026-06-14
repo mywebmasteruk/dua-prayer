@@ -9,10 +9,30 @@ import {
   BETA_BANNER_DEFAULTS,
   getBetaBannerSettingsForAdmin,
   getChannelFilloutSettingValue,
+  getChannelFormRegistryForAdmin,
   getVolunteerFilloutSettingValue,
+  getVolunteerFormRegistryForAdmin,
 } from "@/lib/site-settings-server"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
 import { isPostingMode, type PostingMode } from "@/lib/posting-settings"
+import {
+  DEFAULT_CHANNEL_REGISTRY,
+  DEFAULT_VOLUNTEER_REGISTRY,
+  parseFormRegistry,
+  serializeFormRegistry,
+  visibleFields,
+  REQUIRED_CHANNEL_BINDINGS,
+  REQUIRED_VOLUNTEER_BINDINGS,
+  type FormRegistry,
+} from "@/lib/form-fields"
+
+/** Returns an error message if a required system binding has no enabled field. */
+function missingBindingError(registry: FormRegistry, requiredBindings: readonly string[]): string | null {
+  const present = new Set(visibleFields(registry).map((field) => field.systemBinding))
+  const missing = requiredBindings.filter((binding) => !present.has(binding))
+  if (missing.length === 0) return null
+  return `These required fields must stay enabled: ${missing.join(", ")}.`
+}
 
 function canManageVolunteerSettings(ctx: NonNullable<Awaited<ReturnType<typeof getAdminContext>>>) {
   return hasPermission(ctx, "manage_settings") || hasPermission(ctx, "manage_volunteers")
@@ -152,6 +172,68 @@ export async function updateChannelFilloutSetting(rawInput: string) {
   revalidatePath("/admin/channels")
   revalidatePath("/channels/apply")
   revalidateTag("site-setting-channel-fillout")
+  return { success: true as const }
+}
+
+export async function getChannelFormRegistryForBuilder(): Promise<FormRegistry> {
+  const ctx = await getAdminContext()
+  if (!ctx || !canManageChannelSettings(ctx)) return DEFAULT_CHANNEL_REGISTRY
+  return getChannelFormRegistryForAdmin()
+}
+
+export async function updateChannelFormRegistry(registry: FormRegistry) {
+  const ctx = await getAdminContext()
+  if (!ctx || !canManageChannelSettings(ctx)) return { error: "Unauthorized" as const }
+
+  const normalized = parseFormRegistry(serializeFormRegistry(registry), DEFAULT_CHANNEL_REGISTRY)
+  const bindingError = missingBindingError(normalized, REQUIRED_CHANNEL_BINDINGS)
+  if (bindingError) return { error: bindingError }
+
+  const admin = createAdminSupabaseClient()
+  const { error } = await admin.from("site_settings").upsert(
+    {
+      key: SITE_SETTING_KEYS.channelFormFields,
+      value: serializeFormRegistry(normalized),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "key" },
+  )
+  if (error) return { error: error.message }
+
+  revalidatePath("/channels/apply")
+  revalidatePath("/admin/channels")
+  revalidateTag("site-setting-channel-form")
+  return { success: true as const }
+}
+
+export async function getVolunteerFormRegistryForBuilder(): Promise<FormRegistry> {
+  const ctx = await getAdminContext()
+  if (!ctx || !canManageVolunteerSettings(ctx)) return DEFAULT_VOLUNTEER_REGISTRY
+  return getVolunteerFormRegistryForAdmin()
+}
+
+export async function updateVolunteerFormRegistry(registry: FormRegistry) {
+  const ctx = await getAdminContext()
+  if (!ctx || !canManageVolunteerSettings(ctx)) return { error: "Unauthorized" as const }
+
+  const normalized = parseFormRegistry(serializeFormRegistry(registry), DEFAULT_VOLUNTEER_REGISTRY)
+  const bindingError = missingBindingError(normalized, REQUIRED_VOLUNTEER_BINDINGS)
+  if (bindingError) return { error: bindingError }
+
+  const admin = createAdminSupabaseClient()
+  const { error } = await admin.from("site_settings").upsert(
+    {
+      key: SITE_SETTING_KEYS.volunteerFormFields,
+      value: serializeFormRegistry(normalized),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "key" },
+  )
+  if (error) return { error: error.message }
+
+  revalidatePath("/volunteer")
+  revalidatePath("/admin/volunteers")
+  revalidateTag("site-setting-volunteer-form")
   return { success: true as const }
 }
 

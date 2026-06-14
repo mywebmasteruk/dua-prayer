@@ -1,11 +1,18 @@
 "use server"
 
+import { headers } from "next/headers"
 import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { listAllAuthUsers } from "@/lib/auth-users"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { getServerUser } from "@/lib/server-user"
 import { requirePermission } from "@/lib/auth"
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
+import { verifyTurnstile } from "@/lib/turnstile"
+import { getChannelFormRegistry } from "@/lib/site-settings-server"
+import { registerChannelApplication } from "@/lib/channel-applications"
+import { validateAnswers } from "@/lib/form-fields"
+import { HONEYPOT_FIELD, TURNSTILE_FIELD, boundString, readAnswersFromFormData, stringAnswer } from "@/lib/form-submit"
 import {
   CHANNEL_STATUS_LABELS,
   type ChannelApplicationPayload,
@@ -282,4 +289,62 @@ export async function getMyPendingChannelApplication(): Promise<
       status: data.status as ChannelStatus,
     }),
   }
+}
+
+export type SubmitApplicationResult = { success: true; status: ChannelStatus } | { error: string }
+
+/** Public, signed-in channel application submit from the built-in dynamic form. */
+export async function submitChannelApplication(formData: FormData): Promise<SubmitApplicationResult> {
+  const ip = getClientIp(await headers())
+  if (!checkRateLimit(`channel-apply:${ip}`, 5).allowed) {
+    return { error: "Too many submissions. Please wait a moment." }
+  }
+  if (formData.get(HONEYPOT_FIELD)) return { error: "Submission rejected" }
+  if (!(await verifyTurnstile(formData.get(TURNSTILE_FIELD) as string, ip))) {
+    return { error: "Bot verification failed. Please try again." }
+  }
+
+  // Channel applications require a verified session — owner_id is linked to the
+  // signed-in user (safe, unlike an attacker-controlled webhook email).
+  const user = await getServerUser()
+  if (!user) return { error: "Please sign in to apply." }
+
+  const pending = await getMyPendingChannelApplication()
+  if ("error" in pending) return { error: pending.error }
+  if (pending.application) return { error: "You already have a channel application under review." }
+
+  const registry = await getChannelFormRegistry()
+  const answers = readAnswersFromFormData(registry, formData)
+
+  const validation = validateAnswers(registry, answers)
+  if (!validation.ok) {
+    return { error: Object.values(validation.errors)[0] ?? "Please complete the required fields." }
+  }
+
+  const channelName = boundString(registry, answers, "channelName")
+  const email = boundString(registry, answers, "email") ?? user.email ?? null
+  if (!channelName) return { error: "Channel name is required." }
+  if (!email) return { error: "Email is required." }
+
+  const result = await registerChannelApplication({
+    channelName,
+    description: boundString(registry, answers, "description") ?? "",
+    applicantEmail: email,
+    applicantName: boundString(registry, answers, "applicantName"),
+    handle: boundString(registry, answers, "handle"),
+    applicantUserId: user.id,
+    source: "in-app",
+    payload: {
+      fields: answers,
+      message: stringAnswer(answers, "message"),
+      organization: stringAnswer(answers, "organization"),
+      website: stringAnswer(answers, "website"),
+    },
+  })
+
+  if (!result.ok) return { error: result.error }
+
+  revalidatePath("/channels/apply")
+  revalidatePath("/admin/channels")
+  return { success: true, status: result.status }
 }
