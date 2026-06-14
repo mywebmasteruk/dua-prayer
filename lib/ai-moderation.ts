@@ -33,9 +33,12 @@ export type EvaluateDuaModerationInput = {
   providerClient?: ProviderClient
 }
 
-// Caps worst-case submit latency; on timeout the dua falls back to manual
-// review (see evaluateDuaModeration catch), so slow providers fail safe.
-const MODERATION_TIMEOUT_MS = 4_000
+// Caps worst-case submit latency. Free-tier models are slow and variable
+// (observed 3-6s), so 4s aborted legitimate calls; 9s gives normal responses
+// headroom. A timeout/error fails OPEN (publishes) — see evaluateDuaModeration
+// catch — because an aborted or rate-limited request carries no signal about
+// the content, and the local keyword pre-filter has already screened it.
+const MODERATION_TIMEOUT_MS = 9_000
 const MAX_REASON_LENGTH = 240
 
 const LOCAL_BLOCK_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
@@ -153,10 +156,15 @@ export async function evaluateDuaModeration({
       source: "provider",
     }
   } catch {
+    // Fail OPEN: a timeout, network error, or rate-limit (429) from a free-tier
+    // provider says nothing about the content. Holding every such dua for review
+    // silently buries legitimate posts whenever the free model is slow or
+    // throttled. The local keyword pre-filter (localModeration, above) still
+    // catches obvious violations offline, and admins can flag anything missed.
     return {
-      flagged: true,
-      severity: "review",
-      reason: "AI moderation is temporarily unavailable; queued for manual review.",
+      flagged: false,
+      severity: "safe",
+      reason: "AI moderation was unavailable; published without an AI check.",
       source: "error",
     }
   }
