@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowUpRight } from "lucide-react"
 import { getFeedDuas, getCategories } from "@/app/actions/duas"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { getServerUser } from "@/lib/server-user"
 import { requireAdmin } from "@/lib/auth"
 import { getSiteCopy } from "@/lib/site-copy-server"
 import { getChannels } from "@/lib/channels"
@@ -57,10 +57,8 @@ function getTopSupportedDuas(duas: Dua[]) {
 }
 
 export default async function ChannelsPage() {
-  const supabase = await createServerSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Cached per request — dedupes with the same call inside getFeedDuas/enrichDuas.
+  const user = await getServerUser()
   const [{ isAdmin }, { duas, total }, categories, siteCopy] = await Promise.all([
     user ? requireAdmin() : Promise.resolve({ isAdmin: false }),
     getFeedDuas(),

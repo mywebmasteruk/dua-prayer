@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import { getFeedDuas, getCategories } from "./actions/duas"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { getServerUser } from "@/lib/server-user"
 import { accountStatusPostAuthRedirect, getProfileAccessState } from "@/lib/account-status"
 import { requireAdmin } from "@/lib/auth"
 import { isSignInOpen, type SignInSearchParams } from "@/lib/auth-modal"
@@ -69,10 +69,8 @@ export default async function Home({
     redirect(`/auth/callback?${callbackParams.toString()}`)
   }
 
-  const supabase = await createServerSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Cached per request — dedupes with the same call inside getFeedDuas/enrichDuas.
+  const user = await getServerUser()
 
   if (user && isSignInOpen(params)) {
     const access = await getProfileAccessState(user.id)
