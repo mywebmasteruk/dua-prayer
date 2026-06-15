@@ -15,6 +15,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -38,10 +45,13 @@ import { useAdminSelection } from "@/components/admin/use-admin-selection"
 import { VerifiedChannelBadge } from "@/components/verified-channel-badge"
 import { CHANNEL_STATUS_LABELS, type ChannelStatus } from "@/lib/channel-types"
 import { getChannelHandle } from "@/lib/channels"
+import { ApplicationAnswers } from "@/components/admin/application-answers"
+import type { FormRegistry } from "@/lib/form-fields"
 
 type AdminChannelApplicationsListProps = {
   initialApplications: ChannelApplicationRecord[]
   initialFilter: ChannelStatus | "all"
+  registry: FormRegistry
 }
 
 function statusTone(status: ChannelStatus): "warning" | "success" | "neutral" {
@@ -66,12 +76,14 @@ function applicationSummary(application: ChannelApplicationRecord) {
 export function AdminChannelApplicationsList({
   initialApplications,
   initialFilter,
+  registry,
 }: AdminChannelApplicationsListProps) {
   const [applications, setApplications] = useState(initialApplications)
   const [filter, setFilter] = useState<ChannelStatus | "all">(initialFilter)
   const [busyId, setBusyId] = useState<number | "bulk" | null>(null)
   const [bulkApproveOpen, setBulkApproveOpen] = useState(false)
   const [bulkRejectOpen, setBulkRejectOpen] = useState(false)
+  const [detailApp, setDetailApp] = useState<ChannelApplicationRecord | null>(null)
 
   const filtered = useMemo(() => {
     if (filter === "all") return applications
@@ -284,6 +296,10 @@ export function AdminChannelApplicationsList({
                           label={`Actions for ${application.name}`}
                           actions={[
                             {
+                              label: "View details",
+                              onClick: () => setDetailApp(application),
+                            },
+                            {
                               label: "Approve",
                               onClick: () => handleReview(application, "approve"),
                               disabled: !isPending || rowBusy,
@@ -304,6 +320,24 @@ export function AdminChannelApplicationsList({
           </AdminTableShell>
         </>
       )}
+
+      <Dialog open={!!detailApp} onOpenChange={(open) => !open && setDetailApp(null)}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{detailApp?.name}</DialogTitle>
+            <DialogDescription>
+              {detailApp?.applicantEmail || detailApp?.applicantName || "Application details"}
+            </DialogDescription>
+          </DialogHeader>
+          {detailApp ? (
+            <ApplicationAnswers
+              registry={registry}
+              answers={detailApp.application?.fields}
+              legacy={detailApp.application as Record<string, unknown> | null}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={bulkApproveOpen} onOpenChange={setBulkApproveOpen}>
         <AlertDialogContent>

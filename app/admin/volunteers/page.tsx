@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { AdminVolunteersList } from "@/components/admin/admin-volunteers-list"
 import { listVolunteerApplicants } from "@/app/actions/volunteers"
+import { getVolunteerFormRegistry } from "@/lib/site-settings-server"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
 
@@ -11,8 +12,13 @@ export default async function AdminVolunteersApplicantsPage() {
     redirect("/admin/volunteers/roles")
   }
 
-  const result = await listVolunteerApplicants({ status: "pending_review" })
+  const [result, registry] = await Promise.all([
+    listVolunteerApplicants({ status: "pending_review" }),
+    getVolunteerFormRegistry(),
+  ])
   const applicants = "applicants" in result ? result.applicants : []
 
-  return <AdminVolunteersList initialApplicants={applicants} initialFilter="pending_review" />
+  return (
+    <AdminVolunteersList initialApplicants={applicants} initialFilter="pending_review" registry={registry} />
+  )
 }

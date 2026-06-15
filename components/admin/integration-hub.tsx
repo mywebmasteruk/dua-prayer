@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { AdminIntegrationTabBar, type IntegrationTabId } from "@/components/admin/admin-integration-tab-bar"
 import { resolveIntegrationTabId } from "@/lib/integration-tabs"
 import { IntegrationAuthTab } from "@/components/admin/integration-auth-tab"
-import { IntegrationFilloutTab } from "@/components/admin/integration-fillout-tab"
+import { IntegrationFormBuilderTab } from "@/components/admin/integration-form-builder-tab"
 import { IntegrationStripeTab } from "@/components/admin/integration-stripe-tab"
 import { IntegrationSupabaseTab } from "@/components/admin/integration-supabase-tab"
 import { IntegrationWebhooksTab } from "@/components/admin/integration-webhooks-tab"
@@ -14,12 +14,13 @@ import { IntegrationAiModerationTab } from "@/components/admin/integration-ai-mo
 import type { StripeSettingsAdminView } from "@/lib/stripe-settings-server"
 import type { IntegrationEnvStatus } from "@/lib/integration-env-status"
 import type { AiModerationAdminView } from "@/lib/ai-moderation"
+import type { FormRegistry } from "@/lib/form-fields"
 
 type IntegrationHubProps = {
   initialTab: IntegrationTabId
   stripeSettings: StripeSettingsAdminView
-  volunteerFilloutValue: string
-  channelFilloutValue: string
+  channelFormRegistry: FormRegistry
+  volunteerFormRegistry: FormRegistry
   envStatus: IntegrationEnvStatus
   aiModerationSettings: AiModerationAdminView
   canManageStripe: boolean
@@ -30,8 +31,8 @@ type IntegrationHubProps = {
 export function IntegrationHub({
   initialTab,
   stripeSettings,
-  volunteerFilloutValue,
-  channelFilloutValue,
+  channelFormRegistry,
+  volunteerFormRegistry,
   envStatus,
   aiModerationSettings,
   canManageStripe,
@@ -63,32 +64,21 @@ export function IntegrationHub({
         {activeTab === "stripe" && !canManageStripe ? (
           <p className="text-sm text-muted-foreground">You don&apos;t have permission to manage Stripe settings.</p>
         ) : null}
-        {activeTab === "fillout" ? (
-          <IntegrationFilloutTab
-            volunteerFilloutValue={volunteerFilloutValue}
-            channelFilloutValue={channelFilloutValue}
-            canManageVolunteer={canManageVolunteer}
+        {activeTab === "form-builder" ? (
+          <IntegrationFormBuilderTab
+            channelRegistry={channelFormRegistry}
+            volunteerRegistry={volunteerFormRegistry}
             canManageChannels={canManageChannels}
+            canManageVolunteer={canManageVolunteer}
           />
         ) : null}
-        {activeTab === "webhooks" ? (
-          <IntegrationWebhooksTab
-            appUrl={envStatus.appUrl}
-            volunteerWebhookConfigured={envStatus.volunteerWebhookConfigured}
-            channelWebhookConfigured={envStatus.channelWebhookConfigured}
-            stripeSettings={stripeSettings}
-          />
-        ) : null}
+        {activeTab === "webhooks" ? <IntegrationWebhooksTab stripeSettings={stripeSettings} /> : null}
         {activeTab === "supabase" ? <IntegrationSupabaseTab status={envStatus.supabase} /> : null}
         {activeTab === "auth" ? (
           <IntegrationAuthTab status={envStatus.auth} appUrl={envStatus.appUrl} />
         ) : null}
         {activeTab === "api-keys" ? (
-          <IntegrationApiKeysMcpTab
-            envStatus={envStatus}
-            stripeSettings={stripeSettings}
-            filloutConfigured={Boolean(volunteerFilloutValue.trim()) || Boolean(channelFilloutValue.trim())}
-          />
+          <IntegrationApiKeysMcpTab envStatus={envStatus} stripeSettings={stripeSettings} />
         ) : null}
         {activeTab === "ai-moderation" && canManageStripe ? (
           <IntegrationAiModerationTab initial={aiModerationSettings} />

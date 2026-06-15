@@ -43,7 +43,7 @@ test.describe("Homepage", () => {
     await expect(composer.getByRole("button", { name: "إرسال الدعاء" })).toBeDisabled()
   })
 
-  test("channel application page prompts logged-out users before showing Fillout", async ({ page }) => {
+  test("channel application page prompts logged-out users before showing the form", async ({ page }) => {
     await page.goto("/channels/apply")
 
     await expect(page.getByRole("heading", { name: "Apply to open a channel" })).toBeVisible()
@@ -54,7 +54,8 @@ test.describe("Homepage", () => {
       "href",
       "/?signin=1&next=%2Fchannels%2Fapply",
     )
-    await expect(page.locator('iframe[title="DuaPrayer channel application"]')).toHaveCount(0)
+    // The dynamic form (and its submit button) must not render for logged-out users.
+    await expect(page.getByRole("button", { name: "Submit application" })).toHaveCount(0)
   })
 
   test("submitted dua appears in feed without full reload", async ({ page }) => {

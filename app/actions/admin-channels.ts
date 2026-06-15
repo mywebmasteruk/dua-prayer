@@ -66,6 +66,10 @@ function parseApplication(value: unknown): ChannelApplicationPayload | null {
       typeof record.registrationNumber === "string" ? record.registrationNumber : undefined,
     role: typeof record.role === "string" ? record.role : undefined,
     agreedToTerms: typeof record.agreedToTerms === "boolean" ? record.agreedToTerms : undefined,
+    fields:
+      record.fields && typeof record.fields === "object" && !Array.isArray(record.fields)
+        ? (record.fields as ChannelApplicationPayload["fields"])
+        : undefined,
   }
 }
 
@@ -102,6 +106,9 @@ function buildApplicationPayload(
     registrationNumber: input.existing?.registrationNumber,
     role: input.existing?.role,
     agreedToTerms: input.existing?.agreedToTerms,
+    // Registry-driven answers (incl. custom + file fields) — preserved as-is so
+    // an admin edit never silently drops submitted application data.
+    fields: input.existing?.fields,
   }
 }
 

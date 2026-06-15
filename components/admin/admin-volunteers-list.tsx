@@ -50,9 +50,12 @@ import {
   type AccountStatus,
   type MemberRole,
 } from "@/lib/volunteer-types"
+import { ApplicationAnswers } from "@/components/admin/application-answers"
+import type { FormRegistry } from "@/lib/form-fields"
 
 type AdminVolunteersListProps = {
   initialApplicants: VolunteerApplicantRecord[]
+  registry: FormRegistry
   initialFilter: AccountStatus | "all"
 }
 
@@ -77,7 +80,7 @@ function applicationSummary(application: VolunteerApplicantRecord["application"]
   return "—"
 }
 
-export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminVolunteersListProps) {
+export function AdminVolunteersList({ initialApplicants, initialFilter, registry }: AdminVolunteersListProps) {
   const [applicants, setApplicants] = useState(initialApplicants)
   const [filter, setFilter] = useState<AccountStatus | "all">(initialFilter)
   const [reviewing, setReviewing] = useState<VolunteerApplicantRecord | null>(null)
@@ -608,13 +611,12 @@ export function AdminVolunteersList({ initialApplicants, initialFilter }: AdminV
                 </SelectContent>
               </Select>
             </div>
-            {reviewing?.application?.message ? (
-              <div className="rounded-lg border border-border/70 bg-muted/30 p-3 text-sm">
-                <p className="font-medium">Message</p>
-                <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
-                  {reviewing.application.message}
-                </p>
-              </div>
+            {reviewing ? (
+              <ApplicationAnswers
+                registry={registry}
+                answers={reviewing.application?.fields}
+                legacy={reviewing.application as Record<string, unknown> | null}
+              />
             ) : null}
           </div>
           <DialogFooter>

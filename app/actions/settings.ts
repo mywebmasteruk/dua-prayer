@@ -4,13 +4,10 @@ import { revalidatePath, revalidateTag } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { getAdminContext, hasPermission, requirePermission } from "@/lib/auth"
 import { sanitizeBannerColor } from "@/lib/banner-rich-text"
-import { parseFilloutEmbed } from "@/lib/fillout"
 import {
   BETA_BANNER_DEFAULTS,
   getBetaBannerSettingsForAdmin,
-  getChannelFilloutSettingValue,
   getChannelFormRegistryForAdmin,
-  getVolunteerFilloutSettingValue,
   getVolunteerFormRegistryForAdmin,
 } from "@/lib/site-settings-server"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
@@ -74,104 +71,6 @@ export async function updateBetaBannerSettings(input: BetaBannerSettingsInput) {
   revalidatePath("/")
   revalidatePath("/admin/settings")
   revalidateTag("site-setting-beta-banner")
-  return { success: true as const }
-}
-
-export async function getVolunteerFilloutSettingForAdmin(): Promise<string> {
-  const ctx = await getAdminContext()
-  if (!ctx || !canManageVolunteerSettings(ctx)) return ""
-  return getVolunteerFilloutSettingValue()
-}
-
-export async function updateVolunteerFilloutSetting(rawInput: string) {
-  const ctx = await getAdminContext()
-  if (!ctx || !canManageVolunteerSettings(ctx)) return { error: "Unauthorized" as const }
-
-  const trimmed = rawInput.trim()
-
-  if (!trimmed) {
-    const admin = createAdminSupabaseClient()
-    const { error } = await admin.from("site_settings").delete().eq("key", SITE_SETTING_KEYS.volunteerFilloutEmbed)
-    if (error) return { error: error.message }
-
-    revalidatePath("/admin/settings")
-    revalidatePath("/volunteer")
-    revalidateTag("site-setting-volunteer-fillout")
-    return { success: true as const }
-  }
-
-  const parsed = parseFilloutEmbed(trimmed)
-  if (!parsed) {
-    return {
-      error:
-        "Invalid Fillout embed. Paste an iframe snippet, a https://forms.fillout.com/t/… URL, or the form ID only.",
-    }
-  }
-
-  const admin = createAdminSupabaseClient()
-  const { error } = await admin.from("site_settings").upsert(
-    {
-      key: SITE_SETTING_KEYS.volunteerFilloutEmbed,
-      value: parsed.src,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "key" },
-  )
-
-  if (error) return { error: error.message }
-
-  revalidatePath("/admin/settings")
-  revalidatePath("/volunteer")
-  revalidateTag("site-setting-volunteer-fillout")
-  return { success: true as const }
-}
-
-export async function getChannelFilloutSettingForAdmin(): Promise<string> {
-  const ctx = await getAdminContext()
-  if (!ctx || !canManageChannelSettings(ctx)) return ""
-  return getChannelFilloutSettingValue()
-}
-
-export async function updateChannelFilloutSetting(rawInput: string) {
-  const ctx = await getAdminContext()
-  if (!ctx || !canManageChannelSettings(ctx)) return { error: "Unauthorized" as const }
-
-  const trimmed = rawInput.trim()
-
-  if (!trimmed) {
-    const admin = createAdminSupabaseClient()
-    const { error } = await admin.from("site_settings").delete().eq("key", SITE_SETTING_KEYS.channelFilloutEmbed)
-    if (error) return { error: error.message }
-
-    revalidatePath("/admin/channels")
-    revalidatePath("/channels/apply")
-    revalidateTag("site-setting-channel-fillout")
-    return { success: true as const }
-  }
-
-  const parsed = parseFilloutEmbed(trimmed)
-  if (!parsed) {
-    return {
-      error:
-        "Invalid Fillout embed. Paste an iframe snippet, a https://forms.fillout.com/t/… URL, or the form ID only.",
-    }
-  }
-
-  const admin = createAdminSupabaseClient()
-  const { error } = await admin.from("site_settings").upsert(
-    {
-      key: SITE_SETTING_KEYS.channelFilloutEmbed,
-      value: parsed.src,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "key" },
-  )
-
-  if (error) return { error: error.message }
-
-  revalidatePath("/admin/channels")
-  revalidatePath("/channels/apply")
-  revalidateTag("site-setting-channel-fillout")
   return { success: true as const }
 }
 

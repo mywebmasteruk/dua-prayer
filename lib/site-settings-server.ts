@@ -1,7 +1,6 @@
 import { unstable_cache } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { isMissingTableError } from "@/lib/db-errors"
-import { parseFilloutEmbed } from "@/lib/fillout"
 import { sanitizeBannerColor } from "@/lib/banner-rich-text"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
 import {
@@ -31,18 +30,6 @@ async function fetchSiteSettingValue(key: string): Promise<string | null> {
 
   return data?.value ?? null
 }
-
-const getVolunteerFilloutSettingCached = unstable_cache(
-  () => fetchSiteSettingValue(SITE_SETTING_KEYS.volunteerFilloutEmbed),
-  ["site-setting-volunteer-fillout"],
-  { revalidate: 300, tags: ["site-setting-volunteer-fillout"] },
-)
-
-const getChannelFilloutSettingCached = unstable_cache(
-  () => fetchSiteSettingValue(SITE_SETTING_KEYS.channelFilloutEmbed),
-  ["site-setting-channel-fillout"],
-  { revalidate: 300, tags: ["site-setting-channel-fillout"] },
-)
 
 export const BETA_BANNER_DEFAULTS = {
   enabled: true,
@@ -94,34 +81,6 @@ export async function getBetaBannerSettings(): Promise<BetaBannerSettings> {
 
 export async function getBetaBannerSettingsForAdmin(): Promise<BetaBannerSettings> {
   return fetchBetaBannerSettings()
-}
-
-export async function getVolunteerFilloutEmbedSrc(): Promise<string | null> {
-  const raw = await getVolunteerFilloutSettingCached()
-  if (!raw) return null
-
-  const parsed = parseFilloutEmbed(raw)
-  return parsed?.src ?? null
-}
-
-/** Uncached read for admin integration UI — caller must enforce RBAC. */
-export async function getVolunteerFilloutSettingValue(): Promise<string> {
-  const value = await fetchSiteSettingValue(SITE_SETTING_KEYS.volunteerFilloutEmbed)
-  return value ?? ""
-}
-
-export async function getChannelFilloutEmbedSrc(): Promise<string | null> {
-  const raw = await getChannelFilloutSettingCached()
-  if (!raw) return null
-
-  const parsed = parseFilloutEmbed(raw)
-  return parsed?.src ?? null
-}
-
-/** Uncached read for admin channels UI — caller must enforce RBAC. */
-export async function getChannelFilloutSettingValue(): Promise<string> {
-  const value = await fetchSiteSettingValue(SITE_SETTING_KEYS.channelFilloutEmbed)
-  return value ?? ""
 }
 
 const getChannelFormRegistryCached = unstable_cache(

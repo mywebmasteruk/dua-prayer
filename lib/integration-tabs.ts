@@ -1,6 +1,6 @@
 export type IntegrationTabId =
   | "stripe"
-  | "fillout"
+  | "form-builder"
   | "webhooks"
   | "supabase"
   | "auth"
@@ -9,7 +9,7 @@ export type IntegrationTabId =
 
 export const INTEGRATION_TABS: { id: IntegrationTabId; label: string }[] = [
   { id: "stripe", label: "Stripe" },
-  { id: "fillout", label: "Fillout" },
+  { id: "form-builder", label: "Form builder" },
   { id: "webhooks", label: "Webhooks" },
   { id: "supabase", label: "Supabase" },
   { id: "auth", label: "Email & Auth" },
@@ -21,8 +21,9 @@ export function isIntegrationTabId(value: string | undefined): value is Integrat
   return INTEGRATION_TABS.some((tab) => tab.id === value)
 }
 
-/** Legacy `?tab=volunteer-webhook` bookmarks open the consolidated Webhooks tab. */
+/** Legacy bookmarks: `?tab=volunteer-webhook` → Webhooks; `?tab=fillout` → Form builder. */
 export function resolveIntegrationTabId(value: string | undefined): IntegrationTabId | undefined {
   if (value === "volunteer-webhook") return "webhooks"
+  if (value === "fillout") return "form-builder"
   return isIntegrationTabId(value) ? value : undefined
 }

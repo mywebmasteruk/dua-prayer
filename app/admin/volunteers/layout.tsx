@@ -26,9 +26,9 @@ export default async function AdminVolunteersLayout({ children }: { children: Re
         title="Volunteers"
         description={
           <>
-            Review applications, define volunteer tiers, and assign capabilities. Configure Fillout webhooks in{" "}
-            <Link href="/admin/integration?tab=webhooks" className="text-primary underline-offset-2 hover:underline">
-              Integration → Webhooks
+            Review applications, define volunteer tiers, and assign capabilities. Edit the application form fields in{" "}
+            <Link href="/admin/integration?tab=form-builder" className="text-primary underline-offset-2 hover:underline">
+              Integration → Form builder
             </Link>
             .
           </>

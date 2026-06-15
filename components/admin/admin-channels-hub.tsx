@@ -6,6 +6,7 @@ import { AdminChannelApplicationsList } from "@/components/admin/admin-channel-a
 import { AdminChannelsSettings } from "@/components/admin/admin-channels-settings"
 import type { AdminChannelRecord } from "@/app/actions/admin-channels"
 import type { ChannelApplicationRecord } from "@/app/actions/channel-applications"
+import type { FormRegistry } from "@/lib/form-fields"
 
 export type AdminChannelsTabId = "applications" | "approved"
 
@@ -17,9 +18,10 @@ const TABS: Array<{ id: AdminChannelsTabId; label: string }> = [
 type AdminChannelsHubProps = {
   initialApplications: ChannelApplicationRecord[]
   initialChannels: AdminChannelRecord[]
+  registry: FormRegistry
 }
 
-export function AdminChannelsHub({ initialApplications, initialChannels }: AdminChannelsHubProps) {
+export function AdminChannelsHub({ initialApplications, initialChannels, registry }: AdminChannelsHubProps) {
   const [activeTab, setActiveTab] = useState<AdminChannelsTabId>("applications")
 
   return (
@@ -56,9 +58,13 @@ export function AdminChannelsHub({ initialApplications, initialChannels }: Admin
       </div>
 
       {activeTab === "applications" ? (
-        <AdminChannelApplicationsList initialApplications={initialApplications} initialFilter="pending_review" />
+        <AdminChannelApplicationsList
+          initialApplications={initialApplications}
+          initialFilter="pending_review"
+          registry={registry}
+        />
       ) : (
-        <AdminChannelsSettings initialChannels={initialChannels} />
+        <AdminChannelsSettings initialChannels={initialChannels} registry={registry} />
       )}
     </div>
   )

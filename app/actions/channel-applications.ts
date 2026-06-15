@@ -24,6 +24,7 @@ export type ChannelApplicationRecord = Category & {
   applicantEmail: string
   applicantName: string | null
   duaCount: number
+  application: ChannelApplicationPayload | null
 }
 
 async function listAuthEmails(): Promise<Map<string, string>> {
@@ -48,6 +49,10 @@ function parseApplication(value: unknown): ChannelApplicationPayload | null {
     organization: typeof record.organization === "string" ? record.organization : undefined,
     website: typeof record.website === "string" ? record.website : undefined,
     source: typeof record.source === "string" ? record.source : undefined,
+    fields:
+      record.fields && typeof record.fields === "object" && !Array.isArray(record.fields)
+        ? (record.fields as ChannelApplicationPayload["fields"])
+        : undefined,
   }
 }
 
@@ -170,6 +175,7 @@ export async function listChannelApplications(input?: {
         ? (displayNames.get(ownerId) ?? application?.applicantName ?? null)
         : (application?.applicantName ?? null),
       duaCount: counts.get(row.id) ?? 0,
+      application,
     }
   })
 

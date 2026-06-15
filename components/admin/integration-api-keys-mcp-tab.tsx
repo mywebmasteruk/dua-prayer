@@ -14,7 +14,6 @@ import { cn } from "@/lib/utils"
 type IntegrationApiKeysMcpTabProps = {
   envStatus: IntegrationEnvStatus
   stripeSettings: StripeSettingsAdminView
-  filloutConfigured: boolean
 }
 
 type EnvVarRow = {
@@ -184,7 +183,6 @@ function McpServerCard({
 export function IntegrationApiKeysMcpTab({
   envStatus,
   stripeSettings,
-  filloutConfigured,
 }: IntegrationApiKeysMcpTabProps) {
   const activeStripe = stripeSettings.mode === "test" ? stripeSettings.test : stripeSettings.live
   const stripeSecretConfigured = stripeSettings.live.hasSecretKey || stripeSettings.test.hasSecretKey
@@ -271,39 +269,6 @@ export function IntegrationApiKeysMcpTab({
               )}
             </p>
           </ApiKeyCard>
-
-          <ApiKeyCard
-            title="Fillout"
-            purpose="Volunteer and channel application forms use embed URLs in site settings — no Fillout API key is required for DuaPrayer."
-            configured={filloutConfigured}
-            configuredLabel={filloutConfigured ? "Form embed configured" : "No embed saved"}
-            configureHref="/admin/integration?tab=fillout"
-            configureLabel="Integration → Fillout"
-          >
-            <p className="text-xs text-muted-foreground">
-              Webhook signing uses{" "}
-              <code className="rounded bg-muted px-1 py-0.5">VOLUNTEER_WEBHOOK_SECRET</code> and{" "}
-              <code className="rounded bg-muted px-1 py-0.5">CHANNEL_WEBHOOK_SECRET</code> — see Webhooks tab.
-            </p>
-          </ApiKeyCard>
-
-          <ApiKeyCard
-            title="Volunteer webhook"
-            purpose="Inbound secret for POST /api/webhooks/volunteer (Fillout, Zapier, or custom)."
-            configured={envStatus.volunteerWebhookConfigured}
-            envVars={[{ name: "VOLUNTEER_WEBHOOK_SECRET" }]}
-            configureHref="/admin/integration?tab=webhooks"
-            configureLabel="Integration → Webhooks"
-          />
-
-          <ApiKeyCard
-            title="Channel webhook"
-            purpose="Inbound secret for POST /api/webhooks/channel (channel registration applications)."
-            configured={envStatus.channelWebhookConfigured}
-            envVars={[{ name: "CHANNEL_WEBHOOK_SECRET" }]}
-            configureHref="/admin/integration?tab=webhooks"
-            configureLabel="Integration → Webhooks"
-          />
 
           {envStatus.turnstileConfigured ? (
             <ApiKeyCard

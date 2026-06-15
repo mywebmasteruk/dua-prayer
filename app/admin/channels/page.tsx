@@ -5,6 +5,7 @@ import { AdminChannelsHub } from "@/components/admin/admin-channels-hub"
 import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import { listAdminChannels } from "@/app/actions/admin-channels"
 import { listChannelApplications } from "@/app/actions/channel-applications"
+import { getChannelFormRegistry } from "@/lib/site-settings-server"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
 
@@ -13,9 +14,10 @@ export default async function AdminChannelsPage() {
   if (!ctx) redirect(signInHref({ next: "/admin/channels" }))
   if (!hasPermission(ctx, "manage_channels")) redirect(signInHref({ error: "not_admin" }))
 
-  const [channelsResult, applicationsResult] = await Promise.all([
+  const [channelsResult, applicationsResult, registry] = await Promise.all([
     listAdminChannels(),
     listChannelApplications({ status: "pending_review" }),
+    getChannelFormRegistry(),
   ])
 
   const channels = "channels" in channelsResult ? channelsResult.channels : []
@@ -29,7 +31,7 @@ export default async function AdminChannelsPage() {
         description="Review community channel applications and manage approved channels."
       />
 
-      <AdminChannelsHub initialApplications={applications} initialChannels={channels} />
+      <AdminChannelsHub initialApplications={applications} initialChannels={channels} registry={registry} />
     </InnerPageLayout>
   )
 }

@@ -11,7 +11,8 @@ import {
 } from "@/lib/stripe-settings-server"
 import { getAiModerationAdminView, type AiModerationAdminView } from "@/lib/ai-moderation"
 import { DEFAULT_MODERATION_TIMEOUT_MS } from "@/lib/ai-provider"
-import { getVolunteerFilloutSettingValue, getChannelFilloutSettingValue } from "@/lib/site-settings-server"
+import { getChannelFormRegistry, getVolunteerFormRegistry } from "@/lib/site-settings-server"
+import { DEFAULT_CHANNEL_REGISTRY, DEFAULT_VOLUNTEER_REGISTRY, type FormRegistry } from "@/lib/form-fields"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
 import {
@@ -25,7 +26,7 @@ type PageProps = {
 
 const INTEGRATION_TAB_IDS: IntegrationTabId[] = [
   "stripe",
-  "fillout",
+  "form-builder",
   "webhooks",
   "supabase",
   "auth",
@@ -35,6 +36,7 @@ const INTEGRATION_TAB_IDS: IntegrationTabId[] = [
 
 function resolveInitialTab(tab: string | undefined): IntegrationTabId {
   if (tab === "volunteer-webhook") return "webhooks"
+  if (tab === "fillout") return "form-builder"
   if (tab && INTEGRATION_TAB_IDS.includes(tab as IntegrationTabId)) {
     return tab as IntegrationTabId
   }
@@ -82,21 +84,21 @@ export default async function AdminIntegrationPage({ searchParams }: PageProps) 
     moderationTimeoutMs: DEFAULT_MODERATION_TIMEOUT_MS,
     autoModel: null,
   }
-  let volunteerFilloutValue = ""
-  let channelFilloutValue = ""
+  let channelFormRegistry: FormRegistry = DEFAULT_CHANNEL_REGISTRY
+  let volunteerFormRegistry: FormRegistry = DEFAULT_VOLUNTEER_REGISTRY
   const warnings: string[] = []
 
   try {
-    const [loadedStripe, loadedAiModeration, loadedVolunteerFillout, loadedChannelFillout] = await Promise.all([
+    const [loadedStripe, loadedAiModeration, loadedChannelRegistry, loadedVolunteerRegistry] = await Promise.all([
       canManageSettings ? getStripeSettingsForAdmin() : Promise.resolve(null),
       canManageSettings ? getAiModerationAdminView() : Promise.resolve(null),
-      canVolunteer ? getVolunteerFilloutSettingValue() : Promise.resolve(""),
-      canManageChannels ? getChannelFilloutSettingValue() : Promise.resolve(""),
+      canManageChannels ? getChannelFormRegistry() : Promise.resolve(null),
+      canVolunteer ? getVolunteerFormRegistry() : Promise.resolve(null),
     ])
     if (loadedStripe) stripeSettings = loadedStripe
     if (loadedAiModeration) aiModerationSettings = loadedAiModeration
-    volunteerFilloutValue = loadedVolunteerFillout
-    channelFilloutValue = loadedChannelFillout
+    if (loadedChannelRegistry) channelFormRegistry = loadedChannelRegistry
+    if (loadedVolunteerRegistry) volunteerFormRegistry = loadedVolunteerRegistry
   } catch (error) {
     console.error("Admin integration page failed to load settings:", error)
     warnings.push(
@@ -147,8 +149,8 @@ export default async function AdminIntegrationPage({ searchParams }: PageProps) 
         <IntegrationHub
           initialTab={initialTab}
           stripeSettings={stripeSettings}
-          volunteerFilloutValue={volunteerFilloutValue}
-          channelFilloutValue={channelFilloutValue}
+          channelFormRegistry={channelFormRegistry}
+          volunteerFormRegistry={volunteerFormRegistry}
           envStatus={envStatus}
           aiModerationSettings={aiModerationSettings}
           canManageStripe={canManageSettings}

@@ -2,7 +2,8 @@
 
 import { headers } from "next/headers"
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
-import { createSignedUploadUrl } from "@/lib/application-uploads"
+import { getAdminContext, hasPermission } from "@/lib/auth"
+import { createSignedUploadUrl, getSignedUrlForApplicationFile } from "@/lib/application-uploads"
 import { getChannelFormRegistry, getVolunteerFormRegistry } from "@/lib/site-settings-server"
 import { visibleFields, type FormKind } from "@/lib/form-fields"
 
@@ -50,4 +51,19 @@ export async function requestApplicationUpload(input: RequestUploadInput): Promi
     accept: field.fileConfig?.accept,
     maxSizeMb: field.fileConfig?.maxSizeMb,
   })
+}
+
+/** Admin-only: mint a short-lived signed URL to view an uploaded application file. */
+export async function getApplicationFileUrl(path: string): Promise<{ url: string } | { error: string }> {
+  const ctx = await getAdminContext()
+  const allowed =
+    ctx &&
+    (hasPermission(ctx, "manage_channels") ||
+      hasPermission(ctx, "manage_volunteers") ||
+      hasPermission(ctx, "manage_settings"))
+  if (!allowed) return { error: "Unauthorized" }
+
+  if (!path || typeof path !== "string") return { error: "Invalid file." }
+  const url = await getSignedUrlForApplicationFile(path, 300)
+  return url ? { url } : { error: "Could not generate a link." }
 }
