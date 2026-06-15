@@ -22,25 +22,6 @@ export function memberRoleToAdminFields(role: MemberRole): {
   return { is_admin: true, admin_role: role }
 }
 
-export async function notifyVolunteerWebhook(payload: Record<string, unknown>) {
-  const url = process.env.VOLUNTEER_NOTIFY_WEBHOOK_URL?.trim()
-  if (!url) return
-
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event: "volunteer.application.created",
-        timestamp: new Date().toISOString(),
-        ...payload,
-      }),
-    })
-  } catch (error) {
-    console.error("Volunteer notify webhook failed:", error)
-  }
-}
-
 export type VolunteerRegistrationResult =
   | { ok: true; userId: string; created: boolean; status: AccountStatus }
   | { ok: false; error: string; status?: number }

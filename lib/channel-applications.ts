@@ -15,25 +15,6 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-export async function notifyChannelApplicationWebhook(payload: Record<string, unknown>) {
-  const url = process.env.CHANNEL_NOTIFY_WEBHOOK_URL?.trim()
-  if (!url) return
-
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event: "channel.application.created",
-        timestamp: new Date().toISOString(),
-        ...payload,
-      }),
-    })
-  } catch (error) {
-    console.error("Channel application notify webhook failed:", error)
-  }
-}
-
 export type ChannelApplicationRegistrationResult =
   | {
       ok: true

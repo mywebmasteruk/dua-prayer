@@ -12,8 +12,6 @@ export type AuthEnvStatus = {
 
 export type IntegrationEnvStatus = {
   appUrl: string | null
-  volunteerWebhookConfigured: boolean
-  channelWebhookConfigured: boolean
   turnstileConfigured: boolean
   supabase: SupabaseEnvStatus
   auth: AuthEnvStatus
@@ -22,8 +20,6 @@ export type IntegrationEnvStatus = {
 export function emptyIntegrationEnvStatus(): IntegrationEnvStatus {
   return {
     appUrl: null,
-    volunteerWebhookConfigured: false,
-    channelWebhookConfigured: false,
     turnstileConfigured: false,
     supabase: {
       projectUrl: null,
@@ -44,8 +40,6 @@ export function getIntegrationEnvStatus(): IntegrationEnvStatus {
 
   return {
     appUrl,
-    volunteerWebhookConfigured: Boolean(process.env.VOLUNTEER_WEBHOOK_SECRET?.trim()),
-    channelWebhookConfigured: Boolean(process.env.CHANNEL_WEBHOOK_SECRET?.trim()),
     turnstileConfigured: Boolean(
       process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() && process.env.TURNSTILE_SECRET_KEY?.trim(),
     ),
@@ -84,10 +78,6 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 # Optional: Cloudflare Turnstile
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 TURNSTILE_SECRET_KEY=
-
-# Inbound webhooks (header: X-Webhook-Secret)
-VOLUNTEER_WEBHOOK_SECRET=generate_a_long_random_secret_here
-CHANNEL_WEBHOOK_SECRET=generate_a_long_random_secret_here
 
 # Stripe donations
 STRIPE_SECRET_KEY=sk_test_your_key_here
