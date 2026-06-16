@@ -65,7 +65,7 @@ function DuasTabBar({ activeTab }: { activeTab: Tab }) {
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string; status?: string; category?: string; tab?: string }>
+  searchParams: Promise<{ search?: string; status?: string; category?: string; language?: string; tab?: string }>
 }) {
   const params = await searchParams
   const ctx = await getAdminContext()
@@ -109,6 +109,7 @@ export default async function AdminPage({
     search: params.search,
     status: params.status,
     category: params.category,
+    language: params.language,
   })
 
   return (

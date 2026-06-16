@@ -24,11 +24,13 @@ export function AdminFilters({ categories, resultCount }: AdminFiltersProps) {
   const [search, setSearch] = useState(searchParams.get("search") || "")
   const [status, setStatus] = useState(searchParams.get("status") || "")
   const [category, setCategory] = useState(searchParams.get("category") || "")
+  const [language, setLanguage] = useState(searchParams.get("language") || "")
 
   useEffect(() => {
     setSearch(searchParams.get("search") || "")
     setStatus(searchParams.get("status") || "")
     setCategory(searchParams.get("category") || "")
+    setLanguage(searchParams.get("language") || "")
   }, [searchParams])
 
   const handleSearch = (e: React.FormEvent) => {
@@ -36,7 +38,7 @@ export function AdminFilters({ categories, resultCount }: AdminFiltersProps) {
     updateFilters({ search })
   }
 
-  const updateFilters = (updates: { search?: string; status?: string; category?: string }) => {
+  const updateFilters = (updates: { search?: string; status?: string; category?: string; language?: string }) => {
     const params = new URLSearchParams()
 
     for (const [key, value] of Array.from(searchParams.entries())) {
@@ -69,6 +71,14 @@ export function AdminFilters({ categories, resultCount }: AdminFiltersProps) {
       }
     }
 
+    if (updates.language !== undefined) {
+      if (updates.language && updates.language !== "all") {
+        params.set("language", updates.language)
+      } else {
+        params.delete("language")
+      }
+    }
+
     const url = `/admin${params.toString() ? `?${params.toString()}` : ""}`
     router.push(url)
   }
@@ -83,14 +93,25 @@ export function AdminFilters({ categories, resultCount }: AdminFiltersProps) {
     updateFilters({ category: value })
   }
 
+  const handleLanguageChange = (value: string) => {
+    setLanguage(value)
+    updateFilters({ language: value })
+  }
+
   const handleReset = () => {
     setSearch("")
     setStatus("")
     setCategory("")
+    setLanguage("")
     router.push("/admin")
   }
 
-  const hasActiveFilters = Boolean(search || (status && status !== "all") || (category && category !== "all"))
+  const hasActiveFilters = Boolean(
+    search ||
+      (status && status !== "all") ||
+      (category && category !== "all") ||
+      (language && language !== "all"),
+  )
 
   return (
     <AdminToolbar
@@ -139,6 +160,20 @@ export function AdminFilters({ categories, resultCount }: AdminFiltersProps) {
               {cat.name}
             </SelectItem>
           ))}
+        </SelectContent>
+      </Select>
+
+      <Select value={language || "all"} onValueChange={handleLanguageChange}>
+        <SelectTrigger className="h-9 w-full sm:w-[148px]" aria-label="Filter by language">
+          <SelectValue placeholder="Language" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All languages</SelectItem>
+          <SelectItem value="en">English</SelectItem>
+          <SelectItem value="ar">Arabic</SelectItem>
+          <SelectItem value="es">Spanish</SelectItem>
+          <SelectItem value="ur">Urdu</SelectItem>
+          <SelectItem value="fr">French</SelectItem>
         </SelectContent>
       </Select>
 

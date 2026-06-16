@@ -36,12 +36,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
   }))
 
-  const categoryRoutes: MetadataRoute.Sitemap = categoryEntries.map(({ handle, lastModified }) => ({
-    url: `${baseUrl}/channel/${handle}`,
-    lastModified,
-    changeFrequency: "daily" as const,
-    priority: 0.8,
-  }))
-
-  return [...staticRoutes, ...channelRoutes, ...categoryRoutes]
+  return [...staticRoutes, ...channelRoutes]
 }

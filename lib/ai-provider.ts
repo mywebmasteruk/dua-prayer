@@ -7,6 +7,7 @@ import { PROVIDER_CATALOG, AI_PROVIDER_IDS, type AiProvider } from "@/lib/ai-pro
 export type { AiProvider } from "@/lib/ai-provider-catalog"
 
 export type ModelMode = "auto" | "manual"
+export type ReasoningEffort = "none" | "low" | "medium" | "high"
 
 export type AiProviderSettings = {
   enabled: boolean
@@ -17,6 +18,14 @@ export type AiProviderSettings = {
   modelMode: ModelMode
   /** Max ms to wait for a moderation verdict before failing open. */
   moderationTimeoutMs: number
+  /** Reasoning effort for hybrid models. "none" disables it where allowed. */
+  reasoningEffort: ReasoningEffort
+  /** Max output tokens per call. */
+  maxTokens: number
+  /** Sampling temperature (0-2). */
+  temperature: number
+  /** Max ms to wait for a generation call before aborting. */
+  requestTimeoutMs: number
 }
 
 export type AiProviderAdminView = {
@@ -28,6 +37,10 @@ export type AiProviderAdminView = {
   ready: boolean
   modelMode: ModelMode
   moderationTimeoutMs: number
+  reasoningEffort: ReasoningEffort
+  maxTokens: number
+  temperature: number
+  requestTimeoutMs: number
   /** When modelMode === "auto", the model auto-resolution picked (for display). */
   autoModel: string | null
 }
@@ -36,12 +49,41 @@ export const DEFAULT_MODERATION_TIMEOUT_MS = 9_000
 export const MIN_MODERATION_TIMEOUT_MS = 2_000
 export const MAX_MODERATION_TIMEOUT_MS = 30_000
 
+export const REASONING_EFFORTS: ReasoningEffort[] = ["none", "low", "medium", "high"]
+export const DEFAULT_REASONING_EFFORT: ReasoningEffort = "low"
+export const DEFAULT_MAX_TOKENS = 1_200
+export const MIN_MAX_TOKENS = 256
+export const MAX_MAX_TOKENS = 8_000
+export const DEFAULT_TEMPERATURE = 0.4
+export const DEFAULT_REQUEST_TIMEOUT_MS = 20_000
+export const MIN_REQUEST_TIMEOUT_MS = 5_000
+export const MAX_REQUEST_TIMEOUT_MS = 55_000
+
 /** Safe free model used if auto-resolution can't reach OpenRouter. */
 const AUTO_FREE_FALLBACK_MODEL = "openai/gpt-oss-120b:free"
 
 export function clampModerationTimeout(value: number | null | undefined): number {
   if (!value || !Number.isFinite(value)) return DEFAULT_MODERATION_TIMEOUT_MS
   return Math.min(MAX_MODERATION_TIMEOUT_MS, Math.max(MIN_MODERATION_TIMEOUT_MS, Math.round(value)))
+}
+
+export function normalizeReasoningEffort(value: string | null | undefined): ReasoningEffort {
+  return REASONING_EFFORTS.includes(value as ReasoningEffort) ? (value as ReasoningEffort) : DEFAULT_REASONING_EFFORT
+}
+
+export function clampMaxTokens(value: number | null | undefined): number {
+  if (!value || !Number.isFinite(value)) return DEFAULT_MAX_TOKENS
+  return Math.min(MAX_MAX_TOKENS, Math.max(MIN_MAX_TOKENS, Math.round(value)))
+}
+
+export function clampTemperature(value: number | null | undefined): number {
+  if (value === null || value === undefined || !Number.isFinite(value)) return DEFAULT_TEMPERATURE
+  return Math.min(2, Math.max(0, Math.round(value * 100) / 100))
+}
+
+export function clampRequestTimeout(value: number | null | undefined): number {
+  if (!value || !Number.isFinite(value)) return DEFAULT_REQUEST_TIMEOUT_MS
+  return Math.min(MAX_REQUEST_TIMEOUT_MS, Math.max(MIN_REQUEST_TIMEOUT_MS, Math.round(value)))
 }
 
 // Preferred free model families, best first. Auto-mode picks the NEWEST free
@@ -100,9 +142,9 @@ async function fetchLatestFreeModel(): Promise<string> {
   }
 }
 
-/** Latest capable free OpenRouter model, refreshed daily. */
+/** Latest capable free OpenRouter model, refreshed hourly. */
 export const resolveLatestFreeModel = unstable_cache(fetchLatestFreeModel, ["latest-free-model"], {
-  revalidate: 86_400,
+  revalidate: 3_600,
   tags: ["ai-provider-settings"],
 })
 
@@ -119,8 +161,11 @@ type GenerateDuaInput = {
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string }
 
-const AI_TIMEOUT_MS = 10_000
-const MAX_DUA_LENGTH = 280
+const AI_TIMEOUT_MS = 20_000
+// Generous hard ceiling so a complete dua is never sliced mid-sentence here;
+// the bot prompt still asks for ~220 chars, and the bot layer does the final,
+// sentence-aware trim.
+const MAX_DUA_LENGTH = 600
 
 function trimOrNull(value: string | undefined | null): string | null {
   const trimmed = value?.trim()
@@ -158,6 +203,10 @@ const DISABLED_SETTINGS: AiProviderSettings = {
   apiKey: null,
   modelMode: "manual",
   moderationTimeoutMs: DEFAULT_MODERATION_TIMEOUT_MS,
+  reasoningEffort: DEFAULT_REASONING_EFFORT,
+  maxTokens: DEFAULT_MAX_TOKENS,
+  temperature: DEFAULT_TEMPERATURE,
+  requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
 }
 
 export async function fetchAiProviderSettings(): Promise<AiProviderSettings> {
@@ -176,6 +225,10 @@ export async function fetchAiProviderSettings(): Promise<AiProviderSettings> {
     SITE_SETTING_KEYS.aiProviderApiKey,
     SITE_SETTING_KEYS.aiProviderModelMode,
     SITE_SETTING_KEYS.aiModerationTimeoutMs,
+    SITE_SETTING_KEYS.aiReasoningEffort,
+    SITE_SETTING_KEYS.aiMaxTokens,
+    SITE_SETTING_KEYS.aiTemperature,
+    SITE_SETTING_KEYS.aiRequestTimeoutMs,
   ]
   const { data, error } = await supabase.from("site_settings").select("key, value").in("key", keys)
 
@@ -205,6 +258,10 @@ export async function fetchAiProviderSettings(): Promise<AiProviderSettings> {
     apiKey: trimOrNull(byKey.get(SITE_SETTING_KEYS.aiProviderApiKey)),
     modelMode,
     moderationTimeoutMs: clampModerationTimeout(Number(byKey.get(SITE_SETTING_KEYS.aiModerationTimeoutMs))),
+    reasoningEffort: normalizeReasoningEffort(trimOrNull(byKey.get(SITE_SETTING_KEYS.aiReasoningEffort))),
+    maxTokens: clampMaxTokens(Number(byKey.get(SITE_SETTING_KEYS.aiMaxTokens))),
+    temperature: clampTemperature(Number(byKey.get(SITE_SETTING_KEYS.aiTemperature))),
+    requestTimeoutMs: clampRequestTimeout(Number(byKey.get(SITE_SETTING_KEYS.aiRequestTimeoutMs))),
   }
 }
 
@@ -219,13 +276,17 @@ export async function getAiProviderAdminView(): Promise<AiProviderAdminView> {
     ready: isAiProviderReady(settings),
     modelMode: settings.modelMode,
     moderationTimeoutMs: settings.moderationTimeoutMs,
+    reasoningEffort: settings.reasoningEffort,
+    maxTokens: settings.maxTokens,
+    temperature: settings.temperature,
+    requestTimeoutMs: settings.requestTimeoutMs,
     autoModel: settings.modelMode === "auto" && settings.provider === "openrouter" ? settings.model : null,
   }
 }
 
-async function withTimeout<T>(callback: (signal: AbortSignal) => Promise<T>): Promise<T> {
+async function withTimeout<T>(callback: (signal: AbortSignal) => Promise<T>, timeoutMs = AI_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), AI_TIMEOUT_MS)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
     return await callback(controller.signal)
   } finally {
@@ -238,13 +299,21 @@ export async function callProviderChat(
   messages: ChatMessage[],
   signal: AbortSignal,
 ): Promise<string> {
-  const { provider, apiKey, model } = settings
+  const { provider, apiKey, model, temperature, maxTokens, reasoningEffort } = settings
   if (provider === "none") throw new Error("No AI provider configured.")
 
   const meta = PROVIDER_CATALOG[provider]
   const systemMsg = messages.find((m) => m.role === "system")?.content ?? ""
   const userMsg = messages.find((m) => m.role === "user")?.content ?? ""
   const jsonInstruction = "\n\nReturn ONLY valid JSON. No markdown, no explanation."
+  // OpenRouter reasoning control from settings. "none" tries to disable it (some
+  // providers reject that with 400); low/medium/high request that effort level.
+  const reasoningParam =
+    provider === "openrouter"
+      ? reasoningEffort === "none"
+        ? { reasoning: { enabled: false } }
+        : { reasoning: { effort: reasoningEffort } }
+      : {}
 
   if (provider === "anthropic") {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -256,7 +325,8 @@ export async function callProviderChat(
       },
       body: JSON.stringify({
         model: model || meta.defaultModel,
-        max_tokens: 512,
+        max_tokens: maxTokens,
+        temperature,
         system: systemMsg,
         messages: [{ role: "user", content: `${userMsg}${jsonInstruction}` }],
       }),
@@ -278,7 +348,7 @@ export async function callProviderChat(
       body: JSON.stringify({
         systemInstruction: systemMsg ? { parts: [{ text: systemMsg }] } : undefined,
         contents: [{ role: "user", parts: [{ text: `${userMsg}${jsonInstruction}` }] }],
-        generationConfig: { temperature: 0.4 },
+        generationConfig: { temperature },
       }),
       signal,
     })
@@ -304,7 +374,7 @@ export async function callProviderChat(
           ...(systemMsg ? [{ role: "system", content: systemMsg }] : []),
           { role: "user", content: `${userMsg}${jsonInstruction}` },
         ],
-        temperature: 0.4,
+        temperature,
       }),
       signal,
     })
@@ -319,23 +389,42 @@ export async function callProviderChat(
 
   // OpenAI-compatible providers: openai, mistral, groq, together, deepseek, xai, perplexity, ollama
   const needsJsonHint = !meta.supportsJsonMode
-  const response = await fetch(`${meta.apiBase}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey ?? ""}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: model || meta.defaultModel,
-      temperature: 0.4,
-      ...(meta.supportsJsonMode ? { response_format: { type: "json_object" } } : {}),
-      messages: messages.map((m) =>
-        m.role === "user" && needsJsonHint ? { ...m, content: `${m.content}${jsonInstruction}` } : m,
-      ),
-    }),
-    signal,
-  })
-  if (!response.ok) throw new Error(`${meta.label} request failed with status ${response.status}`)
+  const requestModel = model || meta.defaultModel
+
+  const sendChat = (modelId: string) =>
+    fetch(`${meta.apiBase}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey ?? ""}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: modelId,
+        temperature,
+        max_tokens: maxTokens,
+        ...reasoningParam,
+        ...(meta.supportsJsonMode ? { response_format: { type: "json_object" } } : {}),
+        messages: messages.map((m) =>
+          m.role === "user" && needsJsonHint ? { ...m, content: `${m.content}${jsonInstruction}` } : m,
+        ),
+      }),
+      signal,
+    })
+
+  let response = await sendChat(requestModel)
+  // OpenRouter returns 402 when the (paid) model can't be afforded. Fall back to
+  // a free model for this call so the bot keeps working without credits.
+  if (!response.ok && response.status === 402 && provider === "openrouter") {
+    const freeModel = await resolveLatestFreeModel()
+    if (freeModel && freeModel !== requestModel) {
+      console.warn(`OpenRouter out of credits for ${requestModel}; falling back to free model ${freeModel}`)
+      response = await sendChat(freeModel)
+    }
+  }
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "")
+    throw new Error(`${meta.label} request failed with status ${response.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`)
+  }
   const payload = (await response.json()) as {
     choices?: Array<{ message?: { content?: string | null } }>
   }
@@ -393,5 +482,5 @@ export async function generateDuaForEvent({
     return dua.slice(0, MAX_DUA_LENGTH)
   }
 
-  return signal ? run(signal) : withTimeout(run)
+  return signal ? run(signal) : withTimeout(run, settings.requestTimeoutMs)
 }

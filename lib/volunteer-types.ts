@@ -1,4 +1,4 @@
-export const ACCOUNT_STATUSES = ["active", "pending_review", "rejected"] as const
+export const ACCOUNT_STATUSES = ["active", "pending_review", "rejected", "suspended"] as const
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number]
 
 export const MEMBER_ROLES = ["volunteer", "moderator", "admin"] as const
@@ -28,6 +28,7 @@ export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
   active: "Active",
   pending_review: "Pending review",
   rejected: "Rejected",
+  suspended: "Suspended",
 }
 
 export const MEMBER_ROLE_LABELS: Record<MemberRole, string> = {

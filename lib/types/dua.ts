@@ -12,6 +12,8 @@ export interface Dua {
   language?: string | null
   is_bot_generated?: boolean
   user_has_prayed?: boolean
+  /** Whether the current viewer (logged-in) has flagged this dua. */
+  user_has_flagged?: boolean
   published: boolean
   flagged: boolean
 }

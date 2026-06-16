@@ -39,12 +39,24 @@ describe("user navigation state", () => {
     assert.equal(state.mobileUserItem.label, "Account")
   })
 
-  it("exposes admin only to the founding webmaster", () => {
+  it("exposes admin to the founding webmaster", () => {
     const state = getUserNavState("webmaster@duaprayer.com")
 
     assert.equal(state.showAdminLink, true)
     assert.equal(state.guestAccountItem, null)
     assert.equal(state.mobileUserItem.href, "/admin")
     assert.equal(state.mobileUserItem.label, "Admin")
+  })
+
+  it("exposes admin to non-founding users with admin permissions (moderators, volunteers)", () => {
+    const state = getUserNavState("helper@example.com", true)
+    assert.equal(state.showAdminLink, true)
+    assert.equal(state.mobileUserItem.href, "/admin")
+  })
+
+  it("hides admin from a regular signed-in member", () => {
+    const state = getUserNavState("member@example.com", false)
+    assert.equal(state.showAdminLink, false)
+    assert.equal(state.mobileUserItem.href, "/account")
   })
 })

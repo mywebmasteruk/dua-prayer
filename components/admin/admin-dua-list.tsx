@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Flag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -29,11 +29,26 @@ function truncateText(text: string, max = 80) {
   return `${text.slice(0, max).trim()}…`
 }
 
+// Language codes stored on duas and used by the feed language filter.
+const DUA_LANGUAGE_OPTIONS = [
+  { code: "en", label: "English" },
+  { code: "ar", label: "Arabic" },
+  { code: "es", label: "Spanish" },
+  { code: "ur", label: "Urdu" },
+  { code: "fr", label: "French" },
+] as const
+
 export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
   const [duas, setDuas] = useState<Dua[]>(initialDuas)
+  // Re-sync when the server re-fetches with new filters (search/status/category);
+  // otherwise the list keeps showing the first render's duas while the count updates.
+  useEffect(() => {
+    setDuas(initialDuas)
+  }, [initialDuas])
   const [editingDua, setEditingDua] = useState<Dua | null>(null)
   const [editText, setEditText] = useState("")
   const [editCategory, setEditCategory] = useState("")
+  const [editLanguage, setEditLanguage] = useState("none")
   const [isLoading, setIsLoading] = useState(false)
 
   const duaIds = useMemo(() => duas.map((dua) => dua.id), [duas])
@@ -114,6 +129,7 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
     setEditingDua(dua)
     setEditText(dua.text)
     setEditCategory(dua.category_id?.toString() ?? "none")
+    setEditLanguage(dua.language?.trim() || "none")
   }
 
   const handleSaveEdit = async () => {
@@ -121,10 +137,11 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
 
     setIsLoading(true)
     const categoryId = editCategory === "none" ? null : Number.parseInt(editCategory)
-    const result = await updateDua(editingDua.id, editText, categoryId)
+    const language = editLanguage === "none" ? null : editLanguage
+    const result = await updateDua(editingDua.id, editText, categoryId, language)
 
     if (result.error) {
-      toast({ title: "Error", description: "Failed to update dua", variant: "destructive" })
+      toast({ title: "Error", description: result.error, variant: "destructive" })
     } else {
       setDuas((prev) =>
         prev.map((d) =>
@@ -134,6 +151,7 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
                 text: editText,
                 category_id: categoryId,
                 category_name: categoryId ? categories.find((c) => c.id === categoryId)?.name : undefined,
+                language,
               }
             : d,
         ),
@@ -327,6 +345,22 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
                   {categories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id.toString()}>
                       {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-language">Language</Label>
+              <Select value={editLanguage} onValueChange={setEditLanguage}>
+                <SelectTrigger id="edit-language">
+                  <SelectValue placeholder="Select language" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not set</SelectItem>
+                  {DUA_LANGUAGE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.code} value={opt.code}>
+                      {opt.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

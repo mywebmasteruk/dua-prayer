@@ -6,7 +6,7 @@ import Image from "next/image"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createDua } from "@/app/actions/duas"
+import { createDua, searchHashtags } from "@/app/actions/duas"
 import { useNavigationRouter } from "@/hooks/use-navigation-router"
 import type { Category } from "@/lib/types/dua"
 import { getComposerCategoryLabel, type ComposerCopy } from "@/lib/site-copy"
@@ -22,6 +22,42 @@ import {
   resolveFontClassName,
   resolveTextDirection,
 } from "@/lib/detect-language"
+
+// The hashtag the caret is currently inside ("#word"), if any — drives the
+// "#" autocomplete like Instagram/X/Facebook.
+function getActiveHashtag(text: string, caret: number): { start: number; query: string } | null {
+  let start = caret
+  while (start > 0 && !/\s/.test(text[start - 1])) start -= 1
+  const token = text.slice(start, caret)
+  if (!token.startsWith("#")) return null
+  if (!/^#[\p{L}\p{N}_-]*$/u.test(token)) return null
+  return { start, query: token.slice(1) }
+}
+
+// Render text with hashtags colored, for the overlay that sits under the
+// (transparent-text) textarea — so #tags appear highlighted inline as you type.
+function renderHighlightedText(text: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = []
+  const pattern = /#[\p{L}\p{N}][\p{L}\p{N}_-]*/gu
+  let lastIndex = 0
+  let key = 0
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(text)) !== null) {
+    const prev = match.index > 0 ? text[match.index - 1] : ""
+    if (prev && !/\s/.test(prev)) continue // only treat "#" at a word boundary as a hashtag
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index))
+    nodes.push(
+      <span key={key++} className="font-semibold text-primary">
+        {match[0]}
+      </span>,
+    )
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex))
+  // Preserve a trailing newline's line box so the overlay height matches the textarea.
+  if (text.endsWith("\n")) nodes.push("​")
+  return nodes
+}
 
 interface DuaFormProps {
   categories: Category[]
@@ -51,9 +87,14 @@ export function DuaForm({
   const [charCount, setCharCount] = useState(0)
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileWidgetHandle>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const highlightRef = useRef<HTMLDivElement>(null)
+  const [hashtag, setHashtag] = useState<{ start: number; query: string } | null>(null)
+  const [hashtagSuggestions, setHashtagSuggestions] = useState<string[]>([])
+  const [activeSuggestion, setActiveSuggestion] = useState(0)
   const router = useNavigationRouter()
 
-  const MAX_CHARS = 280
+  const MAX_CHARS = 1200
   const MIN_CHARS = 15
   const turnstileRequired = !!turnstileSiteKey
 
@@ -143,10 +184,75 @@ export function DuaForm({
     onLanguageChange?.(value)
   }
 
+  // Track whether the caret sits inside a "#hashtag" (updated on input + caret moves).
+  const syncHashtagContext = useCallback(() => {
+    const el = textareaRef.current
+    if (!el) return
+    setHashtag(getActiveHashtag(el.value, el.selectionStart ?? el.value.length))
+  }, [])
+
+  const hashtagQuery = hashtag?.query ?? null
+
+  useEffect(() => {
+    if (hashtagQuery === null) {
+      setHashtagSuggestions([])
+      return
+    }
+    let active = true
+    const timer = setTimeout(async () => {
+      const results = await searchHashtags(hashtagQuery)
+      if (active) {
+        setHashtagSuggestions(results)
+        setActiveSuggestion(0)
+      }
+    }, 150)
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [hashtagQuery])
+
+  const insertHashtag = (tag: string) => {
+    const el = textareaRef.current
+    if (!el || !hashtag) return
+    const caret = el.selectionStart ?? duaText.length
+    let end = caret
+    while (end < duaText.length && /[\p{L}\p{N}_-]/u.test(duaText[end])) end += 1
+    const insert = `#${tag} `
+    const next = duaText.slice(0, hashtag.start) + insert + duaText.slice(end)
+    if (next.length > MAX_CHARS) return
+    setDuaText(next)
+    setHashtag(null)
+    setHashtagSuggestions([])
+    const pos = hashtag.start + insert.length
+    requestAnimationFrame(() => {
+      el.focus()
+      el.setSelectionRange(pos, pos)
+    })
+  }
+
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!hashtag || hashtagSuggestions.length === 0) return
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      setActiveSuggestion((i) => (i + 1) % hashtagSuggestions.length)
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      setActiveSuggestion((i) => (i - 1 + hashtagSuggestions.length) % hashtagSuggestions.length)
+    } else if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault()
+      insertHashtag(hashtagSuggestions[activeSuggestion])
+    } else if (e.key === "Escape") {
+      setHashtag(null)
+      setHashtagSuggestions([])
+    }
+  }
+
   const handleTextChange = (value: string) => {
     if (value.length > MAX_CHARS) return
     if (value.length === 0) handleLanguageChange("auto")
     setDuaText(value)
+    syncHashtagContext()
   }
 
   // HomeComposer modal uses z-[100]; portaled SelectContent must sit above it.
@@ -166,20 +272,71 @@ export function DuaForm({
             aria-hidden="true"
           />
         </div>
-        <div className="flex-1 min-w-0">
-          <Textarea
-            placeholder={placeholder}
+        <div className="relative flex-1 min-w-0">
+          {/* Overlay mirror: shows the same text with hashtags colored, under the
+              transparent-text textarea so #tags highlight inline as you type. */}
+          <div
+            ref={highlightRef}
+            aria-hidden="true"
             dir={isArabicUi ? "rtl" : textDirection}
             className={cn(
-              "min-h-[88px] resize-none border-0 bg-transparent px-0 text-[17px] leading-relaxed shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/80",
+              "pointer-events-none absolute inset-0 min-h-[88px] overflow-hidden whitespace-pre-wrap break-words px-0 py-2 text-[17px] text-foreground",
+              (isArabicUi || textDirection === "rtl") ? "text-right leading-8" : "leading-relaxed",
+              fontClassName,
+            )}
+          >
+            {renderHighlightedText(duaText)}
+          </div>
+          <Textarea
+            ref={textareaRef}
+            placeholder={placeholder}
+            dir={isArabicUi ? "rtl" : textDirection}
+            style={{ caretColor: "hsl(var(--foreground))" }}
+            className={cn(
+              "relative z-[1] min-h-[88px] resize-none border-0 bg-transparent px-0 py-2 text-[17px] leading-relaxed text-transparent shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/80",
               (isArabicUi || textDirection === "rtl") && "text-right leading-8",
               fontClassName,
             )}
             value={duaText}
             onChange={(e) => handleTextChange(e.target.value)}
+            onKeyDown={handleTextareaKeyDown}
+            onSelect={syncHashtagContext}
+            onScroll={(e) => {
+              if (highlightRef.current) highlightRef.current.scrollTop = e.currentTarget.scrollTop
+            }}
+            onBlur={() => setTimeout(() => { setHashtag(null); setHashtagSuggestions([]) }, 120)}
             maxLength={MAX_CHARS}
             aria-label="Dua text"
           />
+
+          {hashtag && hashtagSuggestions.length > 0 ? (
+            <ul
+              className="absolute left-0 right-0 z-[120] mt-1 max-h-56 overflow-auto rounded-xl border border-border bg-popover py-1 shadow-lg"
+              role="listbox"
+              aria-label="Hashtag suggestions"
+            >
+              {hashtagSuggestions.map((tag, index) => (
+                <li key={tag}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={index === activeSuggestion}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      insertHashtag(tag)
+                    }}
+                    onMouseEnter={() => setActiveSuggestion(index)}
+                    className={cn(
+                      "flex w-full items-center px-3 py-2 text-left text-sm",
+                      index === activeSuggestion ? "bg-muted" : "hover:bg-muted/60",
+                    )}
+                  >
+                    <span className="font-semibold text-primary">#{tag}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
 
           {turnstileSiteKey && (
             <div className="mt-3">

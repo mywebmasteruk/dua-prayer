@@ -112,6 +112,7 @@ export interface Database {
           likes: number
           published: boolean
           flagged: boolean
+          language: string | null
           created_at: string
         }
         Insert: {
@@ -122,6 +123,7 @@ export interface Database {
           likes?: number
           published?: boolean
           flagged?: boolean
+          language?: string | null
           created_at?: string
         }
         Update: {
@@ -132,6 +134,7 @@ export interface Database {
           likes?: number
           published?: boolean
           flagged?: boolean
+          language?: string | null
         }
         Relationships: []
       }
@@ -139,6 +142,12 @@ export interface Database {
         Row: { id: number; dua_id: number; user_id: string | null; voter_hash: string | null; created_at: string }
         Insert: { id?: number; dua_id: number; user_id?: string | null; voter_hash?: string | null; created_at?: string }
         Update: { id?: number; dua_id?: number; user_id?: string | null; voter_hash?: string | null }
+        Relationships: []
+      }
+      dua_flags: {
+        Row: { id: number; dua_id: number; user_id: string; created_at: string }
+        Insert: { id?: number; dua_id: number; user_id: string; created_at?: string }
+        Update: { id?: number; dua_id?: number; user_id?: string; created_at?: string }
         Relationships: []
       }
       dua_bots: {
@@ -149,6 +158,7 @@ export interface Database {
           system_prompt: string | null
           status: "active" | "paused"
           frequency_minutes: number
+          max_duas_per_run: number
           source_type: "rss"
           rss_urls: string[]
           keywords: string[]
@@ -173,6 +183,7 @@ export interface Database {
           system_prompt?: string | null
           status?: "active" | "paused"
           frequency_minutes?: number
+          max_duas_per_run?: number
           source_type?: "rss"
           rss_urls?: string[]
           keywords?: string[]
@@ -197,6 +208,7 @@ export interface Database {
           system_prompt?: string | null
           status?: "active" | "paused"
           frequency_minutes?: number
+          max_duas_per_run?: number
           source_type?: "rss"
           rss_urls?: string[]
           keywords?: string[]

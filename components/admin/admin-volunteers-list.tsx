@@ -62,6 +62,7 @@ type AdminVolunteersListProps = {
 function statusTone(status: AccountStatus): "warning" | "success" | "neutral" {
   if (status === "pending_review") return "warning"
   if (status === "active") return "success"
+  if (status === "suspended") return "warning"
   return "neutral"
 }
 
@@ -337,6 +338,7 @@ export function AdminVolunteersList({ initialApplicants, initialFilter, registry
             <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="pending_review">{ACCOUNT_STATUS_LABELS.pending_review}</SelectItem>
             <SelectItem value="active">{ACCOUNT_STATUS_LABELS.active}</SelectItem>
+            <SelectItem value="suspended">{ACCOUNT_STATUS_LABELS.suspended}</SelectItem>
             <SelectItem value="rejected">{ACCOUNT_STATUS_LABELS.rejected}</SelectItem>
           </SelectContent>
         </Select>

@@ -28,6 +28,7 @@ export type ActiveVolunteerRecord = {
   id: string
   email: string
   displayName: string | null
+  accountStatus: AccountStatus
   memberRole: MemberRole
   createdAt: string
   reviewedAt: string | null
@@ -242,8 +243,8 @@ export async function listActiveVolunteers(): Promise<
   const admin = createAdminSupabaseClient()
   const { data, error } = await admin
     .from("profiles")
-    .select("id, display_name, member_role, created_at, reviewed_at")
-    .eq("account_status", "active")
+    .select("id, display_name, account_status, member_role, created_at, reviewed_at")
+    .in("account_status", ["active", "suspended"])
     .not("member_role", "is", null)
     .order("reviewed_at", { ascending: false, nullsFirst: false })
 
@@ -260,6 +261,7 @@ export async function listActiveVolunteers(): Promise<
       id: row.id,
       email: emails.get(row.id) ?? "",
       displayName: row.display_name,
+      accountStatus: (row.account_status ?? "active") as AccountStatus,
       memberRole: row.member_role as MemberRole,
       createdAt: row.created_at,
       reviewedAt: row.reviewed_at,
@@ -323,6 +325,111 @@ export async function updateVolunteerTier(input: { userId: string; tier: MemberR
     success: true as const,
     tier: MEMBER_ROLE_LABELS[input.tier],
   }
+}
+
+export async function suspendVolunteer(input: { userId: string }) {
+  const gate = await requirePermission("manage_volunteers")
+  if (!gate.ok) {
+    return { error: gate.error === "Forbidden" ? "You cannot manage volunteers." : "Unauthorized" }
+  }
+
+  const admin = createAdminSupabaseClient()
+
+  const { data: profile, error: loadError } = await admin
+    .from("profiles")
+    .select("account_status, member_role")
+    .eq("id", input.userId)
+    .single()
+
+  if (loadError || !profile) {
+    return { error: loadError?.message ?? "Volunteer not found." }
+  }
+
+  if (profile.account_status !== "active" || !profile.member_role) {
+    return { error: "Only active volunteers can be suspended." }
+  }
+
+  const now = new Date().toISOString()
+
+  const { error } = await admin
+    .from("profiles")
+    .update({
+      account_status: "suspended",
+      is_admin: false,
+      admin_role: null,
+      admin_permissions: {},
+      updated_at: now,
+    })
+    .eq("id", input.userId)
+
+  if (error) return { error: error.message }
+
+  const { error: metadataError } = await admin.auth.admin.updateUserById(input.userId, {
+    app_metadata: { account_status: "suspended" },
+  })
+  if (metadataError) {
+    console.error("Failed to sync app_metadata for suspended volunteer:", metadataError)
+    return { error: "Profile updated but session metadata sync failed. Retry the action." }
+  }
+
+  revalidatePath("/admin/volunteers")
+  revalidatePath("/admin/volunteers/roles")
+  revalidatePath("/admin/users")
+  return { success: true as const }
+}
+
+export async function unsuspendVolunteer(input: { userId: string }) {
+  const gate = await requirePermission("manage_volunteers")
+  if (!gate.ok) {
+    return { error: gate.error === "Forbidden" ? "You cannot manage volunteers." : "Unauthorized" }
+  }
+
+  const admin = createAdminSupabaseClient()
+
+  const { data: profile, error: loadError } = await admin
+    .from("profiles")
+    .select("account_status, member_role")
+    .eq("id", input.userId)
+    .single()
+
+  if (loadError || !profile) {
+    return { error: loadError?.message ?? "Volunteer not found." }
+  }
+
+  if (profile.account_status !== "suspended" || !profile.member_role) {
+    return { error: "This volunteer is not currently suspended." }
+  }
+
+  const role = profile.member_role as MemberRole
+  const adminFields = memberRoleToAdminFields(role)
+  const now = new Date().toISOString()
+
+  const { error } = await admin
+    .from("profiles")
+    .update({
+      account_status: "active",
+      is_admin: adminFields.is_admin,
+      admin_role: adminFields.admin_role,
+      admin_permissions: {},
+      updated_at: now,
+    })
+    .eq("id", input.userId)
+
+  if (error) return { error: error.message }
+
+  const { error: metadataError } = await admin.auth.admin.updateUserById(input.userId, {
+    app_metadata: { account_status: "active", member_role: role },
+  })
+  if (metadataError) {
+    console.error("Failed to sync app_metadata for unsuspended volunteer:", metadataError)
+    return { error: "Profile updated but session metadata sync failed. Retry the action." }
+  }
+
+  revalidatePath("/admin/volunteers")
+  revalidatePath("/admin/volunteers/roles")
+  revalidatePath("/admin/users")
+  revalidatePath("/admin")
+  return { success: true as const }
 }
 
 export async function getVolunteerRolesAccess() {

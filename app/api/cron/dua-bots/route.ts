@@ -2,6 +2,10 @@ import { NextResponse } from "next/server"
 import { runDueDuaBots } from "@/lib/dua-bots"
 import { secretsMatch } from "@/lib/secure-compare"
 
+// Generating several duas (AI call + moderation each) can take a while; give the
+// serverless function the headroom it needs (60s is the Hobby-plan ceiling).
+export const maxDuration = 60
+
 function cronSecret(): string | null {
   return process.env.CRON_SECRET?.trim() || process.env.BOT_RUNNER_SECRET?.trim() || null
 }

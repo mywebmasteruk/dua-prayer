@@ -13,7 +13,7 @@ import { toast } from "@/components/ui/use-toast"
 import { updateAiProviderSettings } from "@/app/actions/ai-provider-settings"
 import { fetchProviderModels } from "@/app/actions/fetch-provider-models"
 import { PROVIDER_CATALOG, AI_PROVIDER_IDS, type AiProvider } from "@/lib/ai-provider-catalog"
-import type { AiProviderAdminView, ModelMode } from "@/lib/ai-provider"
+import type { AiProviderAdminView, ModelMode, ReasoningEffort } from "@/lib/ai-provider"
 
 type IntegrationAiProviderTabProps = {
   initial: AiProviderAdminView
@@ -38,6 +38,10 @@ export function IntegrationAiProviderTab({ initial }: IntegrationAiProviderTabPr
   const [model, setModel] = useState(initial.model)
   const [modelMode, setModelMode] = useState<ModelMode>(initial.modelMode)
   const [timeoutSec, setTimeoutSec] = useState(Math.round(initial.moderationTimeoutMs / 1000))
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(initial.reasoningEffort)
+  const [maxTokens, setMaxTokens] = useState(initial.maxTokens)
+  const [temperature, setTemperature] = useState(initial.temperature)
+  const [requestTimeoutSec, setRequestTimeoutSec] = useState(Math.round(initial.requestTimeoutMs / 1000))
   const [apiKey, setApiKey] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const autoSupported = provider === "openrouter"
@@ -95,7 +99,19 @@ export function IntegrationAiProviderTab({ initial }: IntegrationAiProviderTabPr
     setIsSaving(true)
 
     const moderationTimeoutMs = timeoutSec * 1000
-    const result = await updateAiProviderSettings({ enabled, provider, model, apiKey, modelMode, moderationTimeoutMs })
+    const requestTimeoutMs = requestTimeoutSec * 1000
+    const result = await updateAiProviderSettings({
+      enabled,
+      provider,
+      model,
+      apiKey,
+      modelMode,
+      moderationTimeoutMs,
+      reasoningEffort,
+      maxTokens,
+      temperature,
+      requestTimeoutMs,
+    })
     if ("error" in result && result.error) {
       toast({ title: "Could not save AI Provider", description: result.error, variant: "destructive" })
     } else {
@@ -110,6 +126,10 @@ export function IntegrationAiProviderTab({ initial }: IntegrationAiProviderTabPr
         ready: providerReady,
         modelMode,
         moderationTimeoutMs,
+        reasoningEffort,
+        maxTokens,
+        temperature,
+        requestTimeoutMs,
         autoModel: modelMode === "auto" && provider === "openrouter" ? view.autoModel : null,
       })
       setApiKey("")
@@ -296,6 +316,95 @@ export function IntegrationAiProviderTab({ initial }: IntegrationAiProviderTabPr
                   How long to wait for a moderation verdict before publishing anyway. Free models are slower, so
                   allow more time. If the check times out or errors, the dua publishes and the local keyword filter
                   still applies.
+                </p>
+              </div>
+            </>
+          )}
+
+          {provider !== "none" && (
+            <>
+              <Label htmlFor="ai-reasoning-effort" className="sm:pt-2.5">
+                Reasoning effort
+              </Label>
+              <div className="space-y-1.5">
+                <Select value={reasoningEffort} onValueChange={(v) => setReasoningEffort(v as ReasoningEffort)} disabled={isSaving}>
+                  <SelectTrigger id="ai-reasoning-effort"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None — fastest/cheapest (some models reject this)</SelectItem>
+                    <SelectItem value="low">Low — minimal reasoning (recommended)</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High — most deliberate, slowest</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  For hybrid/reasoning models (e.g. Kimi). &quot;None&quot; can return an error on providers that make
+                  reasoning mandatory — use Low if unsure.
+                </p>
+              </div>
+
+              <Label htmlFor="ai-temperature" className="sm:pt-2.5">
+                Temperature
+              </Label>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="ai-temperature"
+                    type="number"
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    value={temperature}
+                    onChange={(event) => setTemperature(Number(event.target.value))}
+                    disabled={isSaving}
+                    className="w-24"
+                  />
+                  <span className="text-sm text-muted-foreground">0 = faithful, 1+ = creative</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Lower for verbatim/retrieval bots; higher for freeform composing.
+                </p>
+              </div>
+
+              <Label htmlFor="ai-max-tokens" className="sm:pt-2.5">
+                Max output tokens
+              </Label>
+              <div className="space-y-1.5">
+                <Input
+                  id="ai-max-tokens"
+                  type="number"
+                  min={256}
+                  max={8000}
+                  step={100}
+                  value={maxTokens}
+                  onChange={(event) => setMaxTokens(Number(event.target.value))}
+                  disabled={isSaving}
+                  className="w-32"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Upper bound on each response. Must cover reasoning + the dua; too low truncates output.
+                </p>
+              </div>
+
+              <Label htmlFor="ai-request-timeout" className="sm:pt-2.5">
+                Request timeout
+              </Label>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="ai-request-timeout"
+                    type="number"
+                    min={5}
+                    max={55}
+                    step={1}
+                    value={requestTimeoutSec}
+                    onChange={(event) => setRequestTimeoutSec(Number(event.target.value))}
+                    disabled={isSaving}
+                    className="w-24"
+                  />
+                  <span className="text-sm text-muted-foreground">seconds (5–55)</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  How long to wait for a generation call before aborting. Keep below the 60s function limit.
                 </p>
               </div>
             </>

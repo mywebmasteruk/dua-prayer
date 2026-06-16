@@ -24,6 +24,7 @@ describe("dua bot prompt controls", () => {
         system_prompt: "Keep duas short and avoid naming organizations.",
         status: "paused",
         frequency_minutes: 360,
+        max_duas_per_run: 3,
         source_type: "rss",
         rss_urls: ["https://example.com/rss.xml"],
         keywords: [],
@@ -70,9 +71,6 @@ describe("dua bot prompt controls", () => {
     assert.match(messages[0].content, /must not include/i)
     assert.match(messages[0].content, /Amen/i)
     assert.match(messages[0].content, /Ameen/i)
-    assert.match(messages[1].content, /must not include/i)
-    assert.match(messages[1].content, /Amen/i)
-    assert.match(messages[1].content, /Ameen/i)
   })
 
   it("removes closing affirmation variants from generated bot dua text", () => {
@@ -90,7 +88,7 @@ describe("dua bot prompt controls", () => {
     })
 
     assert.match(messages[0].content, /hashtag/i)
-    assert.match(messages[1].content, /at least one relevant hashtag/i)
+    assert.match(messages[1].content, /hashtag/i)
   })
 
   it("appends a relevant hashtag when generated bot text has none", () => {

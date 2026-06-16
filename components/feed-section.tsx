@@ -4,13 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getFeedDuas } from "@/app/actions/duas"
 import type { Category, Dua } from "@/lib/types/dua"
 import { getChannelHandle } from "@/lib/channels"
-import { detectLanguage, type DuaLanguage } from "@/lib/detect-language"
-import { FeedFilters, type LangFilter, type LangPill } from "@/components/feed-filters"
+import { detectLanguage } from "@/lib/detect-language"
+import { FeedFilters, type LangFilter } from "@/components/feed-filters"
 import { DuaList } from "@/components/dua-list"
 import { FeedPagination } from "@/components/feed-pagination"
 import { NewDuasBanner } from "@/components/new-duas-banner"
 import { useHomeSearch } from "@/components/home-search-provider"
-import { buildTrendingHashtags, matchesHashtag, normalizeHashtag, type TrendingHashtag } from "@/lib/hashtags"
+import { matchesHashtag, normalizeHashtag, type TrendingHashtag } from "@/lib/hashtags"
 import { useNewDuasPoll } from "@/hooks/use-new-duas-poll"
 import { useNavigationRouter } from "@/hooks/use-navigation-router"
 import type { HomeEmptyCopy } from "@/lib/site-copy"
@@ -24,7 +24,7 @@ interface FeedSectionProps {
   total: number
   feedActive?: boolean
   emptyCopy?: Pick<HomeEmptyCopy, "homeFeedEmptyTitle" | "homeFeedEmptyDescription">
-  /** Pre-select a channel handle on mount (used by /channel/[handle] page). */
+  /** Pre-select a channel handle on mount (used by /channels/[handle] page). */
   initialCategory?: string
 }
 
@@ -35,7 +35,8 @@ function readFiltersFromUrl() {
 
   const params = new URLSearchParams(window.location.search)
   const langParam = params.get("lang")
-  const lang: LangFilter = langParam === "en" || langParam === "ar" ? langParam : "all"
+  const validLangs: LangFilter[] = ["en", "ar", "es", "ur", "fr"]
+  const lang: LangFilter = validLangs.includes(langParam as LangFilter) ? (langParam as LangFilter) : "all"
 
   return {
     category: params.get("category") || "all",
@@ -48,7 +49,7 @@ function readFiltersFromUrl() {
 function syncFiltersToUrl(lang: LangFilter, page: number, tag: string) {
   const params = new URLSearchParams(window.location.search)
 
-  // Category is now path-based (/channel/handle) — clean up any legacy param
+  // Category is now path-based (/channels/handle) — clean up any legacy param
   params.delete("category")
 
   if (lang !== "all") params.set("lang", lang)
@@ -70,9 +71,13 @@ function syncFiltersToUrl(lang: LangFilter, page: number, tag: string) {
   }
 }
 
-function matchesLanguage(text: string, lang: LangFilter) {
+function matchesLanguage(dua: Dua, lang: LangFilter) {
   if (lang === "all") return true
-  return detectLanguage(text) === (lang as DuaLanguage)
+  const stored = dua.language?.trim().toLowerCase()
+  // Prefer the stored language (set by bots / on submission). Fall back to
+  // script detection for legacy rows — that only distinguishes en/ar.
+  if (stored) return stored === lang
+  return detectLanguage(dua.text) === lang
 }
 
 function matchesSearch(dua: Dua, searchQuery: string, categories: Category[]) {
@@ -95,10 +100,9 @@ export function FeedSection({
   emptyCopy,
   initialCategory,
 }: FeedSectionProps) {
-  const { query: searchQuery } = useHomeSearch()
+  const { query: searchQuery, lang, setLang } = useHomeSearch()
   const router = useNavigationRouter()
   const [category, setCategory] = useState("all")
-  const [lang, setLang] = useState<LangFilter>("all")
   const [page, setPage] = useState(1)
   const [tag, setTag] = useState("")
   const [extraDuas, setExtraDuas] = useState<Dua[]>([])
@@ -130,12 +134,12 @@ export function FeedSection({
       resolvedCategory = match ? getChannelHandle(match) : "all"
     }
 
-    // Redirect legacy ?category=<handle> to path-based /channel/<handle>
+    // Redirect legacy ?category=<handle> to path-based /channels/<handle>
     if (resolvedCategory !== "all") {
       const params = new URLSearchParams(window.location.search)
       params.delete("category")
       const query = params.toString()
-      router.replace(`/channel/${resolvedCategory}${query ? `?${query}` : ""}`)
+      router.replace(`/channels/${resolvedCategory}${query ? `?${query}` : ""}`)
       return
     }
 
@@ -159,21 +163,12 @@ export function FeedSection({
     return map
   }, [categories])
 
-  const activeTrendingHashtags = useMemo(() => {
-    if (!tag || trendingHashtags.some((hashtag) => hashtag.tag === tag)) return trendingHashtags
-
-    const activeHashtag = buildTrendingHashtags(allDuas.filter((dua) => matchesHashtag(dua.text, tag)), 1)[0]
-    if (!activeHashtag) return trendingHashtags
-
-    return [...trendingHashtags.slice(0, 4), activeHashtag]
-  }, [allDuas, tag, trendingHashtags])
-
   const filteredDuas = useMemo(() => {
     const activeCategoryId = category !== "all" ? categoryIdByHandle.get(category) : undefined
     return allDuas.filter((dua) => {
       if (activeCategoryId !== undefined && dua.category_id !== activeCategoryId) return false
       if (tag && !matchesHashtag(dua.text, tag)) return false
-      if (!matchesLanguage(dua.text, lang)) return false
+      if (!matchesLanguage(dua, lang)) return false
       if (!matchesSearch(dua, searchQuery, categories)) return false
       return true
     })
@@ -261,22 +256,11 @@ export function FeedSection({
     [tag],
   )
 
-  const handleTagChange = useCallback(
-    (value: string) => {
-      const nextTag = value === tag ? "" : value
-      setTag(nextTag)
-      setPage(1)
-      syncFiltersToUrl(lang, 1, nextTag)
-    },
-    [lang, tag],
-  )
-
   const handleLangChange = useCallback(
-    (value: LangPill) => {
-      const nextLang: LangFilter = lang === value ? "all" : value
-      updateFilters(nextLang, 1)
+    (value: LangFilter) => {
+      updateFilters(value, 1)
     },
-    [lang, updateFilters],
+    [updateFilters],
   )
 
   const handlePageChange = useCallback(
@@ -318,13 +302,7 @@ export function FeedSection({
 
   return (
     <>
-      <FeedFilters
-        trendingHashtags={activeTrendingHashtags}
-        activeTag={tag}
-        activeLang={lang}
-        onTagChange={handleTagChange}
-        onLangChange={handleLangChange}
-      />
+      <FeedFilters activeLang={lang} onLangChange={handleLangChange} />
 
       {tag ? (
         <div className="border-t border-border/60 bg-primary/5 px-4 py-2.5 text-sm text-foreground sm:px-5">

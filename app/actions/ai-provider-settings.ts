@@ -3,7 +3,18 @@
 import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { getAdminContext, hasPermission } from "@/lib/auth"
-import { getAiProviderAdminView, isAiProvider, clampModerationTimeout, type AiProvider, type ModelMode } from "@/lib/ai-provider"
+import {
+  getAiProviderAdminView,
+  isAiProvider,
+  clampModerationTimeout,
+  normalizeReasoningEffort,
+  clampMaxTokens,
+  clampTemperature,
+  clampRequestTimeout,
+  type AiProvider,
+  type ModelMode,
+  type ReasoningEffort,
+} from "@/lib/ai-provider"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
 
 type AiProviderSettingsInput = {
@@ -14,6 +25,10 @@ type AiProviderSettingsInput = {
   clearApiKey?: boolean
   modelMode?: ModelMode
   moderationTimeoutMs?: number
+  reasoningEffort?: ReasoningEffort
+  maxTokens?: number
+  temperature?: number
+  requestTimeoutMs?: number
 }
 
 function canManageAiProviderSettings(ctx: NonNullable<Awaited<ReturnType<typeof getAdminContext>>>) {
@@ -75,6 +90,26 @@ export async function updateAiProviderSettings(input: AiProviderSettingsInput) {
   if (input.moderationTimeoutMs !== undefined) {
     const ms = clampModerationTimeout(input.moderationTimeoutMs)
     const { error } = await upsertSetting(SITE_SETTING_KEYS.aiModerationTimeoutMs, String(ms))
+    if (error) return { error: error.message }
+  }
+
+  if (input.reasoningEffort !== undefined) {
+    const { error } = await upsertSetting(SITE_SETTING_KEYS.aiReasoningEffort, normalizeReasoningEffort(input.reasoningEffort))
+    if (error) return { error: error.message }
+  }
+
+  if (input.maxTokens !== undefined) {
+    const { error } = await upsertSetting(SITE_SETTING_KEYS.aiMaxTokens, String(clampMaxTokens(input.maxTokens)))
+    if (error) return { error: error.message }
+  }
+
+  if (input.temperature !== undefined) {
+    const { error } = await upsertSetting(SITE_SETTING_KEYS.aiTemperature, String(clampTemperature(input.temperature)))
+    if (error) return { error: error.message }
+  }
+
+  if (input.requestTimeoutMs !== undefined) {
+    const { error } = await upsertSetting(SITE_SETTING_KEYS.aiRequestTimeoutMs, String(clampRequestTimeout(input.requestTimeoutMs)))
     if (error) return { error: error.message }
   }
 

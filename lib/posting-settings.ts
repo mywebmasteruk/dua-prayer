@@ -10,6 +10,7 @@ export {
   POSTING_MODE_OPTIONS,
   POSTING_MODES,
   shouldAllowPublicDuaSubmission,
+  shouldHoldSubmissionForReview,
   type PostingMode,
   type PostingModeOption,
   type PublicDuaSubmissionAccess,

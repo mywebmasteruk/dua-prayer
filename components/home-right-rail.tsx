@@ -1,7 +1,6 @@
 import Link from "next/link"
 import {
   ArrowUpRight,
-  Hash,
   HeartHandshake,
   LayoutGrid,
   LockKeyhole,
@@ -12,7 +11,9 @@ import {
 import { HomeSearchInput } from "./home-search-input"
 import { HOME_FEED_TAB_BAR_HEIGHT_PX } from "./home-feed-tab-bar"
 import { TrendingInfoTooltip } from "./trending-info-tooltip"
+import { TrendingList } from "./trending-list"
 import type { TrendingHashtag } from "@/lib/hashtags"
+import type { LangFilter } from "@/components/feed-filters"
 
 export interface CategoryLeaderboardItem {
   id: number
@@ -29,7 +30,7 @@ export interface SupportedRequestItem {
 
 interface HomeRightRailProps {
   categoryLeaderboard: CategoryLeaderboardItem[]
-  trendingHashtags: TrendingHashtag[]
+  trendingByLang: Record<LangFilter, TrendingHashtag[]>
   supportedRequests: SupportedRequestItem[]
   totalDuas: number
   totalAmeens: number
@@ -44,7 +45,7 @@ const rightRailBodyClass = "text-sm leading-6 text-slate-600"
 
 export function HomeRightRail({
   categoryLeaderboard,
-  trendingHashtags,
+  trendingByLang,
   supportedRequests,
   totalDuas,
   totalAmeens,
@@ -69,49 +70,7 @@ export function HomeRightRail({
           </div>
           <TrendingInfoTooltip />
         </div>
-        <div className="mt-3 space-y-0.5">
-          {trendingHashtags.length > 0
-            ? trendingHashtags.map((hashtag, index) => (
-                <a
-                  key={hashtag.tag}
-                  href={`/?tag=${encodeURIComponent(hashtag.tag)}`}
-                  aria-label={`${hashtag.label}: ${hashtag.duas} duas and ${hashtag.ameens} ameens`}
-                  className="group flex min-h-12 items-center gap-3 rounded-2xl px-2 py-2 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary group-hover:bg-primary/15">
-                    {index === 0 ? <Hash className="h-3.5 w-3.5" aria-hidden="true" /> : index + 1}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold leading-snug text-foreground/78 group-hover:text-foreground/90">
-                      {hashtag.label}
-                    </span>
-                    <span className="mt-1 block truncate text-xs leading-tight text-muted-foreground">
-                      {compactNumber(hashtag.duas)} duas · {compactNumber(hashtag.ameens)} ameens
-                    </span>
-                  </span>
-                </a>
-              ))
-            : categoryLeaderboard.map((category, index) => (
-                <Link
-                  key={category.id}
-                  href={`/?category=${category.id}`}
-                  aria-label={`${category.name}: ${category.duas} duas and ${category.ameens} ameens`}
-                  className="group flex min-h-12 items-center gap-3 rounded-2xl px-2 py-2 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted/80 text-xs font-semibold tabular-nums text-muted-foreground group-hover:text-primary">
-                    {index + 1}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold leading-snug text-foreground/78 group-hover:text-foreground/90">
-                      {category.name}
-                    </span>
-                    <span className="mt-1 block truncate text-xs leading-tight text-muted-foreground">
-                      {compactNumber(category.duas)} duas · {compactNumber(category.ameens)} ameens
-                    </span>
-                  </span>
-                </Link>
-              ))}
-        </div>
+        <TrendingList trendingByLang={trendingByLang} categoryLeaderboard={categoryLeaderboard} />
       </section>
 
       <section id="support" className={rightRailCardClass}>

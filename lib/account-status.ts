@@ -38,5 +38,8 @@ export function accountStatusSignInMessage(status: AccountStatus): string {
   if (status === "rejected") {
     return "Your volunteer application was not approved. Contact volunteers@duaprayer.app if you have questions."
   }
+  if (status === "suspended") {
+    return "Your volunteer account has been suspended. Contact volunteers@duaprayer.app if you have questions."
+  }
   return "Your account cannot sign in right now."
 }

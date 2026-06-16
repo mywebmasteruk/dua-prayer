@@ -56,7 +56,7 @@ export function PostingAccessSettings({ initialMode, canManageSettings }: Postin
         ) : null
       }
     >
-      <div className="grid gap-3 md:grid-cols-3" role="radiogroup" aria-label="Posting mode">
+      <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Posting mode">
         {POSTING_MODE_OPTIONS.map((option) => {
           const isSelected = selectedMode === option.mode
           return (

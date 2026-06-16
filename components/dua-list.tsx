@@ -4,10 +4,12 @@ import Image from "next/image"
 import type React from "react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Building2, Flag, Heart, Share2, Sparkles, UserRound } from "lucide-react"
+import { Flag, Heart, Share2, Sparkles, UserRound } from "lucide-react"
 import type { Dua } from "@/lib/types/dua"
 import { toast } from "@/components/ui/use-toast"
-import { prayForDua, flagDua } from "@/app/actions/duas"
+import { prayForDua, flagDua, unflagMyFlag } from "@/app/actions/duas"
+import { useNavigationRouter } from "@/hooks/use-navigation-router"
+import { signInHref } from "@/lib/auth-modal"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { ActionIconTooltip } from "@/components/action-icon-tooltip"
@@ -21,7 +23,6 @@ import {
   isLatinScriptLanguage,
 } from "@/lib/detect-language"
 import { SITE_COPY_DEFAULTS } from "@/lib/site-copy"
-import { getTopHashtags } from "@/lib/hashtags"
 import { buildDuaShareUrl, type DuaSharePlatform } from "@/lib/dua-share"
 
 interface DuaListProps {
@@ -73,7 +74,7 @@ function renderWithArabicFont(text: string) {
   )
 }
 
-function formatRelativeTime(value: string) {
+function formatDateTime(value: string) {
   const created = new Date(value)
   if (Number.isNaN(created.getTime())) return ""
 
@@ -82,7 +83,22 @@ function formatRelativeTime(value: string) {
     month: "short",
     day: "numeric",
     ...(sameYear ? {} : { year: "numeric" }),
+    hour: "numeric",
+    minute: "2-digit",
   }).format(created)
+}
+
+// Arabic display labels for the built-in categories (from editable site copy
+// defaults), so Arabic duas show the category in Arabic.
+const CATEGORY_LABEL_AR: Record<string, string> = {
+  General: SITE_COPY_DEFAULTS.composerCategoryGeneralAr,
+  Health: SITE_COPY_DEFAULTS.composerCategoryHealthAr,
+  Family: SITE_COPY_DEFAULTS.composerCategoryFamilyAr,
+  Guidance: SITE_COPY_DEFAULTS.composerCategoryGuidanceAr,
+  Forgiveness: SITE_COPY_DEFAULTS.composerCategoryForgivenessAr,
+  Gratitude: SITE_COPY_DEFAULTS.composerCategoryGratitudeAr,
+  Protection: SITE_COPY_DEFAULTS.composerCategoryProtectionAr,
+  Community: SITE_COPY_DEFAULTS.composerCategoryCommunityAr,
 }
 
 const sharePlatforms = [
@@ -133,6 +149,7 @@ export function DuaList({
   const [reportedDuas, setReportedDuas] = useState<Record<number, boolean>>({})
   const [lovedDuas, setLovedDuas] = useState<Record<number, boolean>>({})
   const [duasList, setDuasList] = useState<Dua[]>(duas)
+  const router = useNavigationRouter()
 
   useEffect(() => {
     setDuasList(duas)
@@ -167,18 +184,28 @@ export function DuaList({
     setLoadingPrays((prev) => ({ ...prev, [duaId]: false }))
   }
 
+  // Toggle the current user's own flag. Flagging requires login; a logged-out
+  // user is sent to sign in. A user can only remove the flag they made.
   const handleFlag = async (duaId: number, isReported: boolean) => {
-    // Flags can only be cleared by moderators in the admin panel.
-    if (isReported) return
-
     setLoadingFlags((prev) => ({ ...prev, [duaId]: true }))
-    const result = await flagDua(duaId)
+    // Optimistic toggle.
+    setReportedDuas((previous) => ({ ...previous, [duaId]: !isReported }))
+    const result = isReported ? await unflagMyFlag(duaId) : await flagDua(duaId)
 
     if (result.error) {
-      toast({ title: "Error", description: result.error, variant: "destructive" })
+      setReportedDuas((previous) => ({ ...previous, [duaId]: isReported })) // revert
+      if ("requiresAuth" in result && result.requiresAuth) {
+        router.push(signInHref({ next: "/" }))
+      } else {
+        toast({ title: "Error", description: result.error, variant: "destructive" })
+      }
     } else {
-      setReportedDuas((previous) => ({ ...previous, [duaId]: true }))
-      toast({ title: "Flagged", description: "This dua has been flagged for review" })
+      toast({
+        title: isReported ? "Flag removed" : "Flagged",
+        description: isReported
+          ? "Your flag has been removed."
+          : "This dua has been flagged for review.",
+      })
     }
     setLoadingFlags((prev) => ({ ...prev, [duaId]: false }))
   }
@@ -206,42 +233,34 @@ export function DuaList({
         const prayed = dua.user_has_prayed
         const textDirection = getTextDirection(dua.text)
         const isRtl = textDirection === "rtl"
-        const isReported = reportedDuas[dua.id] ?? dua.flagged
+        // Reflects the CURRENT user's own flag (toggleable), not the global state.
+        const isReported = reportedDuas[dua.id] ?? dua.user_has_flagged ?? false
         const isLoved = Boolean(lovedDuas[dua.id])
         const isLatinScript = isLatinScriptLanguage(dua.language, dua.text)
         const sourceLabel = dua.is_bot_generated
           ? "DuaPrayer"
           : dua.user_id ? "Community member" : "Anonymous"
-        const SourceIcon = dua.is_bot_generated ? Building2 : UserRound
+        const SourceIcon = UserRound
         const loveCount = isLoved ? 1 : 0
-        const topHashtags = getTopHashtags(dua.text)
+        const baseCategory = dua.category_name?.trim()
+        const categoryLabel = baseCategory
+          ? isRtl
+            ? CATEGORY_LABEL_AR[baseCategory] ?? baseCategory
+            : baseCategory
+          : undefined
 
         return (
           <article
             key={dua.id}
             className="group overflow-hidden bg-slate-50/55 px-4 pt-4 shadow-[0_10px_28px_rgba(15,23,42,0.045)] transition hover:bg-slate-50/75 hover:shadow-[0_14px_36px_rgba(15,23,42,0.06)] focus-within:bg-slate-50/75 sm:px-5"
           >
-            <div
-              dir={textDirection}
-              className={cn("flex flex-wrap items-center gap-x-2 gap-y-1", isRtl && "justify-end text-right")}
-            >
-              {topHashtags.length > 0 ? (
-                <div className="flex min-w-0 flex-wrap items-center gap-1.5" dir="ltr">
-                  {topHashtags.map((hashtag) => (
-                    <a
-                      key={hashtag.tag}
-                      href={`/?tag=${encodeURIComponent(hashtag.tag)}`}
-                      className="text-xs font-bold text-primary transition hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:text-[15px]"
-                      aria-label={`Show duas tagged ${hashtag.label}`}
-                    >
-                      {hashtag.label}
-                    </a>
-                  ))}
-                </div>
-              ) : null}
-              {topHashtags.length > 0 ? <span className="text-muted-foreground/45" aria-hidden="true">·</span> : null}
-              <span className="text-xs font-normal text-muted-foreground lg:text-[15px]">{formatRelativeTime(dua.created_at)}</span>
-            </div>
+            {categoryLabel ? (
+              <div className={cn("flex items-center", isRtl ? "justify-end" : "justify-start")}>
+                <span className="inline-flex max-w-full items-center truncate rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                  {categoryLabel}
+                </span>
+              </div>
+            ) : null}
 
             <p
               dir={textDirection}
@@ -270,6 +289,8 @@ export function DuaList({
                   <SourceIcon className="h-3.5 w-3.5" aria-hidden="true" />
                 </span>
                 <span className="truncate text-[12px] font-medium text-foreground/65">{sourceLabel}</span>
+                <span className="text-muted-foreground/45" aria-hidden="true" dir="ltr">·</span>
+                <span className="shrink-0 text-[12px] text-muted-foreground" dir="ltr">{formatDateTime(dua.created_at)}</span>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -334,10 +355,10 @@ export function DuaList({
                 </DropdownMenu>
                 <ActionButton
                   onClick={() => handleFlag(dua.id, isReported)}
-                  disabled={loadingFlags[dua.id] || isReported}
-                  aria-label={isReported ? "Flagged for review" : "Flag this dua"}
+                  disabled={loadingFlags[dua.id]}
+                  aria-label={isReported ? "Remove your flag" : "Flag this dua"}
                   aria-pressed={isReported}
-                  tooltip={isReported ? "Flagged for review" : "Flag"}
+                  tooltip={isReported ? "Remove flag" : "Flag"}
                   className={cn(
                     "px-1",
                     isReported

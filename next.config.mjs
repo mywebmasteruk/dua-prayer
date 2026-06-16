@@ -14,6 +14,12 @@ const nextConfig = {
         destination: "https://www.duaprayer.com/:path*",
         permanent: true,
       },
+      {
+        // Legacy singular channel route consolidated into /channels/<handle>.
+        source: "/channel/:handle",
+        destination: "/channels/:handle",
+        permanent: true,
+      },
     ]
   },
   async headers() {

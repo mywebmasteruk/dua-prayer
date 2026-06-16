@@ -10,7 +10,13 @@ import {
   getStripeSettingsForAdmin,
 } from "@/lib/stripe-settings-server"
 import { getAiModerationAdminView, type AiModerationAdminView } from "@/lib/ai-moderation"
-import { DEFAULT_MODERATION_TIMEOUT_MS } from "@/lib/ai-provider"
+import {
+  DEFAULT_MODERATION_TIMEOUT_MS,
+  DEFAULT_REASONING_EFFORT,
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_TEMPERATURE,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+} from "@/lib/ai-provider"
 import { getChannelFormRegistry, getVolunteerFormRegistry } from "@/lib/site-settings-server"
 import { DEFAULT_CHANNEL_REGISTRY, DEFAULT_VOLUNTEER_REGISTRY, type FormRegistry } from "@/lib/form-fields"
 import { getAdminContext, hasPermission } from "@/lib/auth"
@@ -82,6 +88,10 @@ export default async function AdminIntegrationPage({ searchParams }: PageProps) 
     ready: false,
     modelMode: "manual",
     moderationTimeoutMs: DEFAULT_MODERATION_TIMEOUT_MS,
+    reasoningEffort: DEFAULT_REASONING_EFFORT,
+    maxTokens: DEFAULT_MAX_TOKENS,
+    temperature: DEFAULT_TEMPERATURE,
+    requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
     autoModel: null,
   }
   let channelFormRegistry: FormRegistry = DEFAULT_CHANNEL_REGISTRY

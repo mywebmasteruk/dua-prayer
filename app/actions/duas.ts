@@ -11,7 +11,9 @@ import { verifyTurnstile } from "@/lib/turnstile"
 import { randomBytes } from "crypto"
 import { isMissingColumnError } from "@/lib/db-errors"
 import { evaluateDuaModeration, fetchAiModerationSettings } from "@/lib/ai-moderation"
-import { getPostingMode, shouldAllowPublicDuaSubmission } from "@/lib/posting-settings"
+import { getPostingMode, shouldAllowPublicDuaSubmission, shouldHoldSubmissionForReview } from "@/lib/posting-settings"
+import { detectLanguage } from "@/lib/detect-language"
+import { extractHashtags } from "@/lib/hashtags"
 import type { Category, Dua } from "@/lib/types/dua"
 
 const PAGE_SIZE = 10
@@ -41,7 +43,7 @@ export async function getDuas(options: { category?: string; page?: number } = {}
 
   let query = supabase
     .from("duas")
-    .select("id, text, user_id, category_id, likes, created_at, published, flagged", { count: "exact" })
+    .select("id, text, user_id, category_id, likes, created_at, published, flagged, language", { count: "exact" })
     .eq("published", true)
     .order("created_at", { ascending: false })
     .range(from, to)
@@ -68,14 +70,40 @@ export async function getDuas(options: { category?: string; page?: number } = {}
   }
 }
 
-export async function getAdminDuas(filters: { search?: string; status?: string; category?: string }) {
+// Hashtag suggestions for the composer's "#" autocomplete. Aggregates hashtags
+// from recent published duas, ranked by frequency, filtered by the typed prefix.
+export async function searchHashtags(query: string): Promise<string[]> {
+  const prefix = query.trim().toLowerCase().replace(/^#+/, "")
+  const admin = createAdminSupabaseClient()
+  const { data } = await admin
+    .from("duas")
+    .select("text")
+    .eq("published", true)
+    .order("created_at", { ascending: false })
+    .limit(500)
+
+  const counts = new Map<string, number>()
+  for (const row of data ?? []) {
+    for (const hashtag of extractHashtags(row.text as string)) {
+      counts.set(hashtag.tag, (counts.get(hashtag.tag) ?? 0) + 1)
+    }
+  }
+
+  return [...counts.entries()]
+    .filter(([tag]) => (prefix ? tag.startsWith(prefix) : true))
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 8)
+    .map(([tag]) => tag)
+}
+
+export async function getAdminDuas(filters: { search?: string; status?: string; category?: string; language?: string }) {
   const gate = await requirePermission("manage_duas")
   if (!gate.ok) return []
 
   const admin = createAdminSupabaseClient()
   let query = admin
     .from("duas")
-    .select("id, text, user_id, category_id, likes, created_at, published, flagged")
+    .select("id, text, user_id, category_id, likes, created_at, published, flagged, language")
     .order("created_at", { ascending: false })
 
   if (filters.search) query = query.ilike("text", `%${filters.search}%`)
@@ -84,6 +112,9 @@ export async function getAdminDuas(filters: { search?: string; status?: string; 
   else if (filters.status === "flagged") query = query.eq("flagged", true)
   if (filters.category && filters.category !== "all") {
     query = query.eq("category_id", Number.parseInt(filters.category))
+  }
+  if (filters.language && filters.language !== "all") {
+    query = query.eq("language", filters.language)
   }
 
   const { data: duas, error } = await query
@@ -218,6 +249,7 @@ async function enrichDuas(
     created_at: string
     published: boolean
     flagged: boolean
+    language?: string | null
   }>,
 ): Promise<Dua[]> {
   const supabase = await createServerSupabaseClient()
@@ -241,6 +273,17 @@ async function enrichDuas(
         if (typeof post.dua_id === "number") botGeneratedIds.add(post.dua_id)
       }
     }
+  }
+
+  // Which of these duas the current (logged-in) user has flagged.
+  let flaggedByMe = new Set<number>()
+  if (user && duaIds.length > 0) {
+    const { data: flags } = await createAdminSupabaseClient()
+      .from("dua_flags")
+      .select("dua_id")
+      .eq("user_id", user.id)
+      .in("dua_id", duaIds)
+    flaggedByMe = new Set(flags?.map((f) => f.dua_id) ?? [])
   }
 
   let prayedIds = new Set<number>()
@@ -275,6 +318,7 @@ async function enrichDuas(
       category_channel_type: category?.channel_type === "user" ? "user" : "category",
       is_bot_generated: botGeneratedIds.has(dua.id),
       user_has_prayed: prayedIds.has(dua.id),
+      user_has_flagged: flaggedByMe.has(dua.id),
     }
   })
 }
@@ -316,7 +360,7 @@ const getCachedFeedBatch = unstable_cache(
     const admin = createAdminSupabaseClient()
     const { data: duas, error, count } = await admin
       .from("duas")
-      .select("id, text, user_id, category_id, likes, created_at, published, flagged", { count: "exact" })
+      .select("id, text, user_id, category_id, likes, created_at, published, flagged, language", { count: "exact" })
       .eq("published", true)
       .order("created_at", { ascending: false })
       .range(offset, offset + FEED_BATCH_SIZE - 1)
@@ -384,16 +428,22 @@ export async function createDua(formData: FormData) {
   const categoryId = formData.get("category_id") as string
 
   if (!text || text.length < 15) return { error: "Dua must be at least 15 characters" }
-  if (text.length > 280) return { error: "Dua must be 280 characters or less" }
+  if (text.length > 1200) return { error: "Dua must be 1200 characters or less" }
 
   const user = await getServerUser()
   const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
+  const postingMode = await getPostingMode()
   const postingAccess = shouldAllowPublicDuaSubmission({
-    mode: await getPostingMode(),
+    mode: postingMode,
     isAuthenticated: Boolean(user),
     isAdmin,
   })
   if (!postingAccess.allowed) return { error: postingAccess.error }
+  const holdForReview = shouldHoldSubmissionForReview({
+    mode: postingMode,
+    isAuthenticated: Boolean(user),
+    isAdmin,
+  })
 
   const admin = createAdminSupabaseClient()
 
@@ -422,13 +472,14 @@ export async function createDua(formData: FormData) {
     return { error: "This dua could not be submitted because it appears to violate our community guidelines." }
   }
 
-  const requiresReview = moderation.flagged || moderation.severity === "review"
+  const requiresReview = holdForReview || moderation.flagged || moderation.severity === "review"
   const { error } = await admin.from("duas").insert({
     text,
     category_id: validatedCategoryId,
     published: !requiresReview,
     flagged: requiresReview,
     user_id: user?.id ?? null,
+    language: detectLanguage(text),
   })
 
   if (error) {
@@ -476,28 +527,58 @@ export async function prayForDua(duaId: number) {
   return { success: true, counted: result.counted, likes: result.likes }
 }
 
+// Flagging requires login so a flag can be attributed to a user (only its author
+// can later remove it). Records a per-user flag and marks the dua for review.
 export async function flagDua(duaId: number) {
-  const headersList = await headers()
-  const ip = getClientIp(headersList)
-  const rate = checkRateLimit(`flag:${ip}`, 10)
+  const user = await getServerUser()
+  if (!user) return { error: "Please sign in to flag a dua.", requiresAuth: true as const }
+
+  const rate = checkRateLimit(`flag:${user.id}`, 30)
   if (!rate.allowed) return { error: "Too many flags. Please wait." }
 
   const admin = createAdminSupabaseClient()
-  // Only published duas can be flagged; .select() lets us detect a bogus id.
-  const { data, error } = await admin
+  // Only published duas can be flagged.
+  const { data: dua, error: lookupError } = await admin
     .from("duas")
-    .update({ flagged: true })
+    .select("id")
     .eq("id", duaId)
     .eq("published", true)
-    .select("id")
+    .maybeSingle()
+  if (lookupError) {
+    console.error("Error flagging:", lookupError)
+    return { error: "Could not flag this dua" }
+  }
+  if (!dua) return { error: "Dua not found" }
 
-  if (error) {
-    console.error("Error flagging:", error)
+  const { error: flagError } = await admin
+    .from("dua_flags")
+    .upsert({ dua_id: duaId, user_id: user.id }, { onConflict: "dua_id,user_id" })
+  if (flagError) {
+    console.error("Error flagging:", flagError)
     return { error: "Could not flag this dua" }
   }
 
-  if (!data || data.length === 0) {
-    return { error: "Dua not found" }
+  await admin.from("duas").update({ flagged: true }).eq("id", duaId)
+  revalidatePath("/admin")
+  return { success: true }
+}
+
+// A registered user removes only their OWN flag; the dua stays flagged for review
+// if anyone else has also flagged it.
+export async function unflagMyFlag(duaId: number) {
+  const user = await getServerUser()
+  if (!user) return { error: "Please sign in.", requiresAuth: true as const }
+
+  const admin = createAdminSupabaseClient()
+  const { error } = await admin.from("dua_flags").delete().eq("dua_id", duaId).eq("user_id", user.id)
+  if (error) return { error: "Could not remove your flag" }
+
+  const { count } = await admin
+    .from("dua_flags")
+    .select("id", { count: "exact", head: true })
+    .eq("dua_id", duaId)
+  if ((count ?? 0) === 0) {
+    await admin.from("duas").update({ flagged: false }).eq("id", duaId)
   }
 
   revalidatePath("/admin")
@@ -518,11 +599,13 @@ export async function updateDuaStatus(id: number, published: boolean) {
   return { success: true }
 }
 
+// Admin override: clears the dua's flagged state and ALL users' flags on it.
 export async function unflagDua(id: number) {
   const gate = await requirePermission("manage_duas")
   if (!gate.ok) return { error: "Unauthorized" }
 
   const admin = createAdminSupabaseClient()
+  await admin.from("dua_flags").delete().eq("dua_id", id)
   const { error } = await admin.from("duas").update({ flagged: false }).eq("id", id)
   if (error) return { error: error.message }
 
@@ -530,16 +613,26 @@ export async function unflagDua(id: number) {
   return { success: true }
 }
 
-export async function updateDua(id: number, text: string, categoryId: number | null) {
+export async function updateDua(
+  id: number,
+  text: string,
+  categoryId: number | null,
+  language?: string | null,
+) {
   const gate = await requirePermission("manage_duas")
   if (!gate.ok) return { error: "Unauthorized" }
 
   const trimmed = text?.trim()
   if (!trimmed || trimmed.length < 15) return { error: "Dua must be at least 15 characters" }
-  if (trimmed.length > 280) return { error: "Dua must be 280 characters or less" }
+  if (trimmed.length > 1200) return { error: "Dua must be 1200 characters or less" }
 
   const admin = createAdminSupabaseClient()
-  const { error } = await admin.from("duas").update({ text: trimmed, category_id: categoryId }).eq("id", id)
+  const update: { text: string; category_id: number | null; language?: string | null } = {
+    text: trimmed,
+    category_id: categoryId,
+  }
+  if (language !== undefined) update.language = language?.trim() || null
+  const { error } = await admin.from("duas").update(update).eq("id", id)
   if (error) return { error: error.message }
 
   revalidatePath("/admin")

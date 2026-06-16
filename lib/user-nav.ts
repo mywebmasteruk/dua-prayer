@@ -21,8 +21,10 @@ export type UserNavState = {
   mobileUserItem: { href: string; label: string }
 }
 
-export function getUserNavState(email?: string | null): UserNavState {
-  const showAdminLink = isFoundingAdminEmail(email)
+export function getUserNavState(email?: string | null, isAdmin = false): UserNavState {
+  // Show the Admin link to the founding admin OR anyone with admin permissions
+  // (moderators, approved volunteers, etc.) — not just the founding email.
+  const showAdminLink = isFoundingAdminEmail(email) || isAdmin
 
   if (!email) {
     return {

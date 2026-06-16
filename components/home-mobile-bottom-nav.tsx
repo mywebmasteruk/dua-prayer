@@ -38,9 +38,9 @@ function BottomNavItem({
   )
 }
 
-export function HomeMobileBottomNav({ user }: HomeMobileBottomNavProps) {
+export function HomeMobileBottomNav({ user, isAdmin = false }: HomeMobileBottomNavProps) {
   const pathname = usePathname() ?? "/"
-  const navState = getUserNavState(user?.email)
+  const navState = getUserNavState(user?.email, isAdmin)
 
   const isActive = (href: string) => {
     const [path, query] = href.split("?")

@@ -1,6 +1,7 @@
 import { createHash } from "crypto"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import {
+  callProviderChat,
   fetchAiProviderSettings,
   generateDuaForEvent,
   getAiProviderAdminView,
@@ -10,6 +11,8 @@ import {
 } from "@/lib/ai-provider"
 import { evaluateDuaModeration } from "@/lib/ai-moderation"
 import { extractHashtags, normalizeHashtag } from "@/lib/hashtags"
+import { curatedDuaCatalogue } from "@/lib/dua-library"
+import { detectLanguage, languageToCode } from "@/lib/detect-language"
 
 export type BotStatus = "active" | "paused"
 export type BotSourceType = "rss"
@@ -24,6 +27,7 @@ export type DuaBot = {
   system_prompt: string | null
   status: BotStatus
   frequency_minutes: number
+  max_duas_per_run: number
   source_type: BotSourceType
   rss_urls: string[]
   keywords: string[]
@@ -74,6 +78,7 @@ export type BotFormInput = {
   categories?: string | string[]
   eventCategories?: string | string[]
   frequencyMinutes?: number
+  maxDuasPerRun?: number
   tone?: string
   language?: string
   targetCategoryId?: number | null
@@ -86,6 +91,7 @@ export type NormalizedBotInput = {
   system_prompt: string | null
   status: BotStatus
   frequency_minutes: number
+  max_duas_per_run: number
   source_type: BotSourceType
   rss_urls: string[]
   keywords: string[]
@@ -138,9 +144,12 @@ type EventSelection = {
 }
 
 const MAX_EVENTS_PER_BOT = 3
-const MAX_SOURCE_BYTES = 500_000
-const REQUEST_TIMEOUT_MS = 8_000
+const MAX_SOURCE_BYTES = 5_000_000
+const REQUEST_TIMEOUT_MS = 15_000
 const MAX_DUA_LENGTH = 280
+// Freeform duas target ~220 chars (set in the prompt) but we allow more before
+// trimming so a complete, slightly-longer dua isn't cut mid-sentence.
+const FREEFORM_MAX_LENGTH = 400
 const BOT_DUA_FORBIDDEN_CLOSING_WORDS = /\b(?:amen|ameen)\b[\s,.!?;:،۔]*/gi
 
 function normalizeList(value: string | string[] | undefined): string[] {
@@ -162,6 +171,11 @@ function normalizeUrlList(value: string | string[] | undefined): string[] {
 function normalizeFrequency(value: number | undefined): number {
   const parsed = Number.isFinite(value) ? Math.trunc(value as number) : 360
   return Math.min(10_080, Math.max(15, parsed))
+}
+
+function normalizeMaxDuasPerRun(value: number | undefined): number {
+  const parsed = Number.isFinite(value) ? Math.trunc(value as number) : MAX_EVENTS_PER_BOT
+  return Math.min(10, Math.max(1, parsed))
 }
 
 function nextRunDate(frequencyMinutes: number): string {
@@ -212,7 +226,8 @@ export function ensureGeneratedBotDuaHasHashtag(
 
   const tag = candidates.map(hashtagFromSeed).find(Boolean) ?? "duaprayer"
   const label = tag === "duaprayer" ? "#DuaPrayer" : `#${tag}`
-  return sanitizeText(`${text} ${label}`)
+  const combined = sanitizeText(`${text} ${label}`)
+  return combined.length <= MAX_DUA_LENGTH ? combined : text
 }
 
 function stripXml(value: string): string {
@@ -243,6 +258,94 @@ function itemBlocks(xml: string): string[] {
   return xml.match(/<entry[\s\S]*?<\/entry>/gi) ?? []
 }
 
+// A source URL can be an RSS/Atom feed or an ordinary web page. Feeds have an
+// <rss>/<feed> root or <item>/<entry> blocks; anything else is treated as HTML.
+function looksLikeFeed(text: string): boolean {
+  const head = text.slice(0, 1000)
+  if (/<(?:rss|feed)[\s>]/i.test(head)) return true
+  return /<item[\s>]/i.test(text) || /<entry[\s>]/i.test(text)
+}
+
+function metaContent(html: string, key: string): string | null {
+  const attrFirst = new RegExp(
+    `<meta[^>]+(?:property|name)=["']${key}["'][^>]*\\bcontent=["']([^"']*)["']`,
+    "i",
+  )
+  const contentFirst = new RegExp(
+    `<meta[^>]+\\bcontent=["']([^"']*)["'][^>]*(?:property|name)=["']${key}["']`,
+    "i",
+  )
+  const match = attrFirst.exec(html) ?? contentFirst.exec(html)
+  return match ? stripXml(match[1]) : null
+}
+
+const ARABIC_SCRIPT = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/
+
+function isArabicLanguage(language: string): boolean {
+  return /arab|عرب/i.test(language)
+}
+
+// Keep a dua body to a single script so English and Arabic bots never mix.
+// Arabic bot → keep only lines containing Arabic script. English (any non-Arabic)
+// bot → drop any line containing Arabic script (transliteration is handled by the
+// prompt, since it's Latin and indistinguishable from English by script alone).
+function enforceLanguageScript(body: string, language: string): string {
+  const lines = body.split("\n")
+  const kept = isArabicLanguage(language)
+    ? lines.filter((l) => l.trim() === "" || ARABIC_SCRIPT.test(l))
+    : lines.filter((l) => !ARABIC_SCRIPT.test(l))
+  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim()
+}
+
+// Sanitize a model-provided hashtag and require it to match the dua's language
+// (Arabic dua → Arabic-script tag, otherwise → non-Arabic tag). Returns "" if
+// it can't be made into a valid, language-matching tag.
+function normalizeLanguageHashtag(raw: string, language: string): string {
+  const token = raw
+    .trim()
+    .replace(/^#+/, "")
+    .replace(/\s+/g, "_")
+    .replace(/[^\p{L}\p{N}_-]/gu, "")
+    .slice(0, 40)
+  if (token.length < 2) return ""
+  const hasArabic = ARABIC_SCRIPT.test(token)
+  if (isArabicLanguage(language) ? !hasArabic : hasArabic) return ""
+  return `#${token}`
+}
+
+// Visible page text with scripts/styles/markup removed.
+function extractReadableText(html: string): string {
+  return stripXml(
+    html
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<!--[\s\S]*?-->/g, " "),
+  )
+}
+
+// Treat a web page as a single event: its headline + readable body text. Dedupe
+// is by title, so a static page posts once and re-posts only if its title changes.
+function parseHtmlEvents(html: string, sourceUrl: string): EventCandidate[] {
+  const title = metaContent(html, "og:title") ?? firstTag(html, "title") ?? firstTag(html, "h1")
+  if (!title) return []
+  const body = extractReadableText(html)
+  const summary =
+    body.length > 40
+      ? body.slice(0, 4000)
+      : (metaContent(html, "og:description") ?? metaContent(html, "description"))
+  return [
+    {
+      key: eventKey(sourceUrl, title, sourceUrl),
+      title,
+      summary: summary || null,
+      url: sourceUrl,
+      publishedAt: null,
+      sourceType: "rss" as const,
+      sourceUrl,
+    },
+  ]
+}
+
 function parseRssEvents(xml: string, sourceUrl: string): EventCandidate[] {
   return itemBlocks(xml)
     .map((item) => {
@@ -267,7 +370,7 @@ function parseRssEvents(xml: string, sourceUrl: string): EventCandidate[] {
 }
 
 function matchesBot(bot: DuaBot, event: EventCandidate): boolean {
-  const filters = [...bot.keywords, ...bot.categories].map((item) => item.toLowerCase())
+  const filters = bot.keywords.map((item) => item.toLowerCase())
   if (filters.length === 0) return true
   const haystack = `${event.title} ${event.summary ?? ""}`.toLowerCase()
   return filters.some((filter) => haystack.includes(filter))
@@ -282,6 +385,22 @@ export function selectUnpostedDuaBotEvents(events: EventCandidate[], postedKeys:
     totalMatched: sortedEvents.length,
     skippedDuplicates: sortedEvents.length - unpostedEvents.length,
   }
+}
+
+// Each card forces a STRUCTURALLY different dua. Weak models ignore abstract
+// "be varied" instructions, so we pick one shape per event and demand it.
+const DUA_STYLE_CARDS = [
+  "SHAPE: very short and intense — one or two sentences only. Open with a Name of Allah (e.g. Ya Latif, Ya Rahman, Ya Hayyu, Ya Mujib), NOT with 'O Allah, You are…'. No list of disaster types.",
+  "SHAPE: a single, unbroken flowing sentence in an intimate 'we turn to You…' / 'we come to You…' voice. Do not open by naming Allah; let remembrance arrive mid-sentence.",
+  "SHAPE: begin with one short human reflection on the moment (no mention of Allah in the first clause), then move into the plea. Vary sentence lengths.",
+  "SHAPE: open by invoking ONE attribute of Allah that fits this event (the Healer, the Provider, the Shelter of the homeless), then ask. Never use the phrase 'the Most Merciful'.",
+  "SHAPE: start directly with the people or the need; bring praise/remembrance of Allah near the END, not the start. Keep it grounded and plain, not ornate.",
+  "SHAPE: a quiet, two-part dua — first a line of gratitude or hope, then a line of supplication. Avoid the words 'grant', 'ease', 'bless' if you can find fresher verbs.",
+]
+
+function pickStyleCard(seed: string): string {
+  const hash = createHash("sha256").update(seed).digest()
+  return DUA_STYLE_CARDS[hash[0] % DUA_STYLE_CARDS.length]
 }
 
 export function buildDuaBotPromptMessages({
@@ -299,18 +418,23 @@ export function buildDuaBotPromptMessages({
 }): ChatMessage[] {
   const botSystemPrompt = sanitizeOptionalText(systemPrompt)
   const botUserPrompt = sanitizeOptionalText(userPrompt)
+  const styleCard = pickStyleCard(`${event.title}\n${event.summary ?? ""}`)
 
   return [
     {
       role: "system",
       content: [
         "You write concise, compassionate duas for a Muslim community platform.",
-        "Duas must be compassionate, non-political, and non-sectarian.",
+        "Duas must be strictly non-political and non-sectarian: never name or allude to governments, armed groups, parties, leaders, or 'political' framing, and never assign blame. Pray only for the people affected.",
         "No fabricated facts, casualty counts, locations, names, organizations, or religious rulings.",
         "Avoid graphic details and do not sensationalize suffering.",
-        "Ask the Ummah to pray, help, donate, volunteer, and support appropriately when relevant.",
-        "The dua must include at least one relevant, safe hashtag at the end.",
+        "Do not add a hashtag yourself — a relevant, safe hashtag is appended automatically.",
         "The dua must not include the words Amen or Ameen in any capitalization.",
+        "CRITICAL — variety: never reuse a skeleton across duas. Do NOT open with 'O Allah, You are the Most Merciful' or any near-variant. Do NOT recite a list of disaster types (floods, earthquakes, storms, fire). Each dua must have a genuinely different structure, length, and rhythm.",
+        "These examples show the RANGE of acceptable shapes — match their structural variety, never copy their wording:",
+        '- "Ya Latif, be gentle with the ones whose night has no roof. Hold them close. #Shelter"',
+        '- "We come to You with the weight of what the world is carrying — the frightened, the grieving, the ones digging through rubble for a name they love — and we ask only for Your mercy to reach them first. #Mercy"',
+        '- "Homes are gone and still the children wait for morning. O Provider, send relief before despair does, and keep the helpers steady. #Relief"',
         "Return strict JSON only.",
         botSystemPrompt ? `Bot system prompt: ${botSystemPrompt}` : "",
       ]
@@ -323,10 +447,10 @@ export function buildDuaBotPromptMessages({
         `Write one dua in ${language}.`,
         `Tone: ${tone}.`,
         botUserPrompt ? `User prompt: ${botUserPrompt}` : "",
-        "The dua should ask the Ummah to pray for people affected by the event, including those suffering, grieving, displaced, injured, or who lost loved ones when relevant.",
-        "Include at least one relevant hashtag, such as a safe topic, category, or event theme hashtag.",
-        "The dua must not include the words Amen or Ameen in any capitalization.",
-        `Keep it under ${MAX_DUA_LENGTH} characters and return JSON: {"dua": string}.`,
+        `For THIS dua, follow this shape exactly — ${styleCard}`,
+        "Write ONLY the dua itself — no hashtag, no preamble, no surrounding quotation marks (a hashtag is added automatically).",
+        "Keep it within 220 characters and ALWAYS finish on a complete sentence — never cut off mid-thought.",
+        `Return JSON only: {"dua": string}.`,
         `Event title: ${JSON.stringify(event.title)}`,
         event.summary ? `Event summary: ${JSON.stringify(event.summary)}` : "",
         event.url ? `Event URL: ${JSON.stringify(event.url)}` : "",
@@ -350,7 +474,11 @@ async function fetchWithTimeout(url: string): Promise<string> {
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
     const response = await fetch(url, {
-      headers: { Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.5" },
+      headers: {
+        Accept:
+          "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/html;q=0.9, */*;q=0.5",
+        "User-Agent": "Mozilla/5.0 (compatible; DuaPrayerBot/1.0; +https://www.duaprayer.com)",
+      },
       signal: controller.signal,
     })
     if (!response.ok) throw new Error(`Source returned ${response.status}`)
@@ -371,7 +499,7 @@ export function normalizeBotInput(input: BotFormInput): { value: NormalizedBotIn
 
   const rssUrls = normalizeUrlList(input.rssUrls ?? input.sourceUrls)
   if (rssUrls.length === 0) {
-    return { error: "Add at least one valid RSS/news source URL." }
+    return { error: "Add at least one valid source URL (RSS/Atom feed or website page)." }
   }
 
   const tone = sanitizeText(input.tone, "compassionate")
@@ -386,6 +514,7 @@ export function normalizeBotInput(input: BotFormInput): { value: NormalizedBotIn
       system_prompt: systemPrompt,
       status: input.status === "active" ? "active" : "paused",
       frequency_minutes: normalizeFrequency(input.frequencyMinutes),
+      max_duas_per_run: normalizeMaxDuasPerRun(input.maxDuasPerRun),
       source_type: sourceType,
       rss_urls: rssUrls,
       keywords: normalizeList(input.keywords),
@@ -442,23 +571,31 @@ export async function getDuaBotRuntimeStatus(): Promise<BotRuntimeStatus> {
     supportedSourceTypes: ["rss"],
     canGenerateDuas,
     helperText: canGenerateDuas
-      ? "Bots can generate duas from configured RSS/news sources."
+      ? "Bots can generate duas from configured sources (RSS/Atom feeds or website pages)."
       : "Configure and enable Admin → Integration → AI Provider before bot runs can create duas.",
   }
 }
 
-async function discoverRssEvents(bot: DuaBot): Promise<EventDiscovery> {
+// Pull events from every configured source — RSS/Atom feeds yield many items,
+// ordinary web pages yield one (headline + description).
+async function discoverSourceEvents(bot: DuaBot): Promise<EventDiscovery> {
   const events: EventCandidate[] = []
   const warnings: string[] = []
 
   for (const sourceUrl of bot.rss_urls) {
     try {
-      const xml = await fetchWithTimeout(sourceUrl)
-      events.push(...parseRssEvents(xml, sourceUrl).filter((event) => matchesBot(bot, event)))
+      const content = await fetchWithTimeout(sourceUrl)
+      const parsed = looksLikeFeed(content)
+        ? parseRssEvents(content, sourceUrl)
+        : parseHtmlEvents(content, sourceUrl)
+      // In "retrieve" mode the source pages are hand-picked dua collections, so
+      // every page is eligible (keywords act as a theme preference in the prompt
+      // instead of a hard filter). Other engines filter events by keyword.
+      events.push(...(DUA_BOT_ENGINE === "retrieve" ? parsed : parsed.filter((event) => matchesBot(bot, event))))
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       warnings.push(`${sourceUrl}: ${message}`)
-      console.warn("Dua bot RSS fetch failed", { botId: bot.id, sourceUrl, error })
+      console.warn("Dua bot source fetch failed", { botId: bot.id, sourceUrl, error })
     }
   }
 
@@ -466,14 +603,7 @@ async function discoverRssEvents(bot: DuaBot): Promise<EventDiscovery> {
 }
 
 async function discoverEvents(bot: DuaBot): Promise<EventDiscovery> {
-  switch (bot.source_type) {
-    case "rss":
-      return discoverRssEvents(bot)
-    default: {
-      const exhaustive: never = bot.source_type
-      return { events: [], warnings: [`Unsupported source type: ${exhaustive}`] }
-    }
-  }
+  return discoverSourceEvents(bot)
 }
 
 async function createRun(botId: number, aiSettings: AiProviderSettings): Promise<number | null> {
@@ -545,15 +675,239 @@ async function alreadyPosted(botId: number, key: string): Promise<boolean> {
   return postedKeys.has(key)
 }
 
-async function createDuaFromEvent(
-  bot: DuaBot,
-  runId: number | null,
-  event: EventCandidate,
-  aiSettings: AiProviderSettings,
-): Promise<boolean> {
-  if (await alreadyPosted(bot.id, event.key)) return false
+const CURATED_MAX_LENGTH = 1180
+const SEARCH_TIMEOUT_MS = 8_000
 
-  const generatedText = await generateDuaForEvent({
+// Which dua-composition engine the bot uses.
+//   "retrieve"  — ACTIVE: extract a well-known dua VERBATIM from the source page
+//                 text (for dua-collection sites). Does not compose or adapt.
+//   "freeform"  — original plan: the model composes a dua from the news context.
+//                 Best paired with a premium model (set in Admin → AI Provider).
+//   "curated"   — "DuaBotSystem2": web-search / curated-library authentic dua,
+//                 adapted to the news. Kept intact so we can switch back here.
+// Flip this single value to switch systems.
+const DUA_BOT_ENGINE: "freeform" | "curated" | "retrieve" = "retrieve"
+
+// Live web search for an authentic dua relevant to the event. Uses the free
+// Tavily tier when TAVILY_API_KEY is set; returns [] (→ library fallback) when
+// the key is absent, the quota is spent, or the request fails.
+async function searchAuthenticDuaSources(event: EventCandidate): Promise<string[]> {
+  const key = process.env.TAVILY_API_KEY?.trim()
+  if (!key) return []
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS)
+  try {
+    const query = `authentic Islamic dua (supplication) from the Quran or an authentic hadith relevant to: ${event.title}`
+    const res = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ api_key: key, query, max_results: 5, search_depth: "basic" }),
+      signal: controller.signal,
+    })
+    if (!res.ok) return []
+    const data = (await res.json()) as { results?: Array<{ title?: string; content?: string; url?: string }> }
+    return (data.results ?? [])
+      .map((r) => [r.title, r.content, r.url ? `(source: ${r.url})` : ""].filter(Boolean).join(" ").trim())
+      .filter(Boolean)
+      .slice(0, 5)
+  } catch {
+    return []
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+// Strip forbidden closing words and tidy whitespace WITHOUT collapsing the line
+// breaks that separate the dua, source, and hashtag.
+function cleanMultilineDua(value: string): string {
+  return value
+    .replace(BOT_DUA_FORBIDDEN_CLOSING_WORDS, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/[ \t]*\n[ \t]*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
+const HASHTAG_STOPWORDS = new Set([
+  "the", "and", "for", "with", "from", "that", "this", "after", "amid", "over", "into",
+  "their", "under", "says", "say", "new", "over", "have", "has", "will", "amid", "near",
+  "more", "than", "what", "when", "where", "which", "while", "about", "your", "our",
+])
+
+// Turn a word or phrase into a single PascalCase tag token ("flood relief" → "FloodRelief").
+function makeTag(phrase: string): string {
+  return phrase
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join("")
+}
+
+function distinctiveTitleWords(title: string): string[] {
+  return title
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length >= 4 && !HASHTAG_STOPWORDS.has(w.toLowerCase()))
+}
+
+// Ordered hashtag candidates. EVERY candidate is a two-word CamelCase compound
+// (e.g. #ForgivenessDua) — single-word tags are not allowed. Curated, safe theme
+// words come first; raw headline words are a last resort (can be proper nouns or
+// politically charged).
+const HASHTAG_SUFFIXES = ["Dua", "Duas", "Prayer", "Supplication", "Mercy", "Hope", "Faith", "Relief"]
+
+function buildHashtagCandidates(bot: DuaBot, event: EventCandidate): string[] {
+  const themed = bot.keywords.map(makeTag).filter(Boolean)
+  const titleWords = distinctiveTitleWords(event.title).map(makeTag).filter(Boolean)
+
+  // Skip pairs where the word and suffix overlap (e.g. "Duas"+"Dua" → "DuasDua").
+  const overlaps = (a: string, b: string) => {
+    const la = a.toLowerCase()
+    const lb = b.toLowerCase()
+    return la.startsWith(lb) || lb.startsWith(la)
+  }
+  const candidates: string[] = []
+  // Theme word + suffix → #LoveDua, #MercyPrayer …
+  for (const t of themed) for (const s of HASHTAG_SUFFIXES) if (!overlaps(t, s)) candidates.push(`${t}${s}`)
+  // Headline word + suffix → #ForgivenessDua …
+  for (const t of titleWords) for (const s of HASHTAG_SUFFIXES) if (!overlaps(t, s)) candidates.push(`${t}${s}`)
+  // Consecutive headline words → #PowerfulDua (from "Powerful Dua") …
+  for (let i = 0; i + 1 < titleWords.length; i += 1) candidates.push(`${titleWords[i]}${titleWords[i + 1]}`)
+  candidates.push("DuaPrayer")
+
+  const seen = new Set<string>()
+  const ordered: string[] = []
+  for (const candidate of candidates) {
+    const norm = normalizeHashtag(candidate)
+    if (!norm || seen.has(norm)) continue
+    seen.add(norm)
+    ordered.push(candidate)
+  }
+  return ordered
+}
+
+// Pick the first candidate whose normalized tag hasn't been used; record it so
+// no two duas (this run or recent history) share a hashtag.
+function pickUniqueHashtag(bot: DuaBot, event: EventCandidate, usedTags: Set<string>): string {
+  const candidates = buildHashtagCandidates(bot, event)
+  for (const candidate of candidates) {
+    const norm = normalizeHashtag(candidate)
+    if (norm && !usedTags.has(norm)) {
+      usedTags.add(norm)
+      return `#${candidate}`
+    }
+  }
+  const base = candidates[0] ?? "DuaPrayer"
+  let n = 2
+  while (usedTags.has(normalizeHashtag(`${base}${n}`))) n += 1
+  const chosen = `${base}${n}`
+  usedTags.add(normalizeHashtag(chosen))
+  return `#${chosen}`
+}
+
+async function getRecentHashtagSet(limit = 200): Promise<Set<string>> {
+  try {
+    const admin = createAdminSupabaseClient()
+    const { data } = await admin.from("duas").select("text").order("created_at", { ascending: false }).limit(limit)
+    const used = new Set<string>()
+    for (const row of data ?? []) {
+      for (const tag of extractHashtags(row.text as string)) used.add(tag.tag)
+    }
+    return used
+  } catch {
+    return new Set<string>()
+  }
+}
+
+// Find an authentic dua (web search, else curated library) and adapt it to the
+// event in the bot's language. Returns null when nothing usable is produced.
+async function composeAdaptedDuaForEvent(
+  bot: DuaBot,
+  event: EventCandidate,
+  settings: AiProviderSettings,
+  usedTags: Set<string>,
+): Promise<string | null> {
+  const language = bot.language?.trim() || "English"
+  const snippets = await searchAuthenticDuaSources(event)
+  const corpus = snippets.length > 0
+    ? snippets.map((s, i) => `[${i + 1}] ${s}`).join("\n\n")
+    : curatedDuaCatalogue()
+
+  const system = [
+    "You compose one heartfelt dua (Islamic supplication) for a Muslim community feed, grounded in an AUTHENTIC source.",
+    "You are given candidate authentic supplications (from the Qur'an or hadith, or web snippets that quote them). Choose the most relevant and adapt it naturally to the situation in the news.",
+    "Stay faithful to the meaning and spirit of the source. Never invent Qur'anic verses or hadith, never claim events are divine punishment, and add no politics, fabricated facts, names, or casualty figures.",
+    `Write the dua in ${language}.`,
+    "Vary the structure, length, and opening run-to-run; never open with 'O Allah, You are the Most Merciful' or recite a list of disaster types. Do not use the words Amen or Ameen.",
+    "Name the source you adapted from (e.g. 'Qur'an 21:87', 'Sahih Muslim', or a site name) in the `source` field.",
+    'Return strict JSON only: {"dua": string, "source": string}.',
+  ].join("\n")
+
+  const user = [
+    `News title: ${JSON.stringify(event.title)}`,
+    event.summary ? `News summary: ${JSON.stringify(event.summary)}` : "",
+    bot.description ? `Bot focus: ${bot.description}` : "",
+    bot.system_prompt ? `Style guidance: ${bot.system_prompt}` : "",
+    "Candidate authentic supplications:",
+    corpus,
+  ]
+    .filter(Boolean)
+    .join("\n")
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), settings.requestTimeoutMs)
+  let raw: string
+  try {
+    raw = await callProviderChat(
+      settings,
+      [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      controller.signal,
+    )
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  let parsed: { dua?: unknown; source?: unknown }
+  try {
+    parsed = JSON.parse(raw) as { dua?: unknown; source?: unknown }
+  } catch {
+    throw new Error(`Adapted dua: model returned invalid JSON for event: ${event.title.slice(0, 60)}`)
+  }
+
+  // Drop any hashtags the model added — we assign one unique tag per dua.
+  const rawBody = (typeof parsed.dua === "string" ? parsed.dua : "").replace(
+    /(^|[^\p{L}\p{N}_])#[\p{L}\p{N}][\p{L}\p{N}_-]*/gu,
+    "$1",
+  )
+  const body = cleanMultilineDua(rawBody)
+  if (body.length < 15) return null
+  const source = typeof parsed.source === "string" ? sanitizeText(parsed.source).slice(0, 120) : ""
+
+  const hashtag = pickUniqueHashtag(bot, event, usedTags)
+  let text = source ? `${body}\n\n— ${source} ${hashtag}` : `${body} ${hashtag}`
+  if (text.length > CURATED_MAX_LENGTH) {
+    text = text.slice(0, CURATED_MAX_LENGTH).replace(/\s+\S*$/, "").trim()
+  }
+  return text
+}
+
+// Original plan: the model composes a dua directly from the news context
+// (variety prompt + style cards). Designed for a capable/premium model.
+async function composeFreeformDuaForEvent(
+  bot: DuaBot,
+  event: EventCandidate,
+  settings: AiProviderSettings,
+  usedTags: Set<string>,
+): Promise<string | null> {
+  const generated = await generateDuaForEvent({
     eventTitle: event.title,
     eventSummary: event.summary,
     eventUrl: event.url,
@@ -566,13 +920,133 @@ async function createDuaFromEvent(
       tone: bot.tone,
       language: bot.language,
     }),
-    settings: aiSettings,
+    settings,
   })
-  const text = ensureGeneratedBotDuaHasHashtag(sanitizeGeneratedBotDuaText(generatedText), {
-    keywords: bot.keywords,
-    categories: bot.categories,
-    event,
-  })
+
+  // Strip any hashtags the model wrote — we assign one unique tag per dua.
+  const stripped = sanitizeGeneratedBotDuaText(generated).replace(
+    /(^|[^\p{L}\p{N}_])#[\p{L}\p{N}][\p{L}\p{N}_-]*/gu,
+    "$1",
+  )
+  const body = sanitizeText(stripped)
+  if (body.length < 15) return null
+
+  const hashtag = pickUniqueHashtag(bot, event, usedTags)
+  const maxBody = FREEFORM_MAX_LENGTH - hashtag.length - 1
+  let trimmedBody = body
+  if (body.length > maxBody) {
+    const slice = body.slice(0, maxBody)
+    // Prefer ending on a complete sentence, else a clause (comma), else a word.
+    const sentence = slice.match(/^[\s\S]*[.!?]["')\]]?/)
+    const clause = slice.match(/^[\s\S]*,/)
+    trimmedBody = (sentence?.[0] ?? clause?.[0]?.replace(/,\s*$/, ".") ?? slice.replace(/\s+\S*$/, "")).trim()
+  }
+  if (trimmedBody.length < 15) return null
+  return `${trimmedBody} ${hashtag}`
+}
+
+// Extract a well-known dua VERBATIM from a source page's text. No composing,
+// no adapting, no translating — the dua is copied exactly as it appears.
+async function composeRetrievedDuaForEvent(
+  bot: DuaBot,
+  event: EventCandidate,
+  settings: AiProviderSettings,
+  usedTags: Set<string>,
+): Promise<string | null> {
+  const pageText = event.summary?.trim()
+  if (!pageText || pageText.length < 40) return null
+
+  const language = bot.language?.trim() || "English"
+  const arabic = isArabicLanguage(language)
+  const languageRule = arabic
+    ? "OUTPUT LANGUAGE: Arabic ONLY. Return just the Arabic script of the dua. Do NOT include any transliteration (romanized text) or English translation."
+    : `OUTPUT LANGUAGE: ${language} ONLY. Return just the ${language} translation/meaning of the dua. Do NOT include Arabic script, and do NOT include romanized transliteration (e.g. 'Allahumma inni…'). Plain ${language} sentences only.`
+  const tagExample = arabic ? "#دعاء_الرحمة" : "#Mercy_Dua"
+  const system = [
+    "You extract ONE complete, well-known dua (Islamic supplication) from the provided web-page text.",
+    "Copy the chosen-language text VERBATIM from the page — do not paraphrase, summarize, add, or remove words. If the page shows multiple language versions, take only the one for the required output language, exactly as written.",
+    languageRule,
+    "Pick a complete, self-contained dua (not a heading, fragment, or commentary). Prefer a widely-known authentic one.",
+    bot.keywords.length > 0
+      ? `Prefer a dua whose theme relates to: ${bot.keywords.join(", ")} — but any complete, well-known dua on the page is acceptable.`
+      : "",
+    "The `dua` field must contain ONLY the dua text — no source, reference, citation, transliteration, hashtag, or any other text.",
+    "Exclude navigation text, ads, author commentary, and the words Amen/Ameen.",
+    `The \`hashtag\` field: ONE context-relevant hashtag of two meaningful words in ${language}, joined by an underscore, prefixed with # (e.g. ${tagExample}). It must be written in ${arabic ? "Arabic script" : language}, matching the dua's language.`,
+    'Return strict JSON only: {"dua": string, "hashtag": string}. If the page has no complete dua in the required language, return {"dua": "", "hashtag": ""}.',
+    bot.system_prompt ? `Extra instruction: ${bot.system_prompt}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n")
+  const user = [
+    `Page title: ${JSON.stringify(event.title)}`,
+    event.url ? `Page URL: ${event.url}` : "",
+    "Page content:",
+    pageText,
+  ]
+    .filter(Boolean)
+    .join("\n")
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), settings.requestTimeoutMs)
+  let raw: string
+  try {
+    raw = await callProviderChat(
+      settings,
+      [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      controller.signal,
+    )
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  let parsed: { dua?: unknown; hashtag?: unknown }
+  try {
+    parsed = JSON.parse(raw) as { dua?: unknown; hashtag?: unknown }
+  } catch {
+    throw new Error(`Retrieved dua: model returned invalid JSON for page: ${event.title.slice(0, 60)}`)
+  }
+
+  // Strip any inline hashtags the model/page included — the dua text stays clean
+  // and we append a single hashtag (in the dua's language) separately.
+  const stripHashtags = (s: string) => s.replace(/(^|[^\p{L}\p{N}_])#[\p{L}\p{N}][\p{L}\p{N}_-]*/gu, "$1")
+  // Enforce a single script so languages never mix (safety net over the prompt).
+  const body = enforceLanguageScript(
+    cleanMultilineDua(stripHashtags(typeof parsed.dua === "string" ? parsed.dua : "")),
+    language,
+  )
+  if (body.length < 15) return null
+
+  // Bot-provided hashtag, in the dua's language. No source or other appended text.
+  const hashtag = normalizeLanguageHashtag(typeof parsed.hashtag === "string" ? parsed.hashtag : "", language)
+  let text = hashtag ? `${body}\n\n${hashtag}` : body
+  if (text.length > CURATED_MAX_LENGTH) {
+    text = text.slice(0, CURATED_MAX_LENGTH).replace(/\s+\S*$/, "").trim()
+  }
+  return text
+}
+
+async function createDuaFromEvent(
+  bot: DuaBot,
+  runId: number | null,
+  event: EventCandidate,
+  aiSettings: AiProviderSettings,
+  usedTags: Set<string>,
+): Promise<boolean> {
+  if (await alreadyPosted(bot.id, event.key)) return false
+
+  const text = DUA_BOT_ENGINE === "curated"
+    ? await composeAdaptedDuaForEvent(bot, event, aiSettings, usedTags)
+    : DUA_BOT_ENGINE === "retrieve"
+      ? await composeRetrievedDuaForEvent(bot, event, aiSettings, usedTags)
+      : await composeFreeformDuaForEvent(bot, event, aiSettings, usedTags)
+  if (!text) {
+    // No usable dua could be produced for this event — skip it.
+    return false
+  }
 
   const moderation = await evaluateDuaModeration({ text, settings: aiSettings })
   if (moderation.severity === "block") {
@@ -589,6 +1063,7 @@ async function createDuaFromEvent(
       published: !requiresReview,
       flagged: requiresReview,
       user_id: null,
+      language: languageToCode(bot.language) ?? detectLanguage(text),
     })
     .select("id")
     .single()
@@ -631,14 +1106,14 @@ async function runOneBot(bot: DuaBot): Promise<{ created: number; error: string 
     if (matchedEvents.length === 0) {
       const message = warnings.length > 0
         ? `No matching events found. Source warnings: ${warnings.join("; ")}`
-        : "No matching recent events found from configured RSS/news sources."
+        : "No matching recent events found from configured sources."
       await finishRun(runId, "skipped", 0, 0, message)
       await updateBotRunState(bot, "skipped", message)
       return { created: 0, error: null }
     }
 
     const postedKeys = await getPostedEventKeys(bot.id, matchedEvents.map((event) => event.key))
-    const selection = selectUnpostedDuaBotEvents(matchedEvents, postedKeys, MAX_EVENTS_PER_BOT)
+    const selection = selectUnpostedDuaBotEvents(matchedEvents, postedKeys, normalizeMaxDuasPerRun(bot.max_duas_per_run))
     events = selection.events
 
     if (events.length === 0) {
@@ -648,14 +1123,26 @@ async function runOneBot(bot: DuaBot): Promise<{ created: number; error: string 
       return { created: 0, error: null }
     }
 
+    const usedTags = await getRecentHashtagSet()
+    const eventErrors: string[] = []
     for (const event of events) {
-      if (await createDuaFromEvent(bot, runId, event, aiSettings)) created += 1
+      try {
+        if (await createDuaFromEvent(bot, runId, event, aiSettings, usedTags)) created += 1
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        eventErrors.push(message)
+        console.warn("Dua bot event failed", { botId: bot.id, eventKey: event.key, error: message })
+      }
     }
+    if (eventErrors.length > 0) warnings.push(...eventErrors.map((err) => `Event error: ${err}`))
 
-    const status = created > 0 ? "success" : "skipped"
+    const status = created > 0 ? "success" : eventErrors.length > 0 ? "error" : "skipped"
+    const warningSuffix = warnings.length > 0 ? ` Warnings: ${warnings.join("; ")}` : ""
     const message = created > 0
-      ? `${selection.totalMatched} matched event(s), ${selection.skippedDuplicates} duplicate(s) skipped.${warnings.length > 0 ? ` Source warnings: ${warnings.join("; ")}` : ""}`
-      : `Selected matching events were already posted before insert. ${selection.totalMatched} matched event(s), ${selection.skippedDuplicates} duplicate(s) skipped.`
+      ? `Created ${created}. ${selection.totalMatched} matched, ${selection.skippedDuplicates} duplicate(s) skipped.${warningSuffix}`
+      : eventErrors.length > 0
+        ? `No duas created — every selected event failed. ${selection.totalMatched} matched.${warningSuffix}`
+        : `No new duas. ${selection.totalMatched} matched, ${selection.skippedDuplicates} duplicate(s) skipped.${warningSuffix}`
     await finishRun(runId, status, selection.totalMatched, created, message)
     await updateBotRunState(bot, status, message)
     return { created, error: null }

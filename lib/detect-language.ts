@@ -58,6 +58,31 @@ export function detectLanguage(text: string): DuaLanguage {
   return arabicCharacters >= 2 ? "ar" : "en"
 }
 
+// Map a bot/form language (name or code) to the short code stored on duas and
+// used by the feed language filter.
+const LANGUAGE_CODE_MAP: Record<string, string> = {
+  english: "en", en: "en",
+  arabic: "ar", ar: "ar",
+  spanish: "es", es: "es",
+  urdu: "ur", ur: "ur",
+  french: "fr", fr: "fr",
+  turkish: "tr", tr: "tr",
+  bengali: "bn", bn: "bn",
+  indonesian: "id", id: "id",
+  malay: "ms", ms: "ms",
+  somali: "so", so: "so",
+  persian: "fa", fa: "fa",
+  hindi: "hi", hi: "hi",
+  hausa: "ha", ha: "ha",
+  swahili: "sw", sw: "sw",
+}
+
+export function languageToCode(language: string | null | undefined): string | null {
+  const key = language?.trim().toLowerCase()
+  if (!key) return null
+  return LANGUAGE_CODE_MAP[key] ?? null
+}
+
 export function getTextDirection(text: string): "ltr" | "rtl" {
   return detectLanguage(text) === "ar" ? "rtl" : "ltr"
 }

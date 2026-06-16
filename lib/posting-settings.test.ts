@@ -6,6 +6,7 @@ import {
   normalizePostingMode,
   POSTING_MODE_OPTIONS,
   shouldAllowPublicDuaSubmission,
+  shouldHoldSubmissionForReview,
 } from "./posting-settings-shared"
 
 describe("posting settings", () => {
@@ -36,6 +37,18 @@ describe("posting settings", () => {
     )
     assert.equal(shouldAllowPublicDuaSubmission({ mode: "closed", isAuthenticated: true, isAdmin: false }).allowed, false)
     assert.equal(shouldAllowPublicDuaSubmission({ mode: "closed", isAuthenticated: true, isAdmin: true }).allowed, true)
+    // visitor_moderated: everyone may submit (visitor posts are held, not blocked)
+    assert.equal(
+      shouldAllowPublicDuaSubmission({ mode: "visitor_moderated", isAuthenticated: false, isAdmin: false }).allowed,
+      true,
+    )
+  })
+
+  it("holds only visitor submissions for review in visitor_moderated mode", () => {
+    assert.equal(shouldHoldSubmissionForReview({ mode: "visitor_moderated", isAuthenticated: false, isAdmin: false }), true)
+    assert.equal(shouldHoldSubmissionForReview({ mode: "visitor_moderated", isAuthenticated: true, isAdmin: false }), false)
+    assert.equal(shouldHoldSubmissionForReview({ mode: "public", isAuthenticated: false, isAdmin: false }), false)
+    assert.equal(shouldHoldSubmissionForReview({ mode: "registered_only", isAuthenticated: false, isAdmin: false }), false)
   })
 
   it("exposes labels for every selectable mode", () => {

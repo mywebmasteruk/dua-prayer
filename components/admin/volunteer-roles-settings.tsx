@@ -2,6 +2,16 @@
 
 import { useState } from "react"
 import { Shield, Users } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -13,15 +23,18 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "@/components/ui/use-toast"
 import { AdminEmptyState } from "@/components/admin/admin-empty-state"
+import { AdminRowActionsMenu } from "@/components/admin/admin-row-actions-menu"
 import { AdminSection } from "@/components/admin/admin-section"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
 import { AdminTableShell } from "@/components/admin/admin-table-shell"
 import {
+  suspendVolunteer,
+  unsuspendVolunteer,
   updateVolunteerTier,
   type ActiveVolunteerRecord,
 } from "@/app/actions/volunteers"
 import { PERMISSION_LABELS, ROLE_PERMISSIONS } from "@/lib/admin-permissions"
-import { MEMBER_ROLE_LABELS, MEMBER_ROLES, type MemberRole } from "@/lib/volunteer-types"
+import { ACCOUNT_STATUS_LABELS, MEMBER_ROLE_LABELS, MEMBER_ROLES, type MemberRole } from "@/lib/volunteer-types"
 import {
   VOLUNTEER_CAPABILITY_MATRIX,
   VOLUNTEER_TIER_LABELS,
@@ -48,9 +61,17 @@ function tierTone(tier: MemberRole): "success" | "warning" | "neutral" {
   return "neutral"
 }
 
+function statusTone(status: string): "warning" | "success" | "neutral" {
+  if (status === "active") return "success"
+  if (status === "suspended") return "warning"
+  return "neutral"
+}
+
 export function VolunteerRolesSettings({ volunteers, canManageTiers }: VolunteerRolesSettingsProps) {
   const [roster, setRoster] = useState(volunteers)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [suspending, setSuspending] = useState<ActiveVolunteerRecord | null>(null)
+  const [unsuspending, setUnsuspending] = useState<ActiveVolunteerRecord | null>(null)
 
   const handleTierChange = async (volunteer: ActiveVolunteerRecord, tier: MemberRole) => {
     if (!canManageTiers || tier === volunteer.memberRole) return
@@ -71,6 +92,48 @@ export function VolunteerRolesSettings({ volunteers, canManageTiers }: Volunteer
       title: "Tier updated",
       description: `${volunteer.email} is now ${MEMBER_ROLE_LABELS[tier]}.`,
     })
+  }
+
+  const handleSuspend = async () => {
+    if (!suspending) return
+    setBusyId(suspending.id)
+    const result = await suspendVolunteer({ userId: suspending.id })
+    setBusyId(null)
+
+    if ("error" in result && result.error) {
+      toast({ title: "Could not suspend", description: result.error, variant: "destructive" })
+      setSuspending(null)
+      return
+    }
+
+    setRoster((prev) =>
+      prev.map((item) =>
+        item.id === suspending.id ? { ...item, accountStatus: "suspended" as const } : item,
+      ),
+    )
+    toast({ title: "Volunteer suspended", description: `${suspending.email} has been suspended.` })
+    setSuspending(null)
+  }
+
+  const handleUnsuspend = async () => {
+    if (!unsuspending) return
+    setBusyId(unsuspending.id)
+    const result = await unsuspendVolunteer({ userId: unsuspending.id })
+    setBusyId(null)
+
+    if ("error" in result && result.error) {
+      toast({ title: "Could not unsuspend", description: result.error, variant: "destructive" })
+      setUnsuspending(null)
+      return
+    }
+
+    setRoster((prev) =>
+      prev.map((item) =>
+        item.id === unsuspending.id ? { ...item, accountStatus: "active" as const } : item,
+      ),
+    )
+    toast({ title: "Volunteer reinstated", description: `${unsuspending.email} is active again.` })
+    setUnsuspending(null)
   }
 
   return (
@@ -156,16 +219,16 @@ export function VolunteerRolesSettings({ volunteers, canManageTiers }: Volunteer
       </AdminSection>
 
       <AdminSection
-        title="Active volunteers"
+        title="Volunteers"
         description={
           canManageTiers
-            ? "Change a volunteer's tier anytime. New approvals default to Helper."
+            ? "Change a volunteer's tier or suspend them anytime. New approvals default to Helper."
             : "Roster is read-only at your access level."
         }
       >
         {roster.length === 0 ? (
           <AdminEmptyState
-            title="No active volunteers yet"
+            title="No volunteers yet"
             description="Approved applicants appear here with their assigned tier."
           />
         ) : (
@@ -174,14 +237,17 @@ export function VolunteerRolesSettings({ volunteers, canManageTiers }: Volunteer
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="py-2">Volunteer</TableHead>
+                  <TableHead className="py-2">Status</TableHead>
                   <TableHead className="py-2">Tier</TableHead>
                   <TableHead className="hidden py-2 sm:table-cell">Approved</TableHead>
                   {canManageTiers ? <TableHead className="py-2">Assign tier</TableHead> : null}
+                  {canManageTiers ? <TableHead className="w-10 py-2 pr-3 text-right">Actions</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {roster.map((volunteer) => {
                   const isBusy = busyId === volunteer.id
+                  const isSuspended = volunteer.accountStatus === "suspended"
 
                   return (
                     <TableRow key={volunteer.id} className="text-sm">
@@ -192,6 +258,12 @@ export function VolunteerRolesSettings({ volunteers, canManageTiers }: Volunteer
                         {volunteer.displayName ? (
                           <p className="truncate text-xs text-muted-foreground">{volunteer.displayName}</p>
                         ) : null}
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <AdminStatusBadge
+                          label={ACCOUNT_STATUS_LABELS[volunteer.accountStatus]}
+                          tone={statusTone(volunteer.accountStatus)}
+                        />
                       </TableCell>
                       <TableCell className="py-2">
                         <AdminStatusBadge
@@ -213,7 +285,7 @@ export function VolunteerRolesSettings({ volunteers, canManageTiers }: Volunteer
                               onValueChange={(value) =>
                                 void handleTierChange(volunteer, value as MemberRole)
                               }
-                              disabled={isBusy}
+                              disabled={isBusy || isSuspended}
                             >
                               <SelectTrigger id={`tier-${volunteer.id}`} className="h-9">
                                 <SelectValue />
@@ -229,6 +301,19 @@ export function VolunteerRolesSettings({ volunteers, canManageTiers }: Volunteer
                           </div>
                         </TableCell>
                       ) : null}
+                      {canManageTiers ? (
+                        <TableCell className="py-2 pr-3 text-right">
+                          <AdminRowActionsMenu
+                            disabled={isBusy}
+                            label={`Actions for ${volunteer.email || volunteer.id}`}
+                            actions={
+                              isSuspended
+                                ? [{ label: "Reinstate", onClick: () => setUnsuspending(volunteer) }]
+                                : [{ label: "Suspend", onClick: () => setSuspending(volunteer), destructive: true }]
+                            }
+                          />
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   )
                 })}
@@ -240,10 +325,61 @@ export function VolunteerRolesSettings({ volunteers, canManageTiers }: Volunteer
         {!canManageTiers && roster.length > 0 ? (
           <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
             <Users className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Only managers can change volunteer tiers.
+            Only managers can change volunteer tiers or suspend volunteers.
           </p>
         ) : null}
       </AdminSection>
+
+      <AlertDialog open={!!suspending} onOpenChange={(open) => !open && setSuspending(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Suspend volunteer?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-medium text-foreground">{suspending?.email}</span> will lose
+              admin access immediately. Their tier is preserved so they can be reinstated later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busyId === suspending?.id}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={busyId === suspending?.id}
+              onClick={(e) => {
+                e.preventDefault()
+                void handleSuspend()
+              }}
+            >
+              {busyId === suspending?.id ? "Suspending…" : "Suspend"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!unsuspending} onOpenChange={(open) => !open && setUnsuspending(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reinstate volunteer?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-medium text-foreground">{unsuspending?.email}</span> will be
+              restored as{" "}
+              {unsuspending ? MEMBER_ROLE_LABELS[unsuspending.memberRole] : "their previous tier"}{" "}
+              and regain admin access.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busyId === unsuspending?.id}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busyId === unsuspending?.id}
+              onClick={(e) => {
+                e.preventDefault()
+                void handleUnsuspend()
+              }}
+            >
+              {busyId === unsuspending?.id ? "Reinstating…" : "Reinstate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

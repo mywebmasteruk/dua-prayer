@@ -54,8 +54,8 @@ type BotDraft = {
   status: "active" | "paused"
   sourceUrls: string
   keywords: string
-  eventCategories: string
   frequencyMinutes: number
+  maxDuasPerRun: number
   tone: string
   language: string
   targetCategoryId: string
@@ -67,10 +67,10 @@ const blankDraft: BotDraft = {
   description: "",
   systemPrompt: "",
   status: "paused",
-  sourceUrls: "https://www.un.org/press/en/rss.xml",
+  sourceUrls: "https://www.aljazeera.com/xml/rss/all.xml",
   keywords: "earthquake, flood, wildfire, conflict, refugees, disaster",
-  eventCategories: "disaster, humanitarian",
   frequencyMinutes: 360,
+  maxDuasPerRun: 3,
   tone: "compassionate",
   language: "English",
   targetCategoryId: "none",
@@ -96,8 +96,8 @@ function draftFromBot(bot: DuaEventBot): BotDraft {
     status: bot.status,
     sourceUrls: bot.source_urls.join("\n"),
     keywords: bot.keywords.join(", "),
-    eventCategories: bot.event_categories.join(", "),
     frequencyMinutes: bot.frequency_minutes,
+    maxDuasPerRun: bot.max_duas_per_run,
     tone: bot.tone,
     language: bot.language,
     targetCategoryId: bot.target_category_id?.toString() ?? "none",
@@ -115,8 +115,8 @@ function duplicateDraftFromBot(bot: DuaEventBot): BotDraft {
     status: "paused",
     sourceUrls: Array.isArray(draft.rssUrls) ? draft.rssUrls.join("\n") : (draft.rssUrls ?? ""),
     keywords: Array.isArray(draft.keywords) ? draft.keywords.join(", ") : (draft.keywords ?? ""),
-    eventCategories: Array.isArray(draft.categories) ? draft.categories.join(", ") : (draft.categories ?? ""),
     frequencyMinutes: draft.frequencyMinutes ?? 360,
+    maxDuasPerRun: draft.maxDuasPerRun ?? 3,
     tone: draft.tone ?? "compassionate",
     language: draft.language ?? "English",
     targetCategoryId: draft.targetCategoryId?.toString() ?? "none",
@@ -229,7 +229,7 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
     <div className="space-y-6">
       <AdminSection
         title="How bots run"
-        description="Bots read configured RSS/news feeds, filter events by keyword/category, generate duas with the AI Provider, and save them for review by default."
+        description="Bots read configured sources (RSS/Atom feeds or website pages), filter events by keyword/category, generate duas with the AI Provider, and save them for review by default."
         action={
           <AdminStatusBadge
             label={runtimeStatus.canGenerateDuas ? "Ready" : "Needs AI Provider"}
@@ -241,7 +241,7 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
         <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
           <div className="rounded-lg border border-border/60 p-3">
             <p className="font-medium text-foreground">Sources</p>
-            <p className="mt-1">Use RSS/news URLs first. Social monitoring needs approved APIs and credentials before adding adapters.</p>
+            <p className="mt-1">Add RSS/Atom feed URLs or website page URLs. Feeds are read item-by-item; web pages are read as a single headline.</p>
           </div>
           <div className="rounded-lg border border-border/60 p-3">
             <p className="font-medium text-foreground">AI Provider</p>
@@ -296,7 +296,6 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <p className="text-sm">{listPreview(bot.keywords, "All keywords")}</p>
-                    <p className="text-xs text-muted-foreground">{listPreview(bot.event_categories, "All categories")}</p>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell text-sm">
                     <p>Every {bot.frequency_minutes} min</p>
@@ -375,21 +374,22 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
               <p className="text-xs text-muted-foreground">Optional higher-level guardrails for style, boundaries, or religious guidance. The app still adds safety defaults.</p>
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="bot-sources">RSS/news source URLs</Label>
+              <Label htmlFor="bot-sources">Sources</Label>
               <Textarea id="bot-sources" className="font-mono text-xs" value={draft.sourceUrls} onChange={(event) => setDraft({ ...draft, sourceUrls: event.target.value })} />
-              <p className="text-xs text-muted-foreground">One URL per line. Credentialed news/social adapters can be added later.</p>
+              <p className="text-xs text-muted-foreground">One URL per line. Each can be an RSS/Atom feed or a website page — feeds are read item-by-item, web pages are read as a single headline.</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bot-keywords">Keywords</Label>
               <Textarea id="bot-keywords" value={draft.keywords} onChange={(event) => setDraft({ ...draft, keywords: event.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="bot-event-categories">Event categories</Label>
-              <Textarea id="bot-event-categories" value={draft.eventCategories} onChange={(event) => setDraft({ ...draft, eventCategories: event.target.value })} />
-            </div>
-            <div className="space-y-1.5">
               <Label htmlFor="bot-frequency">Frequency minutes</Label>
               <Input id="bot-frequency" type="number" min={15} max={10080} value={draft.frequencyMinutes} onChange={(event) => setDraft({ ...draft, frequencyMinutes: Number.parseInt(event.target.value, 10) || 360 })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="bot-max-duas">Max duas per run</Label>
+              <Input id="bot-max-duas" type="number" min={1} max={10} value={draft.maxDuasPerRun} onChange={(event) => setDraft({ ...draft, maxDuasPerRun: Number.parseInt(event.target.value, 10) || 3 })} />
+              <p className="text-xs text-muted-foreground">How many new duas the bot may create in a single run (1–10). Defaults to 3.</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bot-status">Status</Label>

@@ -1,3 +1,5 @@
+import { detectLanguage } from "@/lib/detect-language"
+
 export interface Hashtag {
   tag: string
   label: string
@@ -73,4 +75,26 @@ export function buildTrendingHashtags(
   return [...counts.values()]
     .sort((a, b) => b.duas - a.duas || b.ameens - a.ameens || a.tag.localeCompare(b.tag))
     .slice(0, limit)
+}
+
+export type TrendingByLanguage = Record<"all" | "en" | "ar" | "es" | "ur" | "fr", TrendingHashtag[]>
+
+// Trending hashtags overall and per language, so the feed's language pills can
+// filter the trending rail. Language comes from the stored `language` code,
+// falling back to script detection (en/ar only) for legacy rows.
+export function buildTrendingByLanguage(
+  duas: Array<{ text: string; likes: number; language?: string | null }>,
+  limit = 5,
+): TrendingByLanguage {
+  const code = (dua: { text: string; language?: string | null }) =>
+    dua.language?.trim().toLowerCase() || detectLanguage(dua.text)
+  const forLang = (lang: string) => buildTrendingHashtags(duas.filter((d) => code(d) === lang), limit)
+  return {
+    all: buildTrendingHashtags(duas, limit),
+    en: forLang("en"),
+    ar: forLang("ar"),
+    es: forLang("es"),
+    ur: forLang("ur"),
+    fr: forLang("fr"),
+  }
 }

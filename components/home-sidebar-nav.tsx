@@ -16,12 +16,13 @@ interface HomeSidebarNavProps {
 
 export function HomeSidebarNav({
   user,
+  isAdmin = false,
   activePath = "/",
   showLogo = true,
   className,
   sidebarTagline = "Share your duas, pray for one another, and grow together in faith.",
 }: HomeSidebarNavProps) {
-  const navState = getUserNavState(user?.email)
+  const navState = getUserNavState(user?.email, isAdmin)
   const accountLabel =
     (typeof user?.user_metadata?.display_name === "string" && user.user_metadata.display_name) ||
     (typeof user?.user_metadata?.full_name === "string" && user.user_metadata.full_name) ||

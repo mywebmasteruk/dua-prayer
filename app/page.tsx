@@ -18,7 +18,7 @@ import { HomeMobileBottomNav } from "@/components/home-mobile-bottom-nav"
 import { HomeStreamTabs } from "@/components/home-stream-tabs"
 import { BrandLogo } from "@/components/brand-logo"
 import { NavigationContentLoader } from "@/components/navigation-content-loader"
-import { buildTrendingHashtags } from "@/lib/hashtags"
+import { buildTrendingHashtags, buildTrendingByLanguage } from "@/lib/hashtags"
 import { isTurnstileEnabled } from "@/lib/turnstile"
 import type { Dua, Category } from "@/lib/types/dua"
 
@@ -103,6 +103,8 @@ export default async function Home({
   // getPlatformStats so they cover ALL duas, not just the loaded batch.
   const categoryLeaderboard = getCategoryLeaderboard(categories, duas)
   const trendingHashtags = buildTrendingHashtags(duas)
+  // Per-language trending so the rail can filter with the feed's language pills.
+  const trendingByLang = buildTrendingByLanguage(duas)
   const supportedRequests = getTopSupportedDuas(duas)
   const totalAmeens = platformStats.totalAmeens
 
@@ -195,7 +197,7 @@ export default async function Home({
           >
             <HomeRightRail
               categoryLeaderboard={categoryLeaderboard}
-              trendingHashtags={trendingHashtags}
+              trendingByLang={trendingByLang}
               supportedRequests={supportedRequests}
               totalDuas={total}
               totalAmeens={totalAmeens}

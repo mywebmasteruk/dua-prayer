@@ -56,6 +56,14 @@ export const SITE_SETTING_KEYS = {
   aiProviderModelMode: "ai_moderation.model_mode",
   // Max ms to wait for a moderation verdict before failing open (publishing).
   aiModerationTimeoutMs: "ai_moderation.timeout_ms",
+  // Reasoning effort for hybrid models: "none" | "low" | "medium" | "high".
+  aiReasoningEffort: "ai_moderation.reasoning_effort",
+  // Max output tokens per AI call.
+  aiMaxTokens: "ai_moderation.max_tokens",
+  // Sampling temperature for AI calls (0-2).
+  aiTemperature: "ai_moderation.temperature",
+  // Max ms to wait for a generation AI call before aborting.
+  aiRequestTimeoutMs: "ai_moderation.request_timeout_ms",
   postingMode: "posting.mode",
   customCodeHeader: "custom_code.header",
   customCodeFooter: "custom_code.footer",

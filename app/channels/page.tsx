@@ -6,7 +6,7 @@ import { getServerUser } from "@/lib/server-user"
 import { requireAdmin } from "@/lib/auth"
 import { getSiteCopy } from "@/lib/site-copy-server"
 import { getChannels } from "@/lib/channels"
-import { buildTrendingHashtags } from "@/lib/hashtags"
+import { buildTrendingByLanguage } from "@/lib/hashtags"
 import { HomeSearchProvider } from "@/components/home-search-provider"
 import { HomeSearchInput } from "@/components/home-search-input"
 import { HomeSidebarNav } from "@/components/home-sidebar-nav"
@@ -68,7 +68,7 @@ export default async function ChannelsPage() {
 
   const channels = getChannels(categories, duas)
   const categoryLeaderboard = getCategoryLeaderboard(categories, duas)
-  const trendingHashtags = buildTrendingHashtags(duas)
+  const trendingByLang = buildTrendingByLanguage(duas)
   const supportedRequests = getTopSupportedDuas(duas)
   const totalAmeens = duas.reduce((sum, dua) => sum + dua.likes, 0)
 
@@ -126,7 +126,7 @@ export default async function ChannelsPage() {
           >
             <HomeRightRail
               categoryLeaderboard={categoryLeaderboard}
-              trendingHashtags={trendingHashtags}
+              trendingByLang={trendingByLang}
               supportedRequests={supportedRequests}
               totalDuas={total}
               totalAmeens={totalAmeens}

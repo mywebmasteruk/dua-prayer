@@ -1,22 +1,21 @@
 "use client"
 
-import type { TrendingHashtag } from "@/lib/hashtags"
 import { cn } from "@/lib/utils"
 
-export type LangFilter = "all" | "en" | "ar"
-export type LangPill = Exclude<LangFilter, "all">
+export type LangFilter = "all" | "en" | "ar" | "es" | "ur" | "fr"
 
 interface FeedFiltersProps {
-  trendingHashtags: TrendingHashtag[]
-  activeTag: string
   activeLang: LangFilter
-  onTagChange: (value: string) => void
-  onLangChange: (value: LangPill) => void
+  onLangChange: (value: LangFilter) => void
 }
 
-const LANG_OPTIONS: Array<{ id: LangPill; label: string }> = [
+const LANG_OPTIONS: Array<{ id: LangFilter; label: string }> = [
+  { id: "all", label: "All" },
   { id: "en", label: "EN" },
   { id: "ar", label: "AR" },
+  { id: "es", label: "ES" },
+  { id: "ur", label: "UR" },
+  { id: "fr", label: "FR" },
 ]
 
 export function FilterPill({
@@ -58,39 +57,15 @@ export function FilterPill({
   )
 }
 
-export function FeedFilters({
-  trendingHashtags,
-  activeTag,
-  activeLang,
-  onTagChange,
-  onLangChange,
-}: FeedFiltersProps) {
-  const hashtagPills = [{ tag: "", label: "All" }, ...trendingHashtags]
-
+export function FeedFilters({ activeLang, onLangChange }: FeedFiltersProps) {
   return (
     <div className="flex items-stretch bg-white">
       <div className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div
           className="flex w-max gap-2 px-4 py-3 sm:pl-5"
           role="tablist"
-          aria-label="Filter duas by trending hashtag"
+          aria-label="Filter duas by language"
         >
-          {hashtagPills.map((pill) => (
-            <FilterPill
-              key={pill.tag || "all"}
-              label={pill.label}
-              count={"duas" in pill ? pill.duas : undefined}
-              isActive={activeTag === pill.tag}
-              onSelect={() => onTagChange(pill.tag)}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-2 py-3 pl-2 pr-4 sm:pr-5">
-        <div className="h-5 w-px shrink-0 bg-border/60" aria-hidden="true" />
-
-        <div className="flex shrink-0 gap-2" role="tablist" aria-label="Filter duas by language">
           {LANG_OPTIONS.map((option) => (
             <FilterPill
               key={option.id}
