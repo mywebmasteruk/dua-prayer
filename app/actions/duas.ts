@@ -14,7 +14,7 @@ import { evaluateDuaModeration, fetchAiModerationSettings } from "@/lib/ai-moder
 import { getPostingMode, shouldAllowPublicDuaSubmission, shouldHoldSubmissionForReview } from "@/lib/posting-settings"
 import { detectLanguage } from "@/lib/detect-language"
 import { extractHashtags } from "@/lib/hashtags"
-import { createNotification } from "@/lib/notifications"
+import { createNotification, crossedAmeenMilestone } from "@/lib/notifications"
 import type { Category, Dua } from "@/lib/types/dua"
 
 const PAGE_SIZE = 10
@@ -523,6 +523,23 @@ export async function prayForDua(duaId: number) {
   const result = data as { success?: boolean; counted?: boolean; likes?: number; error?: string }
   if (!result.success) {
     return { error: result.error === "not_found" ? "Dua not found" : "Could not pray for this dua" }
+  }
+
+  // Milestone notification to the author, once per threshold. Only touches the
+  // DB on the rare milestone hit, so the common pray path stays cheap.
+  if (result.counted && typeof result.likes === "number") {
+    const milestone = crossedAmeenMilestone(result.likes)
+    if (milestone) {
+      const admin = createAdminSupabaseClient()
+      const { data: dua } = await admin.from("duas").select("user_id").eq("id", duaId).single()
+      await createNotification({
+        userId: dua?.user_id,
+        type: "ameen_milestone",
+        title: `Your dua reached ${milestone} ameens`,
+        body: "The community is praying with you, ma sha Allah.",
+        href: "/",
+      })
+    }
   }
 
   // No feed-cache bust here: invalidating on every ameen would defeat the

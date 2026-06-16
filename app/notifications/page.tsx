@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Bell, HandHeart, LayoutGrid, ShieldCheck } from "lucide-react"
+import { Bell, HandHeart, Heart, LayoutGrid, ShieldCheck } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { NotificationsMarkRead } from "@/components/notifications-mark-read"
 import { listMyNotifications, type NotificationRecord } from "@/app/actions/notifications"
@@ -13,6 +13,7 @@ const TYPE_ICON: Record<NotificationType, typeof Bell> = {
   volunteer_status: HandHeart,
   channel_application: LayoutGrid,
   dua_status: ShieldCheck,
+  ameen_milestone: Heart,
 }
 
 function relativeTime(value: string) {

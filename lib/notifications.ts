@@ -4,8 +4,21 @@ export const NOTIFICATION_TYPES = [
   "volunteer_status",
   "channel_application",
   "dua_status",
+  "ameen_milestone",
 ] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
+
+/** Ameen counts that trigger a one-time milestone notification to the author. */
+export const AMEEN_MILESTONES = [10, 25, 50, 100, 250, 500, 1000] as const
+
+/**
+ * Returns the milestone a dua just reached, or null. Because `pray_for_dua` is
+ * atomic, each integer count is returned exactly once across all prayers, so an
+ * exact-equality check fires each milestone at most once — no dedupe needed.
+ */
+export function crossedAmeenMilestone(newLikes: number): number | null {
+  return (AMEEN_MILESTONES as readonly number[]).includes(newLikes) ? newLikes : null
+}
 
 /**
  * Inserts an in-app notification for a user. Best-effort: a failure here must
