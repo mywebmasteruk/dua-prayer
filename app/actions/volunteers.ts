@@ -154,6 +154,7 @@ export async function reviewVolunteerApplicant(input: {
       title: "Volunteer application update",
       body: "Your volunteer application wasn't approved this time. Reach out to volunteers@duaprayer.app with any questions.",
       href: "/account",
+      email: true,
     })
 
     revalidatePath("/admin/volunteers")
@@ -198,6 +199,7 @@ export async function reviewVolunteerApplicant(input: {
     title: "Volunteer application approved",
     body: `Welcome aboard — you're now a ${MEMBER_ROLE_LABELS[role]}. Your account is active.`,
     href: "/account",
+    email: true,
   })
 
   revalidatePath("/admin/volunteers")
@@ -395,6 +397,7 @@ export async function suspendVolunteer(input: { userId: string }) {
     title: "Account suspended",
     body: "Your volunteer access has been paused. Contact volunteers@duaprayer.app if you have questions.",
     href: "/account",
+    email: true,
   })
 
   revalidatePath("/admin/volunteers")
@@ -456,6 +459,7 @@ export async function unsuspendVolunteer(input: { userId: string }) {
     title: "Account reinstated",
     body: "Your volunteer access has been restored. Welcome back.",
     href: "/account",
+    email: true,
   })
 
   revalidatePath("/admin/volunteers")

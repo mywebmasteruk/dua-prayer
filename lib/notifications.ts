@@ -1,4 +1,5 @@
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
+import { buildNotificationEmail, sendEmail } from "@/lib/email"
 
 export const NOTIFICATION_TYPES = [
   "volunteer_status",
@@ -32,6 +33,8 @@ export async function createNotification(input: {
   title: string
   body?: string | null
   href?: string | null
+  /** Also send a transactional email (used for account-level events). */
+  email?: boolean
 }): Promise<void> {
   if (!input.userId) return
 
@@ -44,4 +47,22 @@ export async function createNotification(input: {
     href: input.href ?? null,
   })
   if (error) console.error("Failed to create notification:", error)
+
+  // Best-effort email — never blocks or breaks the parent action.
+  if (input.email) {
+    try {
+      const { data } = await admin.auth.admin.getUserById(input.userId)
+      const to = data.user?.email
+      if (to) {
+        const { subject, html, text } = buildNotificationEmail({
+          title: input.title,
+          body: input.body,
+          href: input.href,
+        })
+        await sendEmail({ to, subject, html, text })
+      }
+    } catch (err) {
+      console.error("Notification email failed:", err)
+    }
+  }
 }

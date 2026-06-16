@@ -235,6 +235,7 @@ export async function reviewChannelApplication(input: {
       title: "Channel application update",
       body: `Your channel "${channel.name}" wasn't approved this time. Reach out if you have questions.`,
       href: "/channels",
+      email: true,
     })
 
     revalidatePath("/admin/channels")
@@ -275,6 +276,7 @@ export async function reviewChannelApplication(input: {
     title: "Channel approved",
     body: `Your channel "${channel.name}" is now live. Share it and start collecting duas.`,
     href: handle ? `/channels/${handle}` : "/channels",
+    email: true,
   })
 
   revalidatePath("/admin/channels")

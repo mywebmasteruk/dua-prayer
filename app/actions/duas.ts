@@ -693,6 +693,7 @@ export async function deleteDua(id: number) {
     title: "Your dua was removed",
     body: "A moderator removed one of your duas because it didn't meet the community guidelines.",
     href: "/safety",
+    email: true,
   })
 
   revalidatePath("/admin")
