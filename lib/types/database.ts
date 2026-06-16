@@ -150,6 +150,45 @@ export interface Database {
         Update: { id?: number; dua_id?: number; user_id?: string; created_at?: string }
         Relationships: []
       }
+      bookmarks: {
+        Row: { id: number; dua_id: number; user_id: string; created_at: string }
+        Insert: { id?: number; dua_id: number; user_id: string; created_at?: string }
+        Update: { id?: number; dua_id?: number; user_id?: string; created_at?: string }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          id: number
+          user_id: string
+          type: string
+          title: string
+          body: string | null
+          href: string | null
+          read_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          user_id: string
+          type: string
+          title: string
+          body?: string | null
+          href?: string | null
+          read_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          user_id?: string
+          type?: string
+          title?: string
+          body?: string | null
+          href?: string | null
+          read_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       dua_bots: {
         Row: {
           id: number

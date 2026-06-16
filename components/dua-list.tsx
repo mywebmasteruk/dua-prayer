@@ -4,10 +4,11 @@ import Image from "next/image"
 import type React from "react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Flag, Heart, Share2, Sparkles, UserRound } from "lucide-react"
+import { Bookmark, Flag, Heart, Share2, Sparkles, UserRound } from "lucide-react"
 import type { Dua } from "@/lib/types/dua"
 import { toast } from "@/components/ui/use-toast"
 import { prayForDua, flagDua, unflagMyFlag } from "@/app/actions/duas"
+import { toggleBookmark } from "@/app/actions/bookmarks"
 import { useNavigationRouter } from "@/hooks/use-navigation-router"
 import { signInHref } from "@/lib/auth-modal"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -148,6 +149,8 @@ export function DuaList({
   const [loadingFlags, setLoadingFlags] = useState<Record<number, boolean>>({})
   const [reportedDuas, setReportedDuas] = useState<Record<number, boolean>>({})
   const [lovedDuas, setLovedDuas] = useState<Record<number, boolean>>({})
+  const [bookmarkedDuas, setBookmarkedDuas] = useState<Record<number, boolean>>({})
+  const [loadingBookmarks, setLoadingBookmarks] = useState<Record<number, boolean>>({})
   const [duasList, setDuasList] = useState<Dua[]>(duas)
   const router = useNavigationRouter()
 
@@ -210,6 +213,31 @@ export function DuaList({
     setLoadingFlags((prev) => ({ ...prev, [duaId]: false }))
   }
 
+  // Save/unsave a dua. Requires login; a logged-out user is sent to sign in.
+  const handleBookmark = async (duaId: number, isBookmarked: boolean) => {
+    setLoadingBookmarks((prev) => ({ ...prev, [duaId]: true }))
+    setBookmarkedDuas((previous) => ({ ...previous, [duaId]: !isBookmarked })) // optimistic
+    const result = await toggleBookmark(duaId)
+
+    if ("error" in result) {
+      setBookmarkedDuas((previous) => ({ ...previous, [duaId]: isBookmarked })) // revert
+      if (result.error.toLowerCase().includes("sign in")) {
+        router.push(signInHref({ next: "/" }))
+      } else {
+        toast({ title: "Error", description: result.error, variant: "destructive" })
+      }
+    } else {
+      setBookmarkedDuas((previous) => ({ ...previous, [duaId]: result.bookmarked }))
+      toast({
+        title: result.bookmarked ? "Saved" : "Removed",
+        description: result.bookmarked
+          ? "Added to your bookmarks."
+          : "Removed from your bookmarks.",
+      })
+    }
+    setLoadingBookmarks((prev) => ({ ...prev, [duaId]: false }))
+  }
+
   const shareOnSocial = (platform: DuaSharePlatform, dua: Dua) => {
     const shareUrl = buildDuaShareUrl(platform, dua)
     window.open(shareUrl, "_blank", "noopener,noreferrer")
@@ -235,6 +263,7 @@ export function DuaList({
         const isRtl = textDirection === "rtl"
         // Reflects the CURRENT user's own flag (toggleable), not the global state.
         const isReported = reportedDuas[dua.id] ?? dua.user_has_flagged ?? false
+        const isBookmarked = bookmarkedDuas[dua.id] ?? dua.user_has_bookmarked ?? false
         const isLoved = Boolean(lovedDuas[dua.id])
         const isLatinScript = isLatinScriptLanguage(dua.language, dua.text)
         const sourceLabel = dua.is_bot_generated
@@ -353,6 +382,17 @@ export function DuaList({
                     </div>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                <ActionButton
+                  onClick={() => handleBookmark(dua.id, isBookmarked)}
+                  disabled={loadingBookmarks[dua.id]}
+                  active={isBookmarked}
+                  aria-pressed={isBookmarked}
+                  aria-label={isBookmarked ? "Remove bookmark" : "Bookmark this dua"}
+                  tooltip={isBookmarked ? "Saved" : "Bookmark"}
+                  className="px-1"
+                >
+                  <Bookmark className={cn("h-4 w-4", isBookmarked && "fill-current")} aria-hidden="true" />
+                </ActionButton>
                 <ActionButton
                   onClick={() => handleFlag(dua.id, isReported)}
                   disabled={loadingFlags[dua.id]}

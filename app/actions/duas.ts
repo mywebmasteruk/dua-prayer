@@ -14,6 +14,7 @@ import { evaluateDuaModeration, fetchAiModerationSettings } from "@/lib/ai-moder
 import { getPostingMode, shouldAllowPublicDuaSubmission, shouldHoldSubmissionForReview } from "@/lib/posting-settings"
 import { detectLanguage } from "@/lib/detect-language"
 import { extractHashtags } from "@/lib/hashtags"
+import { createNotification } from "@/lib/notifications"
 import type { Category, Dua } from "@/lib/types/dua"
 
 const PAGE_SIZE = 10
@@ -239,7 +240,7 @@ const getCachedCategoryLabels = unstable_cache(
   { revalidate: 60, tags: ["categories"] },
 )
 
-async function enrichDuas(
+export async function enrichDuas(
   duas: Array<{
     id: number
     text: string
@@ -277,13 +278,15 @@ async function enrichDuas(
 
   // Which of these duas the current (logged-in) user has flagged.
   let flaggedByMe = new Set<number>()
+  let bookmarkedByMe = new Set<number>()
   if (user && duaIds.length > 0) {
-    const { data: flags } = await createAdminSupabaseClient()
-      .from("dua_flags")
-      .select("dua_id")
-      .eq("user_id", user.id)
-      .in("dua_id", duaIds)
+    const admin = createAdminSupabaseClient()
+    const [{ data: flags }, { data: bookmarks }] = await Promise.all([
+      admin.from("dua_flags").select("dua_id").eq("user_id", user.id).in("dua_id", duaIds),
+      admin.from("bookmarks").select("dua_id").eq("user_id", user.id).in("dua_id", duaIds),
+    ])
     flaggedByMe = new Set(flags?.map((f) => f.dua_id) ?? [])
+    bookmarkedByMe = new Set(bookmarks?.map((b) => b.dua_id) ?? [])
   }
 
   let prayedIds = new Set<number>()
@@ -319,6 +322,7 @@ async function enrichDuas(
       is_bot_generated: botGeneratedIds.has(dua.id),
       user_has_prayed: prayedIds.has(dua.id),
       user_has_flagged: flaggedByMe.has(dua.id),
+      user_has_bookmarked: bookmarkedByMe.has(dua.id),
     }
   })
 }
@@ -590,8 +594,24 @@ export async function updateDuaStatus(id: number, published: boolean) {
   if (!gate.ok) return { error: "Unauthorized" }
 
   const admin = createAdminSupabaseClient()
+  const { data: before } = await admin
+    .from("duas")
+    .select("user_id, published")
+    .eq("id", id)
+    .single()
   const { error } = await admin.from("duas").update({ published }).eq("id", id)
   if (error) return { error: error.message }
+
+  // Notify the author only on a genuine pending -> published transition.
+  if (published && before && !before.published) {
+    await createNotification({
+      userId: before.user_id,
+      type: "dua_status",
+      title: "Your dua was published",
+      body: "A moderator approved your dua — it's now live in the feed.",
+      href: "/",
+    })
+  }
 
   revalidatePath("/admin")
   revalidateTag("duas-feed")
@@ -646,8 +666,17 @@ export async function deleteDua(id: number) {
   if (!gate.ok) return { error: "Unauthorized" }
 
   const admin = createAdminSupabaseClient()
+  const { data: before } = await admin.from("duas").select("user_id").eq("id", id).single()
   const { error } = await admin.from("duas").delete().eq("id", id)
   if (error) return { error: error.message }
+
+  await createNotification({
+    userId: before?.user_id,
+    type: "dua_status",
+    title: "Your dua was removed",
+    body: "A moderator removed one of your duas because it didn't meet the community guidelines.",
+    href: "/safety",
+  })
 
   revalidatePath("/admin")
   revalidateTag("duas-feed")

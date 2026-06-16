@@ -14,6 +14,8 @@ export interface Dua {
   user_has_prayed?: boolean
   /** Whether the current viewer (logged-in) has flagged this dua. */
   user_has_flagged?: boolean
+  /** Whether the current viewer (logged-in) has bookmarked this dua. */
+  user_has_bookmarked?: boolean
   published: boolean
   flagged: boolean
 }

@@ -1,6 +1,7 @@
 import { Bell, Bookmark, BookOpen, HandCoins, HandHeart, Home, Info, LayoutGrid, Shield, ShieldAlert, User, UserCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getUserNavState } from "@/lib/user-nav"
+import { getUnreadNotificationCount } from "@/app/actions/notifications"
 import { AccountDock } from "./auth/account-dock"
 import { isSidebarPathActive, SidebarBranding, SidebarNavItem } from "./sidebar-nav-shared"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
@@ -14,7 +15,7 @@ interface HomeSidebarNavProps {
   sidebarTagline?: string
 }
 
-export function HomeSidebarNav({
+export async function HomeSidebarNav({
   user,
   isAdmin = false,
   activePath = "/",
@@ -23,6 +24,7 @@ export function HomeSidebarNav({
   sidebarTagline = "Share your duas, pray for one another, and grow together in faith.",
 }: HomeSidebarNavProps) {
   const navState = getUserNavState(user?.email, isAdmin)
+  const unreadCount = user ? await getUnreadNotificationCount() : 0
   const accountLabel =
     (typeof user?.user_metadata?.display_name === "string" && user.user_metadata.display_name) ||
     (typeof user?.user_metadata?.full_name === "string" && user.user_metadata.full_name) ||
@@ -75,6 +77,7 @@ export function HomeSidebarNav({
           />
         ) : null}
         {navState.signedInItems.map((item) => {
+          const isNotifications = item.label !== "Profile" && item.label !== "Bookmarks"
           const Icon = item.label === "Profile" ? User : item.label === "Bookmarks" ? Bookmark : Bell
           return (
             <SidebarNavItem
@@ -83,6 +86,7 @@ export function HomeSidebarNav({
               label={item.label}
               icon={Icon}
               active={activePath === item.activePath || isSidebarPathActive(activePath, item.activePath)}
+              badge={isNotifications ? unreadCount : 0}
             />
           )
         })}

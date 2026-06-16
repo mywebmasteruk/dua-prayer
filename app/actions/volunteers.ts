@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { listAllAuthUsers } from "@/lib/auth-users"
 import { getAdminContext, hasPermission, requirePermission } from "@/lib/auth"
+import { createNotification } from "@/lib/notifications"
 import { memberRoleToAdminFields } from "@/lib/volunteers"
 import {
   ACCOUNT_STATUS_LABELS,
@@ -147,6 +148,14 @@ export async function reviewVolunteerApplicant(input: {
       return { error: "Profile updated but session metadata sync failed. Retry the decision." }
     }
 
+    await createNotification({
+      userId: input.userId,
+      type: "volunteer_status",
+      title: "Volunteer application update",
+      body: "Your volunteer application wasn't approved this time. Reach out to volunteers@duaprayer.app with any questions.",
+      href: "/account",
+    })
+
     revalidatePath("/admin/volunteers")
     revalidatePath("/admin/volunteers/roles")
     revalidatePath("/admin/users")
@@ -182,6 +191,14 @@ export async function reviewVolunteerApplicant(input: {
     console.error("Failed to sync app_metadata for activated volunteer:", metadataError)
     return { error: "Profile updated but session metadata sync failed. Retry the decision." }
   }
+
+  await createNotification({
+    userId: input.userId,
+    type: "volunteer_status",
+    title: "Volunteer application approved",
+    body: `Welcome aboard — you're now a ${MEMBER_ROLE_LABELS[role]}. Your account is active.`,
+    href: "/account",
+  })
 
   revalidatePath("/admin/volunteers")
   revalidatePath("/admin/volunteers/roles")
@@ -372,6 +389,14 @@ export async function suspendVolunteer(input: { userId: string }) {
     return { error: "Profile updated but session metadata sync failed. Retry the action." }
   }
 
+  await createNotification({
+    userId: input.userId,
+    type: "volunteer_status",
+    title: "Account suspended",
+    body: "Your volunteer access has been paused. Contact volunteers@duaprayer.app if you have questions.",
+    href: "/account",
+  })
+
   revalidatePath("/admin/volunteers")
   revalidatePath("/admin/volunteers/roles")
   revalidatePath("/admin/users")
@@ -424,6 +449,14 @@ export async function unsuspendVolunteer(input: { userId: string }) {
     console.error("Failed to sync app_metadata for unsuspended volunteer:", metadataError)
     return { error: "Profile updated but session metadata sync failed. Retry the action." }
   }
+
+  await createNotification({
+    userId: input.userId,
+    type: "volunteer_status",
+    title: "Account reinstated",
+    body: "Your volunteer access has been restored. Welcome back.",
+    href: "/account",
+  })
 
   revalidatePath("/admin/volunteers")
   revalidatePath("/admin/volunteers/roles")

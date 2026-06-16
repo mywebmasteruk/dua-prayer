@@ -7,6 +7,8 @@ import { listAllAuthUsers } from "@/lib/auth-users"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { getServerUser } from "@/lib/server-user"
 import { requirePermission } from "@/lib/auth"
+import { createNotification } from "@/lib/notifications"
+import { getChannelHandle } from "@/lib/channels"
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
 import { verifyTurnstile } from "@/lib/turnstile"
 import { getChannelFormRegistry } from "@/lib/site-settings-server"
@@ -192,7 +194,7 @@ export async function reviewChannelApplication(input: {
   const admin = createAdminSupabaseClient()
   const { data: channel, error: loadError } = await admin
     .from("categories")
-    .select("id, channel_type, status")
+    .select("id, channel_type, status, owner_id, name, handle")
     .eq("id", input.channelId)
     .single()
 
@@ -227,6 +229,14 @@ export async function reviewChannelApplication(input: {
 
     if (error) return { error: error.message }
 
+    await createNotification({
+      userId: channel.owner_id,
+      type: "channel_application",
+      title: "Channel application update",
+      body: `Your channel "${channel.name}" wasn't approved this time. Reach out if you have questions.`,
+      href: "/channels",
+    })
+
     revalidatePath("/admin/channels")
     revalidatePath("/channels")
     revalidatePath("/")
@@ -257,6 +267,15 @@ export async function reviewChannelApplication(input: {
     .eq("id", input.channelId)
 
   if (error) return { error: error.message }
+
+  const handle = getChannelHandle({ name: channel.name, handle: channel.handle })
+  await createNotification({
+    userId: channel.owner_id,
+    type: "channel_application",
+    title: "Channel approved",
+    body: `Your channel "${channel.name}" is now live. Share it and start collecting duas.`,
+    href: handle ? `/channels/${handle}` : "/channels",
+  })
 
   revalidatePath("/admin/channels")
   revalidatePath("/channels")

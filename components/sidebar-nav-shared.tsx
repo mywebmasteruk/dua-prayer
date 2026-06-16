@@ -24,12 +24,15 @@ export function SidebarNavItem({
   icon: Icon,
   active = false,
   variant = "default",
+  badge = 0,
 }: {
   href: string
   label: string
   icon: LucideIcon
   active?: boolean
   variant?: "default" | "cta"
+  /** Unread count shown as a pill after the label (rendered only when > 0). */
+  badge?: number
 }) {
   return (
     <Link
@@ -47,6 +50,14 @@ export function SidebarNavItem({
     >
       <Icon className="h-[22px] w-[22px] shrink-0" aria-hidden="true" />
       <span>{label}</span>
+      {badge > 0 ? (
+        <span
+          className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground"
+          aria-label={`${badge} unread`}
+        >
+          {badge > 99 ? "99+" : badge}
+        </span>
+      ) : null}
     </Link>
   )
 }
