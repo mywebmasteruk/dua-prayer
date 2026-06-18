@@ -1,11 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
 import { UserCheck } from "lucide-react"
 import type { Category, Dua } from "@/lib/types/dua"
 import { DuaList } from "@/components/dua-list"
-import { FeedPagination } from "@/components/feed-pagination"
 import { useFollowedChannels } from "@/components/followed-channels-provider"
 import { useHomeSearch } from "@/components/home-search-provider"
 import type { HomeEmptyCopy } from "@/lib/site-copy"
@@ -29,33 +28,9 @@ function matchesSearch(dua: Dua, searchQuery: string, categories: Category[]) {
   return dua.text.toLowerCase().includes(trimmed) || categoryName.toLowerCase().includes(trimmed)
 }
 
-// Uses ?fpage= so it never collides with the feed tab's ?page= param.
-function readFollowingPageFromUrl() {
-  if (typeof window === "undefined") return 1
-  return Math.max(1, Number.parseInt(new URLSearchParams(window.location.search).get("fpage") ?? "1") || 1)
-}
-
-function syncFollowingPageToUrl(page: number) {
-  const params = new URLSearchParams(window.location.search)
-  params.set("tab", "following")
-
-  if (page > 1) params.set("fpage", String(page))
-  else params.delete("fpage")
-
-  const query = params.toString()
-  const nextUrl = query ? `/?${query}` : "/"
-  const currentUrl = `${window.location.pathname}${window.location.search}`
-
-  if (currentUrl !== nextUrl) {
-    window.history.replaceState(window.history.state, "", nextUrl)
-  }
-}
-
 export function FollowingSection({
   duas,
   categories,
-  pageSize,
-  followingActive = true,
   emptyCopy = {
     homeFollowingEmptyTitle: SITE_COPY_DEFAULTS.homeFollowingEmptyTitle,
     homeFollowingEmptyDescription: SITE_COPY_DEFAULTS.homeFollowingEmptyDescription,
@@ -66,11 +41,6 @@ export function FollowingSection({
 }: FollowingSectionProps) {
   const { followedIds } = useFollowedChannels()
   const { query: searchQuery } = useHomeSearch()
-  const [page, setPage] = useState(1)
-
-  useEffect(() => {
-    setPage(readFollowingPageFromUrl())
-  }, [])
 
   const filteredDuas = useMemo(() => {
     if (followedIds.size === 0) return []
@@ -85,30 +55,6 @@ export function FollowingSection({
       return matchesSearch(dua, searchQuery, categories)
     })
   }, [categories, duas, followedIds, searchQuery])
-
-  const totalPages = Math.max(1, Math.ceil(filteredDuas.length / pageSize))
-  const currentPage = Math.min(page, totalPages)
-
-  const paginatedDuas = useMemo(() => {
-    const start = (currentPage - 1) * pageSize
-    return filteredDuas.slice(start, start + pageSize)
-  }, [currentPage, filteredDuas, pageSize])
-
-  useEffect(() => {
-    if (page !== currentPage) setPage(currentPage)
-  }, [currentPage, page])
-
-  useEffect(() => {
-    setPage(1)
-  }, [searchQuery, followedIds.size])
-
-  const handlePageChange = useCallback(
-    (nextPage: number) => {
-      setPage(nextPage)
-      if (followingActive) syncFollowingPageToUrl(nextPage)
-    },
-    [followingActive],
-  )
 
   if (followedIds.size === 0) {
     return (
@@ -149,19 +95,8 @@ export function FollowingSection({
   }
 
   return (
-    <>
-      <section className="min-h-[280px]">
-        <DuaList duas={paginatedDuas} />
-      </section>
-
-      <section className="border-t feed-divider bg-white px-4 py-3 sm:px-5 sm:py-4">
-        <FeedPagination
-          page={currentPage}
-          total={filteredDuas.length}
-          pageSize={pageSize}
-          onPageChange={handlePageChange}
-        />
-      </section>
-    </>
+    <section className="min-h-[280px]">
+      <DuaList duas={filteredDuas} />
+    </section>
   )
 }

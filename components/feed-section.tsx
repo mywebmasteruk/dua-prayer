@@ -6,7 +6,6 @@ import type { Category, Dua } from "@/lib/types/dua"
 import { getChannelHandle } from "@/lib/channels"
 import { detectLanguage } from "@/lib/detect-language"
 import { DuaList } from "@/components/dua-list"
-import { FeedPagination } from "@/components/feed-pagination"
 import { NewDuasBanner } from "@/components/new-duas-banner"
 import { useHomeSearch } from "@/components/home-search-provider"
 import { matchesHashtag, normalizeHashtag, type TrendingHashtag } from "@/lib/hashtags"
@@ -36,41 +35,9 @@ interface FeedSectionProps {
   preferredLanguages?: string[]
 }
 
-function readFiltersFromUrl() {
-  if (typeof window === "undefined") {
-    return { category: "all", page: 1, tag: "" }
-  }
-
-  const params = new URLSearchParams(window.location.search)
-  return {
-    category: params.get("category") || "all",
-    page: Math.max(1, Number.parseInt(params.get("page") ?? "1") || 1),
-    tag: normalizeHashtag(params.get("tag") ?? ""),
-  }
-}
-
-function syncFiltersToUrl(page: number, tag: string) {
-  const params = new URLSearchParams(window.location.search)
-
-  // Category is now path-based (/channels/handle); language is a saved
-  // preference — clean up any legacy params.
-  params.delete("category")
-  params.delete("lang")
-
-  if (page > 1) params.set("page", String(page))
-  else params.delete("page")
-
-  if (tag) params.set("tag", tag)
-  else params.delete("tag")
-
-  const query = params.toString()
-  const pathname = window.location.pathname
-  const nextUrl = query ? `${pathname}?${query}` : pathname
-  const currentUrl = `${pathname}${window.location.search}`
-
-  if (currentUrl !== nextUrl) {
-    window.history.replaceState(window.history.state, "", nextUrl)
-  }
+function readTagFromUrl() {
+  if (typeof window === "undefined") return ""
+  return normalizeHashtag(new URLSearchParams(window.location.search).get("tag") ?? "")
 }
 
 function matchesPreferredLanguages(dua: Dua, preferred: string[]) {
@@ -105,7 +72,6 @@ export function FeedSection({
 }: FeedSectionProps) {
   const { query: searchQuery } = useHomeSearch()
   const router = useNavigationRouter()
-  const [page, setPage] = useState(1)
   const [tag, setTag] = useState("")
   const [extraDuas, setExtraDuas] = useState<Dua[]>([])
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -114,6 +80,8 @@ export function FeedSection({
   // the loader can never spin forever chasing a stale total.
   const [liveTotal, setLiveTotal] = useState(total)
   const [exhausted, setExhausted] = useState(false)
+  const [sentinelVisible, setSentinelVisible] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     setLiveTotal(total)
@@ -122,28 +90,27 @@ export function FeedSection({
 
   useEffect(() => {
     // Channel/topic page: the filter is fixed by the route, skip URL migration.
-    if (lockTo) return
-
-    const initial = readFiltersFromUrl()
-    let resolvedCategory = initial.category
-
-    // Migrate legacy numeric ?category=<id> to handle
-    if (resolvedCategory !== "all" && /^\d+$/.test(resolvedCategory)) {
-      const match = categories.find((c) => c.id.toString() === resolvedCategory)
-      resolvedCategory = match ? getChannelHandle(match) : "all"
-    }
-
-    // Redirect legacy ?category=<handle> to path-based /channels/<handle>
-    if (resolvedCategory !== "all") {
-      const params = new URLSearchParams(window.location.search)
-      params.delete("category")
-      const query = params.toString()
-      router.replace(`/channels/${resolvedCategory}${query ? `?${query}` : ""}`)
+    if (lockTo) {
+      setTag("")
       return
     }
 
-    setPage(initial.page)
-    setTag(initial.tag)
+    const params = new URLSearchParams(window.location.search)
+    const legacyCategory = params.get("category")
+
+    // Redirect legacy ?category=<id|handle> to path-based /channels/<handle>.
+    if (legacyCategory && legacyCategory !== "all") {
+      const match = /^\d+$/.test(legacyCategory)
+        ? categories.find((c) => c.id.toString() === legacyCategory)
+        : undefined
+      const handle = match ? getChannelHandle(match) : legacyCategory
+      params.delete("category")
+      const query = params.toString()
+      router.replace(`/channels/${handle}${query ? `?${query}` : ""}`)
+      return
+    }
+
+    setTag(readTagFromUrl())
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The duas prop is the newest server batch; extraDuas holds older batches
@@ -165,17 +132,23 @@ export function FeedSection({
     })
   }, [allDuas, lockTo, categories, preferredLanguages, searchQuery, tag])
 
-  const filtersActive =
-    Boolean(lockTo) || preferredLanguages.length > 0 || tag !== "" || searchQuery.trim() !== ""
   const allLoaded = exhausted || allDuas.length >= liveTotal
 
-  // Language/hashtag/search filters run on the client (they analyze the dua
-  // text), so they need the full dataset; otherwise load just enough batches
-  // to cover the page the user is on.
+  // Watch a sentinel near the end of the list; load the next server batch
+  // whenever it scrolls into view and more duas remain.
   useEffect(() => {
-    if (allLoaded || isLoadingMore || !feedActive) return
-    const needed = filtersActive ? liveTotal : Math.min(page * pageSize, liveTotal)
-    if (allDuas.length >= needed) return
+    const node = sentinelRef.current
+    if (!node) return
+    const observer = new IntersectionObserver(
+      (entries) => setSentinelVisible(entries[0]?.isIntersecting ?? false),
+      { rootMargin: "600px 0px" },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!sentinelVisible || allLoaded || isLoadingMore || !feedActive) return
 
     let cancelled = false
     setIsLoadingMore(true)
@@ -207,54 +180,21 @@ export function FeedSection({
     return () => {
       cancelled = true
     }
-  }, [allDuas.length, allLoaded, duas, feedActive, filtersActive, isLoadingMore, page, pageSize, liveTotal])
-
-  // Unfiltered: trust the server count so pages past the loaded batches stay
-  // reachable. Filtered (or exhausted): the local count is the real one.
-  const paginationTotal =
-    filtersActive || exhausted
-      ? filteredDuas.length
-      : Math.max(liveTotal, filteredDuas.length)
-  const totalPages = Math.max(1, Math.ceil(paginationTotal / pageSize))
-  const currentPage = Math.min(page, totalPages)
-
-  const paginatedDuas = useMemo(() => {
-    const start = (currentPage - 1) * pageSize
-    return filteredDuas.slice(start, start + pageSize)
-  }, [currentPage, filteredDuas, pageSize])
-
-  useEffect(() => {
-    if (page !== currentPage) setPage(currentPage)
-  }, [currentPage, page])
-
-  // Reset to page 1 when the search changes — but not on mount, where this
-  // would clobber the page just read from a ?page=N deep link.
-  const isFirstSearchEffect = useRef(true)
-  useEffect(() => {
-    if (isFirstSearchEffect.current) {
-      isFirstSearchEffect.current = false
-      return
-    }
-    setPage(1)
-  }, [searchQuery])
-
-  const handlePageChange = useCallback((nextPage: number) => {
-    setPage(nextPage)
-    syncFiltersToUrl(nextPage, tag)
-  }, [tag])
+  }, [sentinelVisible, allLoaded, isLoadingMore, feedActive, allDuas.length, duas])
 
   const clearTagFilter = useCallback(() => {
     setTag("")
-    setPage(1)
-    syncFiltersToUrl(1, "")
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search)
+      params.delete("tag")
+      const query = params.toString()
+      const pathname = window.location.pathname
+      window.history.replaceState(window.history.state, "", query ? `${pathname}?${query}` : pathname)
+    }
   }, [])
 
   const isDefaultFeedView =
-    feedActive &&
-    currentPage === 1 &&
-    !lockTo &&
-    tag === "" &&
-    searchQuery.trim() === ""
+    feedActive && !lockTo && tag === "" && searchQuery.trim() === ""
 
   const newestSeenCreatedAt = filteredDuas[0]?.created_at ?? null
 
@@ -265,15 +205,9 @@ export function FeedSection({
 
   const handleShowNewDuas = useCallback(() => {
     dismissNewDuasBanner()
-
-    if (page !== 1) {
-      setPage(1)
-      syncFiltersToUrl(1, tag)
-    }
-
     window.scrollTo({ top: 0, behavior: "smooth" })
     router.refresh()
-  }, [dismissNewDuasBanner, page, router, tag])
+  }, [dismissNewDuasBanner, router])
 
   return (
     <>
@@ -296,20 +230,26 @@ export function FeedSection({
 
       <section className="min-h-[280px]">
         <DuaList
-          duas={paginatedDuas}
+          duas={filteredDuas}
           emptyTitle={emptyCopy?.homeFeedEmptyTitle}
           emptyDescription={emptyCopy?.homeFeedEmptyDescription}
         />
       </section>
 
-      <section className="bg-white px-4 py-3 sm:px-5 sm:py-4">
-        <FeedPagination
-          page={currentPage}
-          total={paginationTotal}
-          pageSize={pageSize}
-          onPageChange={handlePageChange}
-        />
-      </section>
+      {/* Infinite-scroll sentinel + status. */}
+      <div ref={sentinelRef} aria-hidden="true" className="h-px w-full" />
+      {filteredDuas.length > 0 ? (
+        <div className="flex items-center justify-center bg-white px-4 py-6 text-sm text-muted-foreground">
+          {isLoadingMore ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+              Loading more duas…
+            </span>
+          ) : allLoaded ? (
+            <span>You&apos;re all caught up.</span>
+          ) : null}
+        </div>
+      ) : null}
     </>
   )
 }
