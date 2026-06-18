@@ -76,7 +76,12 @@ export function FollowingSection({
     if (followedIds.size === 0) return []
 
     return duas.filter((dua) => {
-      if (!dua.category_id || !followedIds.has(dua.category_id)) return false
+      // Followed ids can be either topic categories or community channels, so
+      // match a dua on whichever axis it carries.
+      const isFollowed =
+        (dua.category_id != null && followedIds.has(dua.category_id)) ||
+        (dua.channel_id != null && followedIds.has(dua.channel_id))
+      if (!isFollowed) return false
       return matchesSearch(dua, searchQuery, categories)
     })
   }, [categories, duas, followedIds, searchQuery])
