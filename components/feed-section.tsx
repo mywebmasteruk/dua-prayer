@@ -5,7 +5,6 @@ import { getFeedDuas } from "@/app/actions/duas"
 import type { Category, Dua } from "@/lib/types/dua"
 import { getChannelHandle } from "@/lib/channels"
 import { detectLanguage } from "@/lib/detect-language"
-import { FeedFilters, type LangFilter } from "@/components/feed-filters"
 import { DuaList } from "@/components/dua-list"
 import { FeedPagination } from "@/components/feed-pagination"
 import { NewDuasBanner } from "@/components/new-duas-banner"
@@ -30,34 +29,33 @@ interface FeedSectionProps {
    * "category_id" for topic pages, "channel_id" for community-channel pages.
    */
   lockTo?: { field: "category_id" | "channel_id"; id: number }
+  /**
+   * Language codes the signed-in user prefers (from saved preferences).
+   * Empty = show all languages (guests and users with no preference).
+   */
+  preferredLanguages?: string[]
 }
 
 function readFiltersFromUrl() {
   if (typeof window === "undefined") {
-    return { category: "all", lang: "all" as LangFilter, page: 1, tag: "" }
+    return { category: "all", page: 1, tag: "" }
   }
 
   const params = new URLSearchParams(window.location.search)
-  const langParam = params.get("lang")
-  const validLangs: LangFilter[] = ["en", "ar", "es", "ur", "fr"]
-  const lang: LangFilter = validLangs.includes(langParam as LangFilter) ? (langParam as LangFilter) : "all"
-
   return {
     category: params.get("category") || "all",
-    lang,
     page: Math.max(1, Number.parseInt(params.get("page") ?? "1") || 1),
     tag: normalizeHashtag(params.get("tag") ?? ""),
   }
 }
 
-function syncFiltersToUrl(lang: LangFilter, page: number, tag: string) {
+function syncFiltersToUrl(page: number, tag: string) {
   const params = new URLSearchParams(window.location.search)
 
-  // Category is now path-based (/channels/handle) — clean up any legacy param
+  // Category is now path-based (/channels/handle); language is a saved
+  // preference — clean up any legacy params.
   params.delete("category")
-
-  if (lang !== "all") params.set("lang", lang)
-  else params.delete("lang")
+  params.delete("lang")
 
   if (page > 1) params.set("page", String(page))
   else params.delete("page")
@@ -75,13 +73,13 @@ function syncFiltersToUrl(lang: LangFilter, page: number, tag: string) {
   }
 }
 
-function matchesLanguage(dua: Dua, lang: LangFilter) {
-  if (lang === "all") return true
-  const stored = dua.language?.trim().toLowerCase()
+function matchesPreferredLanguages(dua: Dua, preferred: string[]) {
+  if (preferred.length === 0) return true
   // Prefer the stored language (set by bots / on submission). Fall back to
   // script detection for legacy rows — that only distinguishes en/ar.
-  if (stored) return stored === lang
-  return detectLanguage(dua.text) === lang
+  const stored = dua.language?.trim().toLowerCase()
+  const lang = stored || detectLanguage(dua.text)
+  return preferred.includes(lang)
 }
 
 function matchesSearch(dua: Dua, searchQuery: string, categories: Category[]) {
@@ -103,8 +101,9 @@ export function FeedSection({
   feedActive = true,
   emptyCopy,
   lockTo,
+  preferredLanguages = [],
 }: FeedSectionProps) {
-  const { query: searchQuery, lang, setLang } = useHomeSearch()
+  const { query: searchQuery } = useHomeSearch()
   const router = useNavigationRouter()
   const [page, setPage] = useState(1)
   const [tag, setTag] = useState("")
@@ -143,7 +142,6 @@ export function FeedSection({
       return
     }
 
-    setLang(initial.lang)
     setPage(initial.page)
     setTag(initial.tag)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -161,14 +159,14 @@ export function FeedSection({
       // Channel/topic page: match the locked column (category_id or channel_id).
       if (lockTo && dua[lockTo.field] !== lockTo.id) return false
       if (tag && !matchesHashtag(dua.text, tag)) return false
-      if (!matchesLanguage(dua, lang)) return false
+      if (!matchesPreferredLanguages(dua, preferredLanguages)) return false
       if (!matchesSearch(dua, searchQuery, categories)) return false
       return true
     })
-  }, [allDuas, lockTo, categories, lang, searchQuery, tag])
+  }, [allDuas, lockTo, categories, preferredLanguages, searchQuery, tag])
 
   const filtersActive =
-    Boolean(lockTo) || lang !== "all" || tag !== "" || searchQuery.trim() !== ""
+    Boolean(lockTo) || preferredLanguages.length > 0 || tag !== "" || searchQuery.trim() !== ""
   const allLoaded = exhausted || allDuas.length >= liveTotal
 
   // Language/hashtag/search filters run on the client (they analyze the dua
@@ -240,38 +238,21 @@ export function FeedSection({
     setPage(1)
   }, [searchQuery])
 
-  const updateFilters = useCallback(
-    (nextLang: LangFilter, nextPage: number) => {
-      setLang(nextLang)
-      setPage(nextPage)
-      syncFiltersToUrl(nextLang, nextPage, tag)
-    },
-    [tag],
-  )
-
-  const handleLangChange = useCallback(
-    (value: LangFilter) => {
-      updateFilters(value, 1)
-    },
-    [updateFilters],
-  )
-
-  const handlePageChange = useCallback(
-    (nextPage: number) => updateFilters(lang, nextPage),
-    [lang, updateFilters],
-  )
+  const handlePageChange = useCallback((nextPage: number) => {
+    setPage(nextPage)
+    syncFiltersToUrl(nextPage, tag)
+  }, [tag])
 
   const clearTagFilter = useCallback(() => {
     setTag("")
     setPage(1)
-    syncFiltersToUrl(lang, 1, "")
-  }, [lang])
+    syncFiltersToUrl(1, "")
+  }, [])
 
   const isDefaultFeedView =
     feedActive &&
     currentPage === 1 &&
     !lockTo &&
-    lang === "all" &&
     tag === "" &&
     searchQuery.trim() === ""
 
@@ -286,17 +267,16 @@ export function FeedSection({
     dismissNewDuasBanner()
 
     if (page !== 1) {
-      updateFilters(lang, 1)
+      setPage(1)
+      syncFiltersToUrl(1, tag)
     }
 
     window.scrollTo({ top: 0, behavior: "smooth" })
     router.refresh()
-  }, [dismissNewDuasBanner, lang, page, router, updateFilters])
+  }, [dismissNewDuasBanner, page, router, tag])
 
   return (
     <>
-      <FeedFilters activeLang={lang} onLangChange={handleLangChange} />
-
       {tag ? (
         <div className="border-t border-border/60 bg-primary/5 px-4 py-2.5 text-sm text-foreground sm:px-5">
           <div className="flex items-center justify-between gap-3">

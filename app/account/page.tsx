@@ -9,6 +9,9 @@ import { accountStatusSignInMessage, getProfileAccessState } from "@/lib/account
 import { signInHref } from "@/lib/auth-modal"
 import { getServerUser } from "@/lib/server-user"
 import { ACCOUNT_STATUS_LABELS } from "@/lib/volunteer-types"
+import { getCategories } from "@/app/actions/duas"
+import { getMyPreferences } from "@/app/actions/preferences"
+import { PreferencesForm } from "@/components/account/preferences-form"
 
 export default async function AccountPage() {
   const user = await getServerUser()
@@ -18,6 +21,9 @@ export default async function AccountPage() {
   const status = access?.accountStatus ?? "active"
   const statusMessage = accountStatusSignInMessage(status)
   const isActive = status === "active"
+
+  const [preferences, categories] = await Promise.all([getMyPreferences(), getCategories()])
+  const topicCategories = categories.filter((c) => c.channel_type === "category")
 
   return (
     <InnerPageLayout activePath="/account" contentClassName="max-w-2xl">
@@ -82,6 +88,21 @@ export default async function AccountPage() {
                 Sign out or use a different account
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden rounded-3xl border-border/70 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
+          <CardHeader className="border-b border-border/60 bg-muted/30">
+            <CardTitle className="text-xl tracking-tight">Preferences</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">Personalise your feed, topics, and followed channels.</p>
+          </CardHeader>
+          <CardContent className="p-6">
+            <PreferencesForm
+              initialLanguages={preferences.languages}
+              initialTopics={preferences.topics}
+              topicCategories={topicCategories}
+              allChannels={categories}
+            />
           </CardContent>
         </Card>
       </div>

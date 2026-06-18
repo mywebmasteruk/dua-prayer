@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { getDuas, getFeedDuas, getCategories } from "@/app/actions/duas"
+import { getMyPreferences } from "@/app/actions/preferences"
 import { getServerUser } from "@/lib/server-user"
 import { requireAdmin } from "@/lib/auth"
 import { getSiteCopy } from "@/lib/site-copy-server"
@@ -93,13 +94,14 @@ export default async function ChannelPage({
   const isCommunityChannel = channel.channel_type === "user"
   const lockField = isCommunityChannel ? "channel_id" : "category_id"
 
-  const [{ duas, total, pageSize }, channelFirstPage, siteCopy, platformStats, postingMode] =
+  const [{ duas, total, pageSize }, channelFirstPage, siteCopy, platformStats, postingMode, preferences] =
     await Promise.all([
       getFeedDuas(),
       getDuas(isCommunityChannel ? { channel: channel.id.toString(), page: 1 } : { category: channel.id.toString(), page: 1 }),
       getSiteCopy(),
       getPlatformStats(),
       getPostingMode(),
+      getMyPreferences(),
     ])
 
   const channelTotal = channelFirstPage.total
@@ -212,6 +214,7 @@ export default async function ChannelPage({
                   pageSize={pageSize}
                   total={total}
                   lockTo={{ field: lockField, id: channel.id }}
+                  preferredLanguages={preferences.languages}
                   emptyCopy={{
                     homeFeedEmptyTitle: "No duas yet",
                     homeFeedEmptyDescription: "Be the first to share a dua in this channel.",

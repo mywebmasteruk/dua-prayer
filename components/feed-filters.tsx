@@ -3,21 +3,9 @@
 import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
 
+// Feed language is now a saved account preference (see Account → Preferences),
+// not a live pill row, but the type is still used by the search context.
 export type LangFilter = "all" | "en" | "ar" | "es" | "ur" | "fr"
-
-interface FeedFiltersProps {
-  activeLang: LangFilter
-  onLangChange: (value: LangFilter) => void
-}
-
-const LANG_OPTIONS: Array<{ id: LangFilter; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "en", label: "EN" },
-  { id: "ar", label: "AR" },
-  { id: "es", label: "ES" },
-  { id: "ur", label: "UR" },
-  { id: "fr", label: "FR" },
-]
 
 export function FilterPill({
   label,
@@ -63,28 +51,5 @@ export function FilterPill({
         </span>
       ) : null}
     </button>
-  )
-}
-
-export function FeedFilters({ activeLang, onLangChange }: FeedFiltersProps) {
-  return (
-    <div className="flex items-stretch bg-white">
-      <div className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div
-          className="flex w-max gap-2 px-4 py-3 sm:pl-5"
-          role="tablist"
-          aria-label="Filter duas by language"
-        >
-          {LANG_OPTIONS.map((option) => (
-            <FilterPill
-              key={option.id}
-              label={option.label}
-              isActive={activeLang === option.id}
-              onSelect={() => onLangChange(option.id)}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
   )
 }

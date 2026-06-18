@@ -22,6 +22,7 @@ interface HomeStreamTabsProps {
   postingMode: PostingMode
   isSignedIn: boolean
   isAdmin: boolean
+  preferredLanguages?: string[]
 }
 
 export function HomeStreamTabs({
@@ -36,6 +37,7 @@ export function HomeStreamTabs({
   postingMode,
   isSignedIn,
   isAdmin,
+  preferredLanguages = [],
 }: HomeStreamTabsProps) {
   const [activeTab, setActiveTab] = useState<HomeStreamTab>("feed")
 
@@ -107,6 +109,7 @@ export function HomeStreamTabs({
             total={total}
             feedActive={activeTab === "feed"}
             emptyCopy={emptyCopy}
+            preferredLanguages={preferredLanguages}
           />
         </div>
 

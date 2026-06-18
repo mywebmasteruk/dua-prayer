@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import { getFeedDuas, getCategories } from "./actions/duas"
+import { getMyPreferences } from "./actions/preferences"
 import { getServerUser } from "@/lib/server-user"
 import { accountStatusPostAuthRedirect, getProfileAccessState } from "@/lib/account-status"
 import { requireAdmin } from "@/lib/auth"
@@ -89,12 +90,13 @@ export default async function Home({
 
   const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
 
-  const [{ duas, total, pageSize }, categories, siteCopy, platformStats, postingMode] = await Promise.all([
+  const [{ duas, total, pageSize }, categories, siteCopy, platformStats, postingMode, preferences] = await Promise.all([
     getFeedDuas(),
     getCategories(),
     getSiteCopy(),
     getPlatformStats(),
     getPostingMode(),
+    getMyPreferences(),
   ])
   const turnstileSiteKey = isTurnstileEnabled() ? process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY : undefined
   // Leaderboard/trending/supported are derived from the newest batch (recent
@@ -156,6 +158,7 @@ export default async function Home({
                   postingMode={postingMode}
                   isSignedIn={Boolean(user)}
                   isAdmin={isAdmin}
+                  preferredLanguages={preferences.languages}
                   composerCopy={{
                     composerTitleEn: siteCopy.composerTitleEn,
                     composerDescriptionEn: siteCopy.composerDescriptionEn,
