@@ -8,15 +8,8 @@ import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { updateMyPreferences } from "@/app/actions/preferences"
 import { useFollowedChannels } from "@/components/followed-channels-provider"
+import { FEED_LANGUAGE_OPTIONS } from "@/lib/feed-languages"
 import type { Category } from "@/lib/types/dua"
-
-const LANGUAGE_OPTIONS: { code: string; label: string }[] = [
-  { code: "en", label: "English" },
-  { code: "ar", label: "Arabic" },
-  { code: "es", label: "Spanish" },
-  { code: "ur", label: "Urdu" },
-  { code: "fr", label: "French" },
-]
 
 interface PreferencesFormProps {
   initialLanguages: string[]
@@ -75,7 +68,7 @@ export function PreferencesForm({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {LANGUAGE_OPTIONS.map((option) => {
+          {FEED_LANGUAGE_OPTIONS.map((option) => {
             const active = languages.has(option.code)
             return (
               <button
