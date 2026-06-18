@@ -9,6 +9,7 @@ import { getServerUser } from "@/lib/server-user"
 import { requirePermission } from "@/lib/auth"
 import { createNotification } from "@/lib/notifications"
 import { getChannelHandle } from "@/lib/channels"
+import { normalizeChannelHandle, channelHandleFromName } from "@/lib/channel-types"
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit"
 import { verifyTurnstile } from "@/lib/turnstile"
 import { getChannelFormRegistry } from "@/lib/site-settings-server"
@@ -374,4 +375,50 @@ export async function submitChannelApplication(formData: FormData): Promise<Subm
   revalidatePath("/channels/apply")
   revalidatePath("/admin/channels")
   return { success: true, status: result.status }
+}
+
+/**
+ * Live availability check for a desired channel handle. Compares the normalized
+ * handle against every existing channel's effective handle (explicit or derived
+ * from name). When taken, returns up to 3 available suggestions. Advisory only —
+ * not a hard uniqueness guarantee at submit time.
+ */
+export async function checkChannelHandleAvailability(
+  rawHandle: string,
+): Promise<{ available: boolean; normalized: string; suggestions: string[] }> {
+  const normalized = normalizeChannelHandle(rawHandle ?? "")
+  if (!normalized || normalized.length < 3) {
+    return { available: false, normalized, suggestions: [] }
+  }
+
+  const ip = getClientIp(await headers())
+  if (!checkRateLimit(`handle-check:${ip}`, 60).allowed) {
+    return { available: false, normalized, suggestions: [] }
+  }
+
+  const admin = createAdminSupabaseClient()
+  const { data: rows } = await admin.from("categories").select("name, handle")
+  const taken = new Set<string>()
+  for (const row of rows ?? []) {
+    const effective = (row.handle && normalizeChannelHandle(row.handle)) || channelHandleFromName(row.name ?? "")
+    if (effective) taken.add(effective)
+  }
+
+  if (!taken.has(normalized)) return { available: true, normalized, suggestions: [] }
+
+  const suggestions: string[] = []
+  for (const candidate of [
+    `${normalized}dua`,
+    `${normalized}official`,
+    `the${normalized}`,
+    `${normalized}hq`,
+    `${normalized}1`,
+    `${normalized}2`,
+    `${normalized}3`,
+  ]) {
+    const n = normalizeChannelHandle(candidate)
+    if (n && !taken.has(n) && !suggestions.includes(n)) suggestions.push(n)
+    if (suggestions.length >= 3) break
+  }
+  return { available: false, normalized, suggestions }
 }

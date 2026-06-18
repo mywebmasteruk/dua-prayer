@@ -11,7 +11,9 @@ import { toast } from "@/components/ui/use-toast"
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/turnstile-widget"
 import { createClientSupabaseClient } from "@/lib/supabase/client"
 import { requestApplicationUpload } from "@/app/actions/application-uploads"
+import { checkChannelHandleAvailability } from "@/app/actions/channel-applications"
 import {
+  isFieldVisible,
   validateAnswers,
   visibleFields,
   type FormAnswerValue,
@@ -21,6 +23,10 @@ import {
   type FormRegistry,
 } from "@/lib/form-fields"
 import { HONEYPOT_FIELD, TURNSTILE_FIELD } from "@/lib/form-submit"
+import { cn } from "@/lib/utils"
+
+// Field types that read better spanning the full form width (one per row).
+const FULL_WIDTH_TYPES = new Set(["textarea", "file", "checkbox", "multiselect", "radio"])
 
 type SubmitResult = { success: true } | { error: string } | { success: true; status: string }
 
@@ -61,6 +67,9 @@ export function DynamicForm({
   const [submitting, setSubmitting] = useState(false)
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileWidgetHandle>(null)
+
+  // Fields currently visible given conditional (`visibleWhen`) rules.
+  const shownFields = fields.filter((field) => isFieldVisible(field, values))
 
   const setValue = (id: string, value: FormAnswerValue | undefined) => {
     setValues((prev) => {
@@ -129,7 +138,7 @@ export function DynamicForm({
     formData.set(HONEYPOT_FIELD, "")
     if (turnstileToken) formData.set(TURNSTILE_FIELD, turnstileToken)
 
-    for (const field of fields) {
+    for (const field of shownFields) {
       const value = values[field.id]
       if (value === undefined) continue
       if (field.type === "file" && typeof value === "object" && !Array.isArray(value)) {
@@ -158,19 +167,31 @@ export function DynamicForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      {fields.map((field) => (
-        <FieldRow
-          key={field.id}
-          field={field}
-          value={values[field.id]}
-          error={errors[field.id]}
-          uploading={!!uploading[field.id]}
-          onChange={(value) => setValue(field.id, value)}
-          onFile={(file) => handleFile(field, file)}
-          selectClass={SELECT_CLASS}
-        />
-      ))}
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
+        {shownFields.map((field) => (
+          <div key={field.id} className={cn(FULL_WIDTH_TYPES.has(field.type) && "sm:col-span-2")}>
+            {field.systemBinding === "handle" ? (
+              <HandleField
+                field={field}
+                value={values[field.id]}
+                error={errors[field.id]}
+                onChange={(value) => setValue(field.id, value)}
+              />
+            ) : (
+              <FieldRow
+                field={field}
+                value={values[field.id]}
+                error={errors[field.id]}
+                uploading={!!uploading[field.id]}
+                onChange={(value) => setValue(field.id, value)}
+                onFile={(file) => handleFile(field, file)}
+                selectClass={SELECT_CLASS}
+              />
+            )}
+          </div>
+        ))}
+      </div>
 
       {/* Honeypot — visually hidden, ignored by users, filled only by bots. */}
       <div aria-hidden="true" className="absolute left-[-9999px] h-0 w-0 overflow-hidden">
@@ -330,6 +351,96 @@ function FieldRow({ field, value, error, uploading, onChange, onFile, selectClas
       {field.type !== "checkbox" ? <Label htmlFor={id}>{labelText}</Label> : null}
       {control()}
       {field.helpText ? <p className="text-xs text-muted-foreground">{field.helpText}</p> : null}
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+    </div>
+  )
+}
+
+type HandleStatus =
+  | { state: "checking" }
+  | { state: "available"; normalized: string }
+  | { state: "taken"; normalized: string; suggestions: string[] }
+
+function HandleField({
+  field,
+  value,
+  error,
+  onChange,
+}: {
+  field: FormFieldDefinition
+  value: FormAnswerValue | undefined
+  error?: string
+  onChange: (value: FormAnswerValue | undefined) => void
+}) {
+  const id = `field-${field.id}`
+  const labelText = field.required ? `${field.label} *` : field.label
+  const [status, setStatus] = useState<HandleStatus | null>(null)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const seq = useRef(0)
+
+  const runCheck = (raw: string) => {
+    if (timer.current) clearTimeout(timer.current)
+    // Mirror normalizeChannelHandle's "min 3 usable chars" gate before checking.
+    if (raw.replace(/[^a-z0-9]/gi, "").length < 3) {
+      setStatus(null)
+      return
+    }
+    setStatus({ state: "checking" })
+    const current = ++seq.current
+    timer.current = setTimeout(async () => {
+      const res = await checkChannelHandleAvailability(raw)
+      if (current !== seq.current) return // a newer keystroke superseded this one
+      setStatus(
+        res.available
+          ? { state: "available", normalized: res.normalized }
+          : { state: "taken", normalized: res.normalized, suggestions: res.suggestions },
+      )
+    }, 500)
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{labelText}</Label>
+      <Input
+        id={id}
+        type="text"
+        placeholder={field.placeholder ?? "alnoor"}
+        value={typeof value === "string" ? value : ""}
+        onChange={(e) => {
+          onChange(e.target.value || undefined)
+          runCheck(e.target.value)
+        }}
+      />
+      {field.helpText ? <p className="text-xs text-muted-foreground">{field.helpText}</p> : null}
+      {status?.state === "checking" ? (
+        <p className="text-xs text-muted-foreground">Checking availability…</p>
+      ) : null}
+      {status?.state === "available" ? (
+        <p className="text-xs font-medium text-emerald-700">@{status.normalized} is available</p>
+      ) : null}
+      {status?.state === "taken" ? (
+        <div className="text-xs text-destructive">
+          @{status.normalized} is taken.
+          {status.suggestions.length > 0 ? (
+            <span className="ml-1 inline-flex flex-wrap items-center gap-1.5 align-middle">
+              <span className="text-muted-foreground">Try:</span>
+              {status.suggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => {
+                    onChange(s)
+                    runCheck(s)
+                  }}
+                  className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary transition hover:bg-primary/15"
+                >
+                  @{s}
+                </button>
+              ))}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   )

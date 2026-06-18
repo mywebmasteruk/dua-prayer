@@ -43,6 +43,9 @@ export const REQUIRED_VOLUNTEER_BINDINGS: VolunteerSystemBinding[] = ["email"]
 
 export type FormFieldOption = { value: string; label: string }
 
+/** Conditional visibility: show the field only when another field's answer is in `in`. */
+export type FieldVisibleWhen = { field: string; in: string[] }
+
 export type FormFileConfig = {
   accept?: string[] // e.g. ["image/png", "image/jpeg", "application/pdf"]
   maxSizeMb?: number
@@ -64,6 +67,7 @@ export type FormFieldDefinition = {
   options?: FormFieldOption[]
   systemBinding?: string
   fileConfig?: FormFileConfig
+  visibleWhen?: FieldVisibleWhen
 }
 
 export type FormRegistry = {
@@ -113,6 +117,17 @@ function parseOptions(value: unknown): FormFieldOption[] | undefined {
   return options.length > 0 ? options : undefined
 }
 
+function parseVisibleWhen(value: unknown): FieldVisibleWhen | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  const field = asString(record.field)
+  const values = Array.isArray(record.in)
+    ? (record.in.filter((entry) => typeof entry === "string") as string[])
+    : []
+  if (!field || values.length === 0) return undefined
+  return { field, in: values }
+}
+
 function parseFileConfig(value: unknown): FormFileConfig | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
   const record = value as Record<string, unknown>
@@ -148,6 +163,7 @@ function parseField(value: unknown, index: number): FormFieldDefinition | null {
     options: parseOptions(record.options),
     systemBinding: asString(record.systemBinding),
     fileConfig: parseFileConfig(record.fileConfig),
+    visibleWhen: parseVisibleWhen(record.visibleWhen),
   }
 }
 
@@ -185,6 +201,16 @@ export function visibleFields(registry: FormRegistry): FormFieldDefinition[] {
   return registry.fields.filter((field) => field.enabled).sort((a, b) => a.order - b.order)
 }
 
+/** Whether a field's `visibleWhen` condition is satisfied by the current answers. */
+export function isFieldVisible(
+  field: FormFieldDefinition,
+  answers: Record<string, FormAnswerValue | undefined>,
+): boolean {
+  if (!field.visibleWhen) return true
+  const current = answers[field.visibleWhen.field]
+  return typeof current === "string" && field.visibleWhen.in.includes(current)
+}
+
 // --- validation --------------------------------------------------------------
 
 function isEmptyAnswer(field: FormFieldDefinition, value: FormAnswerValue | undefined): boolean {
@@ -205,6 +231,7 @@ export function validateAnswers(
 ): AnswerValidation {
   const errors: Record<string, string> = {}
   for (const field of visibleFields(registry)) {
+    if (!isFieldVisible(field, answers)) continue
     if (field.required && isEmptyAnswer(field, answers[field.id])) {
       errors[field.id] = `${field.label} is required.`
     }
@@ -253,11 +280,41 @@ export const DEFAULT_CHANNEL_REGISTRY: FormRegistry = {
         { value: "individual", label: "Individual" },
       ],
     }),
-    field({ id: "role", label: "Your role", type: "text", order: 90, placeholder: "e.g. Imam" }),
+    field({
+      id: "role",
+      label: "Your role",
+      type: "select",
+      order: 90,
+      options: [
+        { value: "imam", label: "Imam / Religious leader" },
+        { value: "influencer", label: "Influencer / Public Figure" },
+        { value: "individual", label: "Private Individual" },
+        { value: "other", label: "Other" },
+      ],
+    }),
     field({ id: "location", label: "Country / location", type: "text", order: 100 }),
-    field({ id: "languages", label: "Primary posting language(s)", type: "text", order: 110 }),
+    field({
+      id: "languages",
+      label: "Primary posting language",
+      type: "select",
+      order: 110,
+      options: [
+        { value: "en", label: "English" },
+        { value: "ar", label: "Arabic" },
+        { value: "ur", label: "Urdu" },
+        { value: "fr", label: "French" },
+        { value: "es", label: "Spanish" },
+        { value: "other", label: "Other" },
+      ],
+    }),
     field({ id: "social_media_link", label: "Social media profile", type: "url", order: 120 }),
-    field({ id: "registration_number", label: "Legal entity / registration no.", type: "text", order: 130 }),
+    field({
+      id: "registration_number",
+      label: "Legal entity / registration no.",
+      type: "text",
+      order: 130,
+      visibleWhen: { field: "channel_type", in: ["masjid", "organization"] },
+    }),
     field({
       id: "registration_document",
       label: "Registration document",
@@ -265,6 +322,7 @@ export const DEFAULT_CHANNEL_REGISTRY: FormRegistry = {
       order: 140,
       required: true,
       fileConfig: { accept: ["application/pdf", "image/png", "image/jpeg"], maxSizeMb: 10 },
+      visibleWhen: { field: "channel_type", in: ["masjid", "organization"] },
     }),
     field({
       id: "channel_logo",
