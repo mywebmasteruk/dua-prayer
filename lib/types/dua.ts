@@ -4,11 +4,17 @@ export interface Dua {
   id: number
   text: string
   user_id: string | null
+  /** Topic category (channel_type='category'), e.g. Health, Family. */
   category_id: number | null
+  /** Optional community channel (channel_type='user') the dua was posted into. */
+  channel_id: number | null
   likes: number
   created_at: string
   category_name?: string
   category_channel_type?: ChannelType
+  /** Resolved channel display fields (when channel_id is set). */
+  channel_name?: string
+  channel_handle?: string
   language?: string | null
   is_bot_generated?: boolean
   user_has_prayed?: boolean

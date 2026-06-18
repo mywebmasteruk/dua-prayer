@@ -20,8 +20,8 @@ interface HomeComposerProps {
   postingMode: PostingMode
   isSignedIn: boolean
   isAdmin: boolean
-  /** When set, the composer posts into this fixed category (channel-page owner composer). */
-  lockedCategory?: Category | null
+  /** When set, the composer posts into this fixed community channel (channel-page owner composer). */
+  lockedChannel?: Category | null
   /**
    * Bind open state to the shared search context so the mobile top-bar "+"
    * can open this composer, and hide the inline trigger bar on mobile.
@@ -29,7 +29,7 @@ interface HomeComposerProps {
   bindToGlobalCompose?: boolean
 }
 
-export function HomeComposer({ categories, turnstileSiteKey, copy, postingMode, isSignedIn, isAdmin, lockedCategory, bindToGlobalCompose = false }: HomeComposerProps) {
+export function HomeComposer({ categories, turnstileSiteKey, copy, postingMode, isSignedIn, isAdmin, lockedChannel, bindToGlobalCompose = false }: HomeComposerProps) {
   const { composeOpen, setComposeOpen } = useHomeSearch()
   const [internalOpen, setInternalOpen] = useState(false)
   const isOpen = bindToGlobalCompose ? composeOpen : internalOpen
@@ -180,7 +180,7 @@ export function HomeComposer({ categories, turnstileSiteKey, copy, postingMode, 
                         postingMode={postingMode}
                         isSignedIn={isSignedIn}
                         isAdmin={isAdmin}
-                        lockedCategory={lockedCategory}
+                        lockedChannel={lockedChannel}
                       />
                     </div>
                   </div>

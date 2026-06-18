@@ -19,7 +19,6 @@ interface HomeStreamTabsProps {
   total: number
   emptyCopy: HomeEmptyCopy
   composerCopy: ComposerCopy
-  initialCategory?: string
   postingMode: PostingMode
   isSignedIn: boolean
   isAdmin: boolean
@@ -34,7 +33,6 @@ export function HomeStreamTabs({
   total,
   emptyCopy,
   composerCopy,
-  initialCategory,
   postingMode,
   isSignedIn,
   isAdmin,
@@ -109,7 +107,6 @@ export function HomeStreamTabs({
             total={total}
             feedActive={activeTab === "feed"}
             emptyCopy={emptyCopy}
-            initialCategory={initialCategory}
           />
         </div>
 

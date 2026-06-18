@@ -24,8 +24,12 @@ interface FeedSectionProps {
   total: number
   feedActive?: boolean
   emptyCopy?: Pick<HomeEmptyCopy, "homeFeedEmptyTitle" | "homeFeedEmptyDescription">
-  /** Pre-select a channel handle on mount (used by /channels/[handle] page). */
-  initialCategory?: string
+  /**
+   * Lock the feed to a single topic category or community channel
+   * (used by /channels/[handle]). `field` selects which dua column to match:
+   * "category_id" for topic pages, "channel_id" for community-channel pages.
+   */
+  lockTo?: { field: "category_id" | "channel_id"; id: number }
 }
 
 function readFiltersFromUrl() {
@@ -98,11 +102,10 @@ export function FeedSection({
   total,
   feedActive = true,
   emptyCopy,
-  initialCategory,
+  lockTo,
 }: FeedSectionProps) {
   const { query: searchQuery, lang, setLang } = useHomeSearch()
   const router = useNavigationRouter()
-  const [category, setCategory] = useState("all")
   const [page, setPage] = useState(1)
   const [tag, setTag] = useState("")
   const [extraDuas, setExtraDuas] = useState<Dua[]>([])
@@ -119,11 +122,8 @@ export function FeedSection({
   }, [total])
 
   useEffect(() => {
-    // Channel page: category is fixed by the route, skip URL migration
-    if (initialCategory) {
-      setCategory(initialCategory)
-      return
-    }
+    // Channel/topic page: the filter is fixed by the route, skip URL migration.
+    if (lockTo) return
 
     const initial = readFiltersFromUrl()
     let resolvedCategory = initial.category
@@ -143,7 +143,6 @@ export function FeedSection({
       return
     }
 
-    setCategory("all")
     setLang(initial.lang)
     setPage(initial.page)
     setTag(initial.tag)
@@ -157,25 +156,19 @@ export function FeedSection({
     return [...duas, ...extraDuas.filter((dua) => !seen.has(dua.id))]
   }, [duas, extraDuas])
 
-  const categoryIdByHandle = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const cat of categories) map.set(getChannelHandle(cat), cat.id)
-    return map
-  }, [categories])
-
   const filteredDuas = useMemo(() => {
-    const activeCategoryId = category !== "all" ? categoryIdByHandle.get(category) : undefined
     return allDuas.filter((dua) => {
-      if (activeCategoryId !== undefined && dua.category_id !== activeCategoryId) return false
+      // Channel/topic page: match the locked column (category_id or channel_id).
+      if (lockTo && dua[lockTo.field] !== lockTo.id) return false
       if (tag && !matchesHashtag(dua.text, tag)) return false
       if (!matchesLanguage(dua, lang)) return false
       if (!matchesSearch(dua, searchQuery, categories)) return false
       return true
     })
-  }, [allDuas, category, categoryIdByHandle, categories, lang, searchQuery, tag])
+  }, [allDuas, lockTo, categories, lang, searchQuery, tag])
 
   const filtersActive =
-    category !== "all" || lang !== "all" || tag !== "" || searchQuery.trim() !== ""
+    Boolean(lockTo) || lang !== "all" || tag !== "" || searchQuery.trim() !== ""
   const allLoaded = exhausted || allDuas.length >= liveTotal
 
   // Language/hashtag/search filters run on the client (they analyze the dua
@@ -277,7 +270,7 @@ export function FeedSection({
   const isDefaultFeedView =
     feedActive &&
     currentPage === 1 &&
-    category === "all" &&
+    !lockTo &&
     lang === "all" &&
     tag === "" &&
     searchQuery.trim() === ""
@@ -298,7 +291,7 @@ export function FeedSection({
 
     window.scrollTo({ top: 0, behavior: "smooth" })
     router.refresh()
-  }, [category, dismissNewDuasBanner, lang, page, router, updateFilters])
+  }, [dismissNewDuasBanner, lang, page, router, updateFilters])
 
   return (
     <>

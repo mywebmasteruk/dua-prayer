@@ -109,6 +109,7 @@ export interface Database {
           text: string
           user_id: string | null
           category_id: number | null
+          channel_id: number | null
           likes: number
           published: boolean
           flagged: boolean
@@ -120,6 +121,7 @@ export interface Database {
           text: string
           user_id?: string | null
           category_id?: number | null
+          channel_id?: number | null
           likes?: number
           published?: boolean
           flagged?: boolean
@@ -131,6 +133,7 @@ export interface Database {
           text?: string
           user_id?: string | null
           category_id?: number | null
+          channel_id?: number | null
           likes?: number
           published?: boolean
           flagged?: boolean

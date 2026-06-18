@@ -17,24 +17,34 @@ export function getChannelHandle(category: Pick<Category, "name" | "handle">) {
 }
 
 export function getChannels(categories: Category[], duas: Dua[]): ChannelItem[] {
-  const counts = new Map<number, { duas: number; ameens: number }>()
+  // Topic categories are counted by category_id; community channels by
+  // channel_id (a dua's space), since the two axes are now independent.
+  const categoryCounts = new Map<number, { duas: number; ameens: number }>()
+  const channelCounts = new Map<number, { duas: number; ameens: number }>()
 
-  for (const dua of duas) {
-    if (!dua.category_id) continue
-    const current = counts.get(dua.category_id) ?? { duas: 0, ameens: 0 }
-    counts.set(dua.category_id, { duas: current.duas + 1, ameens: current.ameens + dua.likes })
+  const tally = (map: Map<number, { duas: number; ameens: number }>, id: number, likes: number) => {
+    const current = map.get(id) ?? { duas: 0, ameens: 0 }
+    map.set(id, { duas: current.duas + 1, ameens: current.ameens + likes })
   }
 
-  return categories.map((category) => ({
-    id: category.id,
-    name: category.name,
-    handle: getChannelHandle(category),
-    description: getChannelDescription(category),
-    channelType: category.channel_type,
-    isVerified: category.is_verified && category.status === "approved",
-    duaCount: counts.get(category.id)?.duas ?? 0,
-    ameenCount: counts.get(category.id)?.ameens ?? 0,
-    sortOrder: category.sort_order,
-    createdAt: category.created_at,
-  }))
+  for (const dua of duas) {
+    if (dua.category_id) tally(categoryCounts, dua.category_id, dua.likes)
+    if (dua.channel_id) tally(channelCounts, dua.channel_id, dua.likes)
+  }
+
+  return categories.map((category) => {
+    const counts = category.channel_type === "user" ? channelCounts : categoryCounts
+    return {
+      id: category.id,
+      name: category.name,
+      handle: getChannelHandle(category),
+      description: getChannelDescription(category),
+      channelType: category.channel_type,
+      isVerified: category.is_verified && category.status === "approved",
+      duaCount: counts.get(category.id)?.duas ?? 0,
+      ameenCount: counts.get(category.id)?.ameens ?? 0,
+      sortOrder: category.sort_order,
+      createdAt: category.created_at,
+    }
+  })
 }

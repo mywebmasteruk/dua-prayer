@@ -1,6 +1,7 @@
 "use client"
 
 import Image from "next/image"
+import Link from "next/link"
 import type React from "react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -283,13 +284,32 @@ export function DuaList({
             key={dua.id}
             className="group overflow-hidden bg-slate-50/55 px-4 pt-4 shadow-[0_10px_28px_rgba(15,23,42,0.045)] transition hover:bg-slate-50/75 hover:shadow-[0_14px_36px_rgba(15,23,42,0.06)] focus-within:bg-slate-50/75 sm:px-5"
           >
-            {categoryLabel ? (
-              <div className={cn("flex items-center", isRtl ? "justify-end" : "justify-start")}>
-                <span className="inline-flex max-w-full items-center truncate rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                  {categoryLabel}
-                </span>
-              </div>
-            ) : null}
+            {/* Header: who posted, when, and (if any) which channel. */}
+            <div
+              dir={textDirection}
+              className={cn(
+                "flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground",
+                isRtl && "flex-row-reverse text-right",
+              )}
+            >
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-transparent text-primary/80">
+                <SourceIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
+              <span className="truncate text-[12px] font-medium text-foreground/70">{sourceLabel}</span>
+              <span className="text-muted-foreground/45" aria-hidden="true" dir="ltr">·</span>
+              <span className="shrink-0 text-[12px] text-muted-foreground" dir="ltr">{formatDateTime(dua.created_at)}</span>
+              {dua.channel_name && dua.channel_handle ? (
+                <>
+                  <span className="text-muted-foreground/45" aria-hidden="true" dir="ltr">·</span>
+                  <Link
+                    href={`/channels/${dua.channel_handle}`}
+                    className="inline-flex max-w-full items-center truncate rounded-full bg-primary/10 px-2 py-0.5 text-[12px] font-semibold text-primary transition hover:bg-primary/15"
+                  >
+                    {dua.channel_name}
+                  </Link>
+                </>
+              ) : null}
+            </div>
 
             <p
               dir={textDirection}
@@ -310,16 +330,12 @@ export function DuaList({
                 isRtl && "flex-row-reverse",
               )}
             >
-              <div
-                dir={textDirection}
-                className={cn("flex min-w-0 items-center gap-2 text-xs text-muted-foreground", isRtl && "text-right")}
-              >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-transparent text-primary/80">
-                  <SourceIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                </span>
-                <span className="truncate text-[12px] font-medium text-foreground/65">{sourceLabel}</span>
-                <span className="text-muted-foreground/45" aria-hidden="true" dir="ltr">·</span>
-                <span className="shrink-0 text-[12px] text-muted-foreground" dir="ltr">{formatDateTime(dua.created_at)}</span>
+              <div className={cn("flex min-w-0 items-center", isRtl && "justify-end")}>
+                {categoryLabel ? (
+                  <span className="inline-flex max-w-full items-center truncate rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                    {categoryLabel}
+                  </span>
+                ) : null}
               </div>
 
               <div className="flex flex-wrap items-center gap-3">

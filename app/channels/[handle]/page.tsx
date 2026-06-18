@@ -89,10 +89,14 @@ export default async function ChannelPage({
   const user = await getServerUser()
   const { isAdmin } = user ? await requireAdmin() : { isAdmin: false }
 
+  // Topic categories filter duas by category_id; community channels by channel_id.
+  const isCommunityChannel = channel.channel_type === "user"
+  const lockField = isCommunityChannel ? "channel_id" : "category_id"
+
   const [{ duas, total, pageSize }, channelFirstPage, siteCopy, platformStats, postingMode] =
     await Promise.all([
       getFeedDuas(),
-      getDuas({ category: channel.id.toString(), page: 1 }),
+      getDuas(isCommunityChannel ? { channel: channel.id.toString(), page: 1 } : { category: channel.id.toString(), page: 1 }),
       getSiteCopy(),
       getPlatformStats(),
       getPostingMode(),
@@ -170,7 +174,7 @@ export default async function ChannelPage({
                 {isChannelOwner ? (
                 <HomeComposer
                   categories={categories}
-                  lockedCategory={channel}
+                  lockedChannel={channel}
                   turnstileSiteKey={turnstileSiteKey}
                   copy={{
                     composerTitleEn: siteCopy.composerTitleEn,
@@ -207,7 +211,7 @@ export default async function ChannelPage({
                   trendingHashtags={trendingHashtags}
                   pageSize={pageSize}
                   total={total}
-                  initialCategory={handle}
+                  lockTo={{ field: lockField, id: channel.id }}
                   emptyCopy={{
                     homeFeedEmptyTitle: "No duas yet",
                     homeFeedEmptyDescription: "Be the first to share a dua in this channel.",

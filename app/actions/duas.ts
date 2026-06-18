@@ -15,6 +15,7 @@ import { getPostingMode, shouldAllowPublicDuaSubmission, shouldHoldSubmissionFor
 import { detectLanguage } from "@/lib/detect-language"
 import { extractHashtags } from "@/lib/hashtags"
 import { createNotification, crossedAmeenMilestone } from "@/lib/notifications"
+import { getChannelHandle } from "@/lib/channels"
 import type { Category, Dua } from "@/lib/types/dua"
 
 const PAGE_SIZE = 10
@@ -36,7 +37,7 @@ async function getVoterHash(): Promise<string> {
   return hash
 }
 
-export async function getDuas(options: { category?: string; page?: number } = {}) {
+export async function getDuas(options: { category?: string; channel?: string; page?: number } = {}) {
   const supabase = await createServerSupabaseClient()
   const page = Math.max(1, options.page ?? 1)
   const from = (page - 1) * PAGE_SIZE
@@ -44,7 +45,7 @@ export async function getDuas(options: { category?: string; page?: number } = {}
 
   let query = supabase
     .from("duas")
-    .select("id, text, user_id, category_id, likes, created_at, published, flagged, language", { count: "exact" })
+    .select("id, text, user_id, category_id, channel_id, likes, created_at, published, flagged, language", { count: "exact" })
     .eq("published", true)
     .order("created_at", { ascending: false })
     .range(from, to)
@@ -54,6 +55,14 @@ export async function getDuas(options: { category?: string; page?: number } = {}
     // A non-numeric category would send NaN to PostgREST and fail the query.
     if (Number.isInteger(categoryId)) {
       query = query.eq("category_id", categoryId)
+    }
+  }
+
+  // Channel pages filter by the space (channel_id), independent of topic.
+  if (options.channel) {
+    const channelId = Number.parseInt(options.channel, 10)
+    if (Number.isInteger(channelId)) {
+      query = query.eq("channel_id", channelId)
     }
   }
 
@@ -104,7 +113,7 @@ export async function getAdminDuas(filters: { search?: string; status?: string; 
   const admin = createAdminSupabaseClient()
   let query = admin
     .from("duas")
-    .select("id, text, user_id, category_id, likes, created_at, published, flagged, language")
+    .select("id, text, user_id, category_id, channel_id, likes, created_at, published, flagged, language")
     .order("created_at", { ascending: false })
 
   if (filters.search) query = query.ilike("text", `%${filters.search}%`)
@@ -225,11 +234,11 @@ export async function getCategories(options: { includeInactive?: boolean } = {})
   return fetchCategoriesFromDb(supabase, options)
 }
 
-/** Category id → label/type lookup shared by every feed render. */
+/** Category id → label/type/handle lookup shared by every feed render. */
 const getCachedCategoryLabels = unstable_cache(
   async () => {
     const admin = createAdminSupabaseClient()
-    const { data, error } = await admin.from("categories").select("id, name, channel_type")
+    const { data, error } = await admin.from("categories").select("id, name, channel_type, handle")
     if (error) {
       console.error("Error fetching category labels:", error)
       return []
@@ -246,6 +255,7 @@ export async function enrichDuas(
     text: string
     user_id: string | null
     category_id: number | null
+    channel_id?: number | null
     likes: number
     created_at: string
     published: boolean
@@ -314,11 +324,15 @@ export async function enrichDuas(
 
   return duas.map((dua) => {
     const category = dua.category_id ? categoryMap.get(dua.category_id) : undefined
+    const channel = dua.channel_id ? categoryMap.get(dua.channel_id) : undefined
 
     return {
       ...dua,
+      channel_id: dua.channel_id ?? null,
       category_name: category?.name,
       category_channel_type: category?.channel_type === "user" ? "user" : "category",
+      channel_name: channel?.name,
+      channel_handle: channel ? getChannelHandle(channel) : undefined,
       is_bot_generated: botGeneratedIds.has(dua.id),
       user_has_prayed: prayedIds.has(dua.id),
       user_has_flagged: flaggedByMe.has(dua.id),
@@ -364,7 +378,7 @@ const getCachedFeedBatch = unstable_cache(
     const admin = createAdminSupabaseClient()
     const { data: duas, error, count } = await admin
       .from("duas")
-      .select("id, text, user_id, category_id, likes, created_at, published, flagged, language", { count: "exact" })
+      .select("id, text, user_id, category_id, channel_id, likes, created_at, published, flagged, language", { count: "exact" })
       .eq("published", true)
       .order("created_at", { ascending: false })
       .range(offset, offset + FEED_BATCH_SIZE - 1)
@@ -430,6 +444,7 @@ export async function createDua(formData: FormData) {
 
   const text = (formData.get("text") as string)?.trim()
   const categoryId = formData.get("category_id") as string
+  const channelId = formData.get("channel_id") as string
 
   if (!text || text.length < 15) return { error: "Dua must be at least 15 characters" }
   if (text.length > 1200) return { error: "Dua must be 1200 characters or less" }
@@ -452,27 +467,37 @@ export async function createDua(formData: FormData) {
   const admin = createAdminSupabaseClient()
 
   // The insert uses the service-role client (anonymous submissions bypass
-  // RLS), so the client-supplied category must be validated against active
-  // public categories — otherwise crafted requests could post into pending,
-  // rejected, or inactive channels.
+  // RLS), so client-supplied ids must be validated against active public
+  // categories — otherwise crafted requests could post into pending, rejected,
+  // or inactive rows. Topic (category_id) and space (channel_id) are separate.
+  const activeCategories = await getCategories()
+
   let validatedCategoryId: number | null = null
   if (categoryId) {
     const parsed = Number.parseInt(categoryId, 10)
     if (!Number.isInteger(parsed)) return { error: "Choose a valid category" }
-
-    const activeCategories = await getCategories()
     const target = activeCategories.find((category) => category.id === parsed)
-    if (!target) {
+    // A topic category must be a real, active topic — never a community channel.
+    if (!target || target.channel_type !== "category") {
       return { error: "Choose a valid category" }
     }
+    validatedCategoryId = parsed
+  }
+
+  let validatedChannelId: number | null = null
+  if (channelId) {
+    const parsed = Number.parseInt(channelId, 10)
+    if (!Number.isInteger(parsed)) return { error: "Choose a valid channel" }
+    const channel = activeCategories.find((category) => category.id === parsed)
+    if (!channel || channel.channel_type !== "user") {
+      return { error: "Choose a valid channel" }
+    }
     // Community channels are owner-only: only the channel owner may post into
-    // their channel. Everyone else may only post into official topic categories
-    // (channel_type === "category"). This mirrors the composer, which never
-    // offers community channels as a selectable category.
-    if (target.channel_type === "user" && (!user || user.id !== target.owner_id)) {
+    // their channel.
+    if (!user || user.id !== channel.owner_id) {
       return { error: "Only the channel owner can post in this channel." }
     }
-    validatedCategoryId = parsed
+    validatedChannelId = parsed
   }
 
   const moderation = await evaluateDuaModeration({
@@ -488,6 +513,7 @@ export async function createDua(formData: FormData) {
   const { error } = await admin.from("duas").insert({
     text,
     category_id: validatedCategoryId,
+    channel_id: validatedChannelId,
     published: !requiresReview,
     flagged: requiresReview,
     user_id: user?.id ?? null,
@@ -663,6 +689,7 @@ export async function updateDua(
   text: string,
   categoryId: number | null,
   language?: string | null,
+  channelId?: number | null,
 ) {
   const gate = await requirePermission("manage_duas")
   if (!gate.ok) return { error: "Unauthorized" }
@@ -672,10 +699,12 @@ export async function updateDua(
   if (trimmed.length > 1200) return { error: "Dua must be 1200 characters or less" }
 
   const admin = createAdminSupabaseClient()
-  const update: { text: string; category_id: number | null; language?: string | null } = {
+  const update: { text: string; category_id: number | null; channel_id?: number | null; language?: string | null } = {
     text: trimmed,
     category_id: categoryId,
   }
+  // Only touch channel_id when the caller explicitly passes it.
+  if (channelId !== undefined) update.channel_id = channelId
   if (language !== undefined) update.language = language?.trim() || null
   const { error } = await admin.from("duas").update(update).eq("id", id)
   if (error) return { error: error.message }
