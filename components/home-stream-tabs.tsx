@@ -99,6 +99,7 @@ export function HomeStreamTabs({
             postingMode={postingMode}
             isSignedIn={isSignedIn}
             isAdmin={isAdmin}
+            bindToGlobalCompose
           />
           <FeedSection
             duas={duas}

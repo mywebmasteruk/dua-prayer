@@ -11,12 +11,11 @@ import { getPlatformStats } from "@/lib/platform-stats-server"
 import { getPostingMode } from "@/lib/posting-settings"
 import { HomeAuthModal } from "@/components/auth/home-auth-modal"
 import { HomeSearchProvider } from "@/components/home-search-provider"
-import { HomeSearchInput } from "@/components/home-search-input"
 import { HomeSidebarNav } from "@/components/home-sidebar-nav"
 import { HomeRightRail } from "@/components/home-right-rail"
 import { HomeMobileBottomNav } from "@/components/home-mobile-bottom-nav"
 import { HomeStreamTabs } from "@/components/home-stream-tabs"
-import { BrandLogo } from "@/components/brand-logo"
+import { MobileTopBar } from "@/components/mobile-top-bar"
 import { NavigationContentLoader } from "@/components/navigation-content-loader"
 import { buildTrendingHashtags, buildTrendingByLanguage } from "@/lib/hashtags"
 import { isTurnstileEnabled } from "@/lib/turnstile"
@@ -136,12 +135,7 @@ export default async function Home({
             className="min-w-0 bg-white pb-20 shadow-[0_24px_80px_rgba(15,23,42,0.045)] lg:col-start-2 lg:pb-0"
             aria-label="Prayer request composer and feed"
           >
-            <div className="border-b border-border/70 px-4 py-3 lg:hidden">
-              <BrandLogo variant="icon" href="/" showWordmark priority className="h-8 w-8 shrink-0" />
-              <div className="mt-3">
-                <HomeSearchInput />
-              </div>
-            </div>
+            <MobileTopBar showCompose />
 
             <NavigationContentLoader className="min-h-0">
               <section id="requests" className="overflow-hidden">

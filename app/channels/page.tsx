@@ -6,12 +6,11 @@ import { getSiteCopy } from "@/lib/site-copy-server"
 import { getChannels } from "@/lib/channels"
 import { buildTrendingByLanguage } from "@/lib/hashtags"
 import { HomeSearchProvider } from "@/components/home-search-provider"
-import { HomeSearchInput } from "@/components/home-search-input"
+import { MobileTopBar } from "@/components/mobile-top-bar"
 import { HomeSidebarNav } from "@/components/home-sidebar-nav"
 import { HomeRightRail } from "@/components/home-right-rail"
 import { HomeMobileBottomNav } from "@/components/home-mobile-bottom-nav"
 import { ChannelSection } from "@/components/channel-section"
-import { BrandLogo } from "@/components/brand-logo"
 import { NavigationContentLoader } from "@/components/navigation-content-loader"
 import type { Category, Dua } from "@/lib/types/dua"
 
@@ -90,12 +89,7 @@ export default async function ChannelsPage() {
             className="min-w-0 bg-white pb-20 lg:col-start-2 lg:border-x lg:border-border/70 lg:pb-0"
             aria-label="Community channels"
           >
-            <div className="border-b border-border/70 px-4 py-3 lg:hidden">
-              <BrandLogo variant="icon" href="/" showWordmark priority className="h-8 w-8 shrink-0" />
-              <div className="mt-3">
-                <HomeSearchInput />
-              </div>
-            </div>
+            <MobileTopBar />
 
             <NavigationContentLoader className="min-h-0">
               <header className="border-b border-border/70 px-4 py-4 sm:px-5">

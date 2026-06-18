@@ -9,13 +9,12 @@ import { getSiteCopy } from "@/lib/site-copy-server"
 import { getPlatformStats } from "@/lib/platform-stats-server"
 import { getPostingMode } from "@/lib/posting-settings"
 import { HomeSearchProvider } from "@/components/home-search-provider"
-import { HomeSearchInput } from "@/components/home-search-input"
+import { MobileTopBar } from "@/components/mobile-top-bar"
 import { HomeSidebarNav } from "@/components/home-sidebar-nav"
 import { HomeRightRail } from "@/components/home-right-rail"
 import { HomeMobileBottomNav } from "@/components/home-mobile-bottom-nav"
 import { HomeComposer } from "@/components/home-composer"
 import { FeedSection } from "@/components/feed-section"
-import { BrandLogo } from "@/components/brand-logo"
 import { NavigationContentLoader } from "@/components/navigation-content-loader"
 import { VerifiedChannelBadge } from "@/components/verified-channel-badge"
 import { buildTrendingHashtags, buildTrendingByLanguage } from "@/lib/hashtags"
@@ -132,12 +131,7 @@ export default async function ChannelPage({
             className="min-w-0 bg-white pb-20 shadow-[0_24px_80px_rgba(15,23,42,0.045)] lg:col-start-2 lg:pb-0"
             aria-label="Channel composer and feed"
           >
-            <div className="border-b border-border/70 px-4 py-3 lg:hidden">
-              <BrandLogo variant="icon" href="/" showWordmark priority className="h-8 w-8 shrink-0" />
-              <div className="mt-3">
-                <HomeSearchInput />
-              </div>
-            </div>
+            <MobileTopBar />
 
             <header className="border-b border-border/70 px-4 py-5 sm:px-5">
               <Link

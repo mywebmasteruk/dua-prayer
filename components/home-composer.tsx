@@ -6,6 +6,7 @@ import { Plus, X } from "lucide-react"
 import { BrandLogo } from "@/components/brand-logo"
 import { DuaForm } from "@/components/dua-form"
 import { ActionIconTooltip } from "@/components/action-icon-tooltip"
+import { useHomeSearch } from "@/components/home-search-provider"
 import type { Category } from "@/lib/types/dua"
 import type { ComposerCopy } from "@/lib/site-copy"
 import { getPostingModeOption, type PostingMode } from "@/lib/posting-settings-shared"
@@ -21,10 +22,18 @@ interface HomeComposerProps {
   isAdmin: boolean
   /** When set, the composer posts into this fixed category (channel-page owner composer). */
   lockedCategory?: Category | null
+  /**
+   * Bind open state to the shared search context so the mobile top-bar "+"
+   * can open this composer, and hide the inline trigger bar on mobile.
+   */
+  bindToGlobalCompose?: boolean
 }
 
-export function HomeComposer({ categories, turnstileSiteKey, copy, postingMode, isSignedIn, isAdmin, lockedCategory }: HomeComposerProps) {
-  const [isOpen, setIsOpen] = useState(false)
+export function HomeComposer({ categories, turnstileSiteKey, copy, postingMode, isSignedIn, isAdmin, lockedCategory, bindToGlobalCompose = false }: HomeComposerProps) {
+  const { composeOpen, setComposeOpen } = useHomeSearch()
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isOpen = bindToGlobalCompose ? composeOpen : internalOpen
+  const setIsOpen = bindToGlobalCompose ? setComposeOpen : setInternalOpen
   const [composerLanguage, setComposerLanguage] = useState<LanguageMode>("auto")
   const dialogRef = useRef<HTMLDivElement>(null)
   const titleId = "home-composer-title"
@@ -61,7 +70,11 @@ export function HomeComposer({ categories, turnstileSiteKey, copy, postingMode, 
   return (
     <>
       <div
-        className="group flex w-full cursor-pointer items-center gap-3 bg-white px-4 py-4 text-left transition hover:bg-muted sm:px-5"
+        className={cn(
+          "group flex w-full cursor-pointer items-center gap-3 bg-white px-4 py-4 text-left transition hover:bg-muted sm:px-5",
+          // On mobile the compose entry point lives in the top bar instead.
+          bindToGlobalCompose && "hidden lg:flex",
+        )}
         onClick={() => setIsOpen(true)}
       >
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-muted text-primary">
