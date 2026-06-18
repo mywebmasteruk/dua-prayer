@@ -46,7 +46,7 @@ export function FilterPill({
         "tap-feedback inline-flex shrink-0 items-center rounded-full border text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         compact ? "px-3 py-1" : "px-4 py-1.5",
         isActive
-          ? "border-transparent bg-primary font-semibold text-primary-foreground"
+          ? "border-transparent bg-primary/15 font-semibold text-primary"
           : "border-transparent bg-transparent font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
