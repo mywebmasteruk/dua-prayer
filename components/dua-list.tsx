@@ -30,6 +30,7 @@ import { useNavigationRouter } from "@/hooks/use-navigation-router"
 import { signInHref } from "@/lib/auth-modal"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { VerifiedChannelBadge } from "@/components/verified-channel-badge"
 import { ActionIconTooltip } from "@/components/action-icon-tooltip"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -346,12 +347,15 @@ export function DuaList({
                 )}
               </span>
               {channelName && channelHandle ? (
-                <Link
-                  href={`/channels/${channelHandle}`}
-                  className="truncate text-[13px] font-semibold text-foreground/85 transition hover:text-primary hover:underline"
-                >
-                  {headerName}
-                </Link>
+                <>
+                  <Link
+                    href={`/channels/${channelHandle}`}
+                    className="truncate text-[13px] font-semibold text-foreground/85 transition hover:text-primary hover:underline"
+                  >
+                    {headerName}
+                  </Link>
+                  {dua.channel_is_verified ? <VerifiedChannelBadge /> : null}
+                </>
               ) : (
                 <span className="truncate text-[13px] font-semibold text-foreground/80">{headerName}</span>
               )}
@@ -362,9 +366,12 @@ export function DuaList({
             <p
               dir={textDirection}
               className={cn(
-                "mt-2.5 whitespace-pre-wrap break-words text-[15px] text-foreground",
+                "mt-2.5 whitespace-pre-wrap break-words text-foreground",
+                // Mobile bumps readability: Arabic/Urdu +25% (15→19), Latin
+                // +10% (17→19); desktop (sm+) keeps the original sizes.
+                isLatinScript ? "text-[19px] sm:text-[17px]" : "text-[19px] sm:text-[15px]",
                 isRtl ? "text-right font-medium leading-8" : "leading-7",
-                isLatinScript && "text-[17px] font-medium leading-[24.5px]",
+                isLatinScript && "font-medium leading-7 sm:leading-[24.5px]",
                 isLatinScript && 'font-[Georgia,Cambria,_"Times_New_Roman",Times,serif]',
                 getArabicOnlyFontClassName(dua.text),
               )}

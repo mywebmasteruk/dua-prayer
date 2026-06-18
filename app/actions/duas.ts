@@ -238,7 +238,7 @@ export async function getCategories(options: { includeInactive?: boolean } = {})
 const getCachedCategoryLabels = unstable_cache(
   async () => {
     const admin = createAdminSupabaseClient()
-    const { data, error } = await admin.from("categories").select("id, name, channel_type, handle")
+    const { data, error } = await admin.from("categories").select("id, name, channel_type, handle, is_verified, status")
     if (error) {
       console.error("Error fetching category labels:", error)
       return []
@@ -333,6 +333,7 @@ export async function enrichDuas(
       category_channel_type: category?.channel_type === "user" ? "user" : "category",
       channel_name: channel?.name,
       channel_handle: channel ? getChannelHandle(channel) : undefined,
+      channel_is_verified: channel ? channel.is_verified === true && channel.status === "approved" : undefined,
       is_bot_generated: botGeneratedIds.has(dua.id),
       user_has_prayed: prayedIds.has(dua.id),
       user_has_flagged: flaggedByMe.has(dua.id),

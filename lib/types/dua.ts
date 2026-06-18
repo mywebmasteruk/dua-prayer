@@ -15,6 +15,7 @@ export interface Dua {
   /** Resolved channel display fields (when channel_id is set). */
   channel_name?: string
   channel_handle?: string
+  channel_is_verified?: boolean
   language?: string | null
   is_bot_generated?: boolean
   user_has_prayed?: boolean

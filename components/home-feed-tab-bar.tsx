@@ -38,7 +38,7 @@ export function HomeFeedTabBar({ activeTab, onTabChange }: HomeFeedTabBarProps) 
             id={`home-stream-tab-${tab.id}`}
             onClick={() => onTabChange(tab.id)}
             className={cn(
-              "relative flex flex-1 items-center justify-center px-4 text-[15px] transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset lg:text-[19px]",
+              "relative flex flex-1 items-center justify-center px-4 text-[11px] transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset sm:text-[15px] lg:text-[19px]",
               isActive ? "font-bold text-primary" : "font-medium text-muted-foreground/75",
             )}
           >
