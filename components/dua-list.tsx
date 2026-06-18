@@ -5,7 +5,23 @@ import Link from "next/link"
 import type React from "react"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Bookmark, Flag, Heart, Share2, Sparkles, UserRound } from "lucide-react"
+import {
+  Bookmark,
+  Compass,
+  Flag,
+  Globe,
+  HandHeart,
+  Heart,
+  HeartPulse,
+  Share2,
+  Shield,
+  Sparkles,
+  Tag,
+  UserRound,
+  Users,
+  UsersRound,
+  type LucideIcon,
+} from "lucide-react"
 import type { Dua } from "@/lib/types/dua"
 import { toast } from "@/components/ui/use-toast"
 import { prayForDua, flagDua, unflagMyFlag } from "@/app/actions/duas"
@@ -45,7 +61,8 @@ function ActionButton({
       variant="ghost"
       size="sm"
       className={cn(
-        "h-8 gap-1.5 rounded-full px-2.5 text-muted-foreground hover:bg-muted hover:text-primary",
+        // Taller, roomier tap target on mobile; compact on desktop.
+        "h-10 gap-1.5 rounded-full px-2.5 text-muted-foreground hover:bg-muted hover:text-primary sm:h-8 sm:px-2.5",
         active && "text-primary",
         className,
       )}
@@ -101,6 +118,19 @@ const CATEGORY_LABEL_AR: Record<string, string> = {
   Gratitude: SITE_COPY_DEFAULTS.composerCategoryGratitudeAr,
   Protection: SITE_COPY_DEFAULTS.composerCategoryProtectionAr,
   Community: SITE_COPY_DEFAULTS.composerCategoryCommunityAr,
+}
+
+// Topic-category icons shown on mobile in place of the word (keyed by the
+// English category name). Falls back to a generic tag for custom topics.
+const CATEGORY_ICON: Record<string, LucideIcon> = {
+  General: Globe,
+  Health: HeartPulse,
+  Family: Users,
+  Guidance: Compass,
+  Forgiveness: HandHeart,
+  Gratitude: Sparkles,
+  Protection: Shield,
+  Community: UsersRound,
 }
 
 const sharePlatforms = [
@@ -278,6 +308,7 @@ export function DuaList({
             ? CATEGORY_LABEL_AR[baseCategory] ?? baseCategory
             : baseCategory
           : undefined
+        const CategoryIcon = baseCategory ? CATEGORY_ICON[baseCategory] ?? Tag : Tag
 
         return (
           <article
@@ -292,10 +323,21 @@ export function DuaList({
                 isRtl && "flex-row-reverse text-right",
               )}
             >
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-transparent text-primary/80">
-                <SourceIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-primary ring-1 ring-primary/15">
+                {dua.is_bot_generated ? (
+                  <Image
+                    src="/logo-icon.png"
+                    alt=""
+                    width={20}
+                    height={20}
+                    className="h-5 w-5 object-contain"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <SourceIcon className="h-4 w-4" aria-hidden="true" />
+                )}
               </span>
-              <span className="truncate text-[12px] font-medium text-foreground/70">{sourceLabel}</span>
+              <span className="truncate text-[13px] font-semibold text-foreground/80">{sourceLabel}</span>
               <span className="text-muted-foreground/45" aria-hidden="true" dir="ltr">·</span>
               <span className="shrink-0 text-[12px] text-muted-foreground" dir="ltr">{formatDateTime(dua.created_at)}</span>
               {dua.channel_name && dua.channel_handle ? (
@@ -326,26 +368,33 @@ export function DuaList({
 
             <div
               className={cn(
-                "-mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 bg-slate-50/65 px-4 py-2.5 opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 sm:-mx-5 sm:px-5",
+                "-mx-4 mt-4 flex items-center justify-between gap-2 bg-slate-50/65 px-4 py-2.5 opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 sm:-mx-5 sm:px-5",
                 isRtl && "flex-row-reverse",
               )}
             >
-              <div className={cn("flex min-w-0 items-center", isRtl && "justify-end")}>
+              <div className={cn("flex shrink-0 items-center", isRtl && "justify-end")}>
                 {categoryLabel ? (
-                  <span className="inline-flex max-w-full items-center truncate rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                    {categoryLabel}
+                  <span
+                    title={categoryLabel}
+                    aria-label={categoryLabel}
+                    className="inline-flex max-w-full items-center gap-1 truncate rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary sm:px-2.5 sm:py-0.5"
+                  >
+                    <CategoryIcon className="h-4 w-4 shrink-0 sm:hidden" aria-hidden="true" />
+                    <span className="hidden sm:inline">{categoryLabel}</span>
                   </span>
                 ) : null}
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              {/* On mobile the actions spread full-width for easier tapping;
+                  on desktop they group to the right as before. */}
+              <div className="flex flex-1 items-center justify-between sm:flex-none sm:justify-end sm:gap-3">
                 <ActionButton
                   active={!!prayed}
                   onClick={() => handlePray(dua.id, !!prayed)}
                   disabled={loadingPrays[dua.id] || prayed}
                   aria-label={prayed ? `Prayed ${dua.likes} times` : `Make ameen for this dua, ${dua.likes} ameens so far`}
                   tooltip={prayed ? "Prayed" : "Ameen"}
-                  className="px-1 text-primary"
+                  className="text-primary"
                 >
                   <Image
                     src="/logo-icon.png"
@@ -363,7 +412,7 @@ export function DuaList({
                   aria-pressed={isLoved}
                   aria-label={isLoved ? "Remove love from this dua" : "Love this dua"}
                   tooltip={isLoved ? "Unlike" : "Like"}
-                  className={cn("px-1", isLoved && "text-primary")}
+                  className={cn(isLoved && "text-primary")}
                 >
                   <Heart className="h-4 w-4" aria-hidden="true" />
                   <span className="text-xs font-semibold tabular-nums">{loveCount}</span>
@@ -372,7 +421,7 @@ export function DuaList({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <DropdownMenuTrigger asChild>
-                        <ActionButton aria-label="Share dua" className="px-1">
+                        <ActionButton aria-label="Share dua">
                           <Share2 className="h-4 w-4" aria-hidden="true" />
                         </ActionButton>
                       </DropdownMenuTrigger>
@@ -405,7 +454,6 @@ export function DuaList({
                   aria-pressed={isBookmarked}
                   aria-label={isBookmarked ? "Remove bookmark" : "Bookmark this dua"}
                   tooltip={isBookmarked ? "Saved" : "Bookmark"}
-                  className="px-1"
                 >
                   <Bookmark className={cn("h-4 w-4", isBookmarked && "fill-current")} aria-hidden="true" />
                 </ActionButton>
@@ -416,7 +464,6 @@ export function DuaList({
                   aria-pressed={isReported}
                   tooltip={isReported ? "Remove flag" : "Flag"}
                   className={cn(
-                    "px-1",
                     isReported
                       ? "text-red-600 hover:bg-muted/70 hover:text-red-600"
                       : "hover:bg-muted/70 hover:text-red-600",
