@@ -34,51 +34,46 @@ export function ChannelFilters({
 }: ChannelFiltersProps) {
   return (
     <div className="border-b feed-divider bg-white">
-      <div className="flex items-stretch border-b border-border/50">
-        <div className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div
-            className="flex w-max gap-2 px-4 py-3 sm:pl-5"
-            role="tablist"
-            aria-label="Filter channel type"
-          >
-            {CHANNEL_TYPE_FILTER_OPTIONS.map((option) => (
-              <FilterPill
-                key={option.id}
-                label={option.label}
-                isActive={activeType === option.id}
-                onSelect={() => onTypeChange(option.id)}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-
       <div className="flex items-stretch">
         <div className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div
-            className="flex w-max gap-2 px-4 py-3 sm:pl-5"
-            role="tablist"
-            aria-label="Sort channels"
-          >
-            {SORT_OPTIONS.map((option) => (
-              <FilterPill
-                key={option.id}
-                label={option.label}
-                isActive={activeSort === option.id}
-                onSelect={() => onSortChange(option.id)}
-              />
-            ))}
+          <div className="flex w-max items-center gap-1 px-4 py-3 sm:pl-5">
+            <div className="flex gap-1" role="tablist" aria-label="Filter channel type">
+              {CHANNEL_TYPE_FILTER_OPTIONS.map((option) => (
+                <FilterPill
+                  key={option.id}
+                  label={option.label}
+                  isActive={activeType === option.id}
+                  onSelect={() => onTypeChange(option.id)}
+                  compact
+                />
+              ))}
+            </div>
+
+            <div className="mx-1 h-5 w-px shrink-0 bg-border/60" aria-hidden="true" />
+
+            <div className="flex gap-1" role="tablist" aria-label="Sort channels">
+              {SORT_OPTIONS.map((option) => (
+                <FilterPill
+                  key={option.id}
+                  label={option.label}
+                  isActive={activeSort === option.id}
+                  onSelect={() => onSortChange(option.id)}
+                  compact
+                />
+              ))}
+            </div>
           </div>
         </div>
 
         {showFollowingFilter ? (
           <div className="flex shrink-0 items-center gap-2 py-3 pl-2 pr-4 sm:pr-5">
             <div className="h-5 w-px shrink-0 bg-border/60" aria-hidden="true" />
-            <div className="flex shrink-0 gap-2" role="tablist" aria-label="Filter followed channels">
+            <div className="flex shrink-0" role="tablist" aria-label="Filter followed channels">
               <FilterPill
                 label="Following"
                 isActive={followingOnly}
                 onSelect={() => onFollowingOnlyChange(!followingOnly)}
+                compact
               />
             </div>
           </div>

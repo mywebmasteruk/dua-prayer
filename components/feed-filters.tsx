@@ -23,11 +23,14 @@ export function FilterPill({
   count,
   isActive,
   onSelect,
+  compact,
 }: {
   label: string
   count?: number
   isActive: boolean
   onSelect: () => void
+  /** Tighter padding for dense, single-line filter rows. */
+  compact?: boolean
 }) {
   return (
     <button
@@ -36,7 +39,8 @@ export function FilterPill({
       aria-selected={isActive}
       onClick={onSelect}
       className={cn(
-        "tap-feedback inline-flex shrink-0 items-center rounded-full border px-4 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        "tap-feedback inline-flex shrink-0 items-center rounded-full border text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        compact ? "px-3 py-1" : "px-4 py-1.5",
         isActive
           ? "border-transparent bg-primary font-semibold text-primary-foreground"
           : "border-transparent bg-transparent font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
