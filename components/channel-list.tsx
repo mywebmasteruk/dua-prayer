@@ -87,12 +87,13 @@ export function ChannelList({ channels, followedIds, onToggleFollow, hasActiveFi
                 <Button
                   type="button"
                   size="sm"
-                  variant={isFollowing ? "outline" : "default"}
+                  variant={isFollowing ? "default" : "outline"}
                   onClick={() => onToggleFollow(channel.id)}
                   aria-pressed={isFollowing}
                   className={cn(
                     "h-8 shrink-0 rounded-full px-4 text-sm font-bold",
-                    isFollowing && "border-border/70 bg-transparent text-foreground hover:bg-muted/40",
+                    // Default: green outline on transparent. Once followed: solid green.
+                    !isFollowing && "border-primary bg-transparent text-primary hover:bg-primary/10",
                   )}
                 >
                   {isFollowing ? (
