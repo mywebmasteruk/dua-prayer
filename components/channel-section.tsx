@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ChannelFilters, type ChannelSort } from "@/components/channel-filters"
+import { ChannelFilters, type ChannelSort, type ChannelSortDir } from "@/components/channel-filters"
 import { ChannelList, type ChannelItem } from "@/components/channel-list"
 import { useFollowedChannels } from "@/components/followed-channels-provider"
 import { useHomeSearch } from "@/components/home-search-provider"
@@ -14,6 +14,8 @@ interface ChannelSectionProps {
 
 const VALID_SORTS = new Set<ChannelSort>(["featured", "duas", "ameens", "name", "newest"])
 const VALID_TYPES = new Set<ChannelTypeFilter>(["all", "category", "user"])
+// Sorts whose direction can be toggled (most⇄least) and that show an arrow.
+const DIRECTIONAL_SORTS = new Set<ChannelSort>(["duas", "ameens"])
 
 function matchesSearch(channel: ChannelItem, searchQuery: string) {
   const trimmed = searchQuery.trim().toLowerCase()
@@ -27,17 +29,19 @@ function matchesSearch(channel: ChannelItem, searchQuery: string) {
   )
 }
 
-function sortChannels(channels: ChannelItem[], sort: ChannelSort) {
+function sortChannels(channels: ChannelItem[], sort: ChannelSort, dir: ChannelSortDir) {
   const sorted = [...channels]
+  // Flip the count comparison for ascending (least→most); name stays A–Z.
+  const f = dir === "asc" ? -1 : 1
 
   switch (sort) {
     case "duas":
       return sorted.sort(
-        (a, b) => b.duaCount - a.duaCount || b.ameenCount - a.ameenCount || a.name.localeCompare(b.name),
+        (a, b) => f * (b.duaCount - a.duaCount) || f * (b.ameenCount - a.ameenCount) || a.name.localeCompare(b.name),
       )
     case "ameens":
       return sorted.sort(
-        (a, b) => b.ameenCount - a.ameenCount || b.duaCount - a.duaCount || a.name.localeCompare(b.name),
+        (a, b) => f * (b.ameenCount - a.ameenCount) || f * (b.duaCount - a.duaCount) || a.name.localeCompare(b.name),
       )
     case "name":
       return sorted.sort((a, b) => a.name.localeCompare(b.name))
@@ -61,7 +65,12 @@ function sortChannels(channels: ChannelItem[], sort: ChannelSort) {
 
 function readChannelFiltersFromUrl() {
   if (typeof window === "undefined") {
-    return { sort: "featured" as ChannelSort, type: "all" as ChannelTypeFilter, followingOnly: false }
+    return {
+      sort: "featured" as ChannelSort,
+      sortDir: "desc" as ChannelSortDir,
+      type: "all" as ChannelTypeFilter,
+      followingOnly: false,
+    }
   }
 
   const params = new URLSearchParams(window.location.search)
@@ -70,19 +79,30 @@ function readChannelFiltersFromUrl() {
   const sort: ChannelSort = sortParam && VALID_SORTS.has(sortParam as ChannelSort) ? (sortParam as ChannelSort) : "featured"
   const type: ChannelTypeFilter =
     typeParam && VALID_TYPES.has(typeParam as ChannelTypeFilter) ? (typeParam as ChannelTypeFilter) : "all"
+  const sortDir: ChannelSortDir =
+    params.get("channelSortDir") === "asc" && DIRECTIONAL_SORTS.has(sort) ? "asc" : "desc"
 
   return {
     sort,
+    sortDir,
     type,
     followingOnly: params.get("channelFollowing") === "1",
   }
 }
 
-function syncChannelFiltersToUrl(sort: ChannelSort, type: ChannelTypeFilter, followingOnly: boolean) {
+function syncChannelFiltersToUrl(
+  sort: ChannelSort,
+  sortDir: ChannelSortDir,
+  type: ChannelTypeFilter,
+  followingOnly: boolean,
+) {
   const params = new URLSearchParams(window.location.search)
 
   if (sort !== "featured") params.set("channelSort", sort)
   else params.delete("channelSort")
+
+  if (sortDir === "asc" && DIRECTIONAL_SORTS.has(sort)) params.set("channelSortDir", "asc")
+  else params.delete("channelSortDir")
 
   if (type !== "all") params.set("channelType", type)
   else params.delete("channelType")
@@ -103,49 +123,58 @@ export function ChannelSection({ channels, channelsActive = true }: ChannelSecti
   const { query: searchQuery } = useHomeSearch()
   const { followedIds, toggleFollow } = useFollowedChannels()
   const [sort, setSort] = useState<ChannelSort>("featured")
+  const [sortDir, setSortDir] = useState<ChannelSortDir>("desc")
   const [type, setType] = useState<ChannelTypeFilter>("all")
   const [followingOnly, setFollowingOnly] = useState(false)
 
   useEffect(() => {
     const initial = readChannelFiltersFromUrl()
     setSort(initial.sort)
+    setSortDir(initial.sortDir)
     setType(initial.type)
     setFollowingOnly(initial.followingOnly)
   }, [])
 
   const updateFilters = useCallback(
-    (nextSort: ChannelSort, nextType: ChannelTypeFilter, nextFollowingOnly: boolean) => {
+    (nextSort: ChannelSort, nextSortDir: ChannelSortDir, nextType: ChannelTypeFilter, nextFollowingOnly: boolean) => {
       setSort(nextSort)
+      setSortDir(nextSortDir)
       setType(nextType)
       setFollowingOnly(nextFollowingOnly)
       if (channelsActive) {
-        syncChannelFiltersToUrl(nextSort, nextType, nextFollowingOnly)
+        syncChannelFiltersToUrl(nextSort, nextSortDir, nextType, nextFollowingOnly)
       }
     },
     [channelsActive],
   )
 
   const handleSortChange = useCallback(
-    (value: ChannelSort) => updateFilters(value, type, followingOnly),
-    [followingOnly, type, updateFilters],
+    (value: ChannelSort) => {
+      // Re-selecting an active directional sort flips its direction; any other
+      // selection starts that sort at its default (most→least / desc).
+      const nextDir: ChannelSortDir =
+        DIRECTIONAL_SORTS.has(value) && value === sort && sortDir === "desc" ? "asc" : "desc"
+      updateFilters(value, nextDir, type, followingOnly)
+    },
+    [followingOnly, sort, sortDir, type, updateFilters],
   )
 
   const handleTypeChange = useCallback(
-    (value: ChannelTypeFilter) => updateFilters(sort, value, followingOnly),
-    [followingOnly, sort, updateFilters],
+    (value: ChannelTypeFilter) => updateFilters(sort, sortDir, value, followingOnly),
+    [followingOnly, sort, sortDir, updateFilters],
   )
 
   const handleFollowingOnlyChange = useCallback(
-    (value: boolean) => updateFilters(sort, type, value),
-    [sort, type, updateFilters],
+    (value: boolean) => updateFilters(sort, sortDir, type, value),
+    [sort, sortDir, type, updateFilters],
   )
 
   useEffect(() => {
     if (!channelsActive || !followingOnly) return
     if (followedIds.size === 0) {
-      updateFilters(sort, type, false)
+      updateFilters(sort, sortDir, type, false)
     }
-  }, [channelsActive, followedIds.size, followingOnly, sort, type, updateFilters])
+  }, [channelsActive, followedIds.size, followingOnly, sort, sortDir, type, updateFilters])
 
   const filteredChannels = useMemo(() => {
     let result = channels.filter((channel) => matchesSearch(channel, searchQuery))
@@ -155,8 +184,8 @@ export function ChannelSection({ channels, channelsActive = true }: ChannelSecti
     if (followingOnly) {
       result = result.filter((channel) => followedIds.has(channel.id))
     }
-    return sortChannels(result, sort)
-  }, [channels, followedIds, followingOnly, searchQuery, sort, type])
+    return sortChannels(result, sort, sortDir)
+  }, [channels, followedIds, followingOnly, searchQuery, sort, sortDir, type])
 
   const showFollowingFilter = followedIds.size > 0
 
@@ -164,6 +193,7 @@ export function ChannelSection({ channels, channelsActive = true }: ChannelSecti
     <>
       <ChannelFilters
         activeSort={sort}
+        sortDir={sortDir}
         activeType={type}
         followingOnly={followingOnly}
         showFollowingFilter={showFollowingFilter}

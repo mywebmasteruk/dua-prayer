@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
 
 export type LangFilter = "all" | "en" | "ar" | "es" | "ur" | "fr"
@@ -24,6 +25,7 @@ export function FilterPill({
   isActive,
   onSelect,
   compact,
+  trailing,
 }: {
   label: string
   count?: number
@@ -31,6 +33,8 @@ export function FilterPill({
   onSelect: () => void
   /** Tighter padding for dense, single-line filter rows. */
   compact?: boolean
+  /** Optional element rendered after the label (e.g. a sort-direction arrow). */
+  trailing?: ReactNode
 }) {
   return (
     <button
@@ -47,6 +51,7 @@ export function FilterPill({
       )}
     >
       <span>{label}</span>
+      {trailing}
       {typeof count === "number" ? (
         <span
           className={cn(

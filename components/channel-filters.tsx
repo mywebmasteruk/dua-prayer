@@ -1,12 +1,15 @@
 "use client"
 
+import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react"
 import { FilterPill } from "@/components/feed-filters"
 import { CHANNEL_TYPE_FILTER_OPTIONS, type ChannelTypeFilter } from "@/lib/channel-types"
 
 export type ChannelSort = "featured" | "duas" | "ameens" | "name" | "newest"
+export type ChannelSortDir = "desc" | "asc"
 
 interface ChannelFiltersProps {
   activeSort: ChannelSort
+  sortDir: ChannelSortDir
   activeType: ChannelTypeFilter
   followingOnly: boolean
   showFollowingFilter: boolean
@@ -15,16 +18,19 @@ interface ChannelFiltersProps {
   onFollowingOnlyChange: (value: boolean) => void
 }
 
-const SORT_OPTIONS: Array<{ id: ChannelSort; label: string }> = [
+// `directional` sorts toggle between most→least (desc) and least→most (asc)
+// and show a direction arrow; the rest are single-direction.
+const SORT_OPTIONS: Array<{ id: ChannelSort; label: string; directional?: boolean }> = [
   { id: "featured", label: "Featured" },
-  { id: "duas", label: "Most duas" },
-  { id: "ameens", label: "Most ameens" },
+  { id: "duas", label: "Dua", directional: true },
+  { id: "ameens", label: "Ameen", directional: true },
   { id: "name", label: "A–Z" },
   { id: "newest", label: "Newest" },
 ]
 
 export function ChannelFilters({
   activeSort,
+  sortDir,
   activeType,
   followingOnly,
   showFollowingFilter,
@@ -32,6 +38,14 @@ export function ChannelFilters({
   onTypeChange,
   onFollowingOnlyChange,
 }: ChannelFiltersProps) {
+  const sortArrow = (id: ChannelSort) => {
+    if (activeSort !== id) return <ChevronsUpDown className="ml-1 h-3.5 w-3.5 opacity-50" aria-hidden="true" />
+    return sortDir === "asc" ? (
+      <ArrowUp className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
+    ) : (
+      <ArrowDown className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
+    )
+  }
   return (
     <div className="border-b feed-divider bg-white">
       <div className="flex items-stretch">
@@ -59,6 +73,7 @@ export function ChannelFilters({
                   isActive={activeSort === option.id}
                   onSelect={() => onSortChange(option.id)}
                   compact
+                  trailing={option.directional ? sortArrow(option.id) : undefined}
                 />
               ))}
             </div>
