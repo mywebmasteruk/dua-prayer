@@ -309,22 +309,30 @@ export function DuaList({
             : baseCategory
           : undefined
         const CategoryIcon = baseCategory ? CATEGORY_ICON[baseCategory] ?? Tag : Tag
+        // A dua posted into a channel takes the channel's identity (name +
+        // avatar), like an org account — not the generic "Community member".
+        const channelName = dua.channel_name?.trim()
+        const channelHandle = dua.channel_handle
+        const headerName = channelName || sourceLabel
 
         return (
           <article
             key={dua.id}
             className="group overflow-hidden bg-slate-50/55 px-4 pt-4 shadow-[0_10px_28px_rgba(15,23,42,0.045)] transition hover:bg-slate-50/75 hover:shadow-[0_14px_36px_rgba(15,23,42,0.06)] focus-within:bg-slate-50/75 sm:px-5"
           >
-            {/* Header: who posted, when, and (if any) which channel. */}
+            {/* Header: the poster's identity (channel name + avatar when the
+                dua belongs to a channel, otherwise the author) and the date. */}
             <div
               dir={textDirection}
               className={cn(
-                "flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground",
+                "flex min-w-0 items-center gap-x-2 text-xs text-muted-foreground",
                 isRtl && "flex-row-reverse text-right",
               )}
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-primary ring-1 ring-primary/15">
-                {dua.is_bot_generated ? (
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-sm font-bold text-primary ring-1 ring-primary/15">
+                {channelName ? (
+                  channelName.charAt(0).toUpperCase()
+                ) : dua.is_bot_generated ? (
                   <Image
                     src="/logo-icon.png"
                     alt=""
@@ -337,20 +345,18 @@ export function DuaList({
                   <SourceIcon className="h-4 w-4" aria-hidden="true" />
                 )}
               </span>
-              <span className="truncate text-[13px] font-semibold text-foreground/80">{sourceLabel}</span>
+              {channelName && channelHandle ? (
+                <Link
+                  href={`/channels/${channelHandle}`}
+                  className="truncate text-[13px] font-semibold text-foreground/85 transition hover:text-primary hover:underline"
+                >
+                  {headerName}
+                </Link>
+              ) : (
+                <span className="truncate text-[13px] font-semibold text-foreground/80">{headerName}</span>
+              )}
               <span className="text-muted-foreground/45" aria-hidden="true" dir="ltr">·</span>
               <span className="shrink-0 text-[12px] text-muted-foreground" dir="ltr">{formatDateTime(dua.created_at)}</span>
-              {dua.channel_name && dua.channel_handle ? (
-                <>
-                  <span className="text-muted-foreground/45" aria-hidden="true" dir="ltr">·</span>
-                  <Link
-                    href={`/channels/${dua.channel_handle}`}
-                    className="inline-flex max-w-full items-center truncate rounded-full bg-primary/10 px-2 py-0.5 text-[12px] font-semibold text-primary transition hover:bg-primary/15"
-                  >
-                    {dua.channel_name}
-                  </Link>
-                </>
-              ) : null}
             </div>
 
             <p
