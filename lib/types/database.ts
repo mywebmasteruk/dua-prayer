@@ -69,6 +69,7 @@ export interface Database {
           account_status: "active" | "pending_review" | "rejected"
           member_role: "volunteer" | "moderator" | "admin" | null
           volunteer_application: Json | null
+          preferences: Json
           reviewed_at: string | null
           reviewed_by: string | null
           created_at: string
@@ -83,6 +84,7 @@ export interface Database {
           account_status?: "active" | "pending_review" | "rejected"
           member_role?: "volunteer" | "moderator" | "admin" | null
           volunteer_application?: Json | null
+          preferences?: Json
           reviewed_at?: string | null
           reviewed_by?: string | null
           created_at?: string
@@ -97,10 +99,17 @@ export interface Database {
           account_status?: "active" | "pending_review" | "rejected"
           member_role?: "volunteer" | "moderator" | "admin" | null
           volunteer_application?: Json | null
+          preferences?: Json
           reviewed_at?: string | null
           reviewed_by?: string | null
           updated_at?: string
         }
+        Relationships: []
+      }
+      user_follows: {
+        Row: { id: number; user_id: string; channel_id: number; created_at: string }
+        Insert: { id?: number; user_id: string; channel_id: number; created_at?: string }
+        Update: { id?: number; user_id?: string; channel_id?: number; created_at?: string }
         Relationships: []
       }
       duas: {

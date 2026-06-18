@@ -44,3 +44,5 @@ AGENTS.md
 # Local/generated agent and build artifacts
 /tmp/
 /.superpowers/
+
+.next-build/

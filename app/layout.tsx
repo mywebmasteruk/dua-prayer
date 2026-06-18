@@ -11,6 +11,8 @@ import { AppTooltipProvider } from "@/components/app-tooltip-provider"
 import { FollowedChannelsProvider } from "@/components/followed-channels-provider"
 import { BetaBanner } from "@/components/beta-banner"
 import { getCustomCode } from "@/lib/custom-code-server"
+import { getServerUser } from "@/lib/server-user"
+import { listMyFollowIds } from "@/app/actions/follows"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -30,7 +32,8 @@ export const metadata: Metadata = {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const customCode = await getCustomCode()
+  const [customCode, user] = await Promise.all([getCustomCode(), getServerUser()])
+  const initialFollowedIds = user ? await listMyFollowIds() : []
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -42,7 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <AppTooltipProvider>
             <Suspense fallback={null}>
               <NavigationProvider>
-                <FollowedChannelsProvider>
+                <FollowedChannelsProvider initialFollowedIds={initialFollowedIds} isSignedIn={Boolean(user)}>
                   <BetaBanner />
                   {children}
                 </FollowedChannelsProvider>
