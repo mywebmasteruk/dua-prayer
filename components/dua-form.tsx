@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import Image from "next/image"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -68,6 +68,12 @@ interface DuaFormProps {
   postingMode: PostingMode
   isSignedIn: boolean
   isAdmin: boolean
+  /**
+   * When set, the form posts exclusively into this category and shows it as a
+   * fixed pill (no picker). Used by the channel-page composer, where only the
+   * channel owner can post and the target is always their own channel.
+   */
+  lockedCategory?: Category | null
 }
 
 export function DuaForm({
@@ -79,6 +85,7 @@ export function DuaForm({
   postingMode,
   isSignedIn,
   isAdmin,
+  lockedCategory,
 }: DuaFormProps) {
   const [duaText, setDuaText] = useState("")
   const [category, setCategory] = useState("")
@@ -98,11 +105,23 @@ export function DuaForm({
   const MIN_CHARS = 15
   const turnstileRequired = !!turnstileSiteKey
 
+  // Only official topic categories are postable from the public composer.
+  // Community channels (channel_type === "user") are owner-only and must not
+  // appear as selectable categories anywhere users compose a dua.
+  const postableCategories = useMemo(
+    () => categories.filter((cat) => cat.channel_type === "category"),
+    [categories],
+  )
+
   useEffect(() => {
-    const generalCategory = categories.find((cat) => cat.name === "General")
+    if (lockedCategory) {
+      setCategory(lockedCategory.id.toString())
+      return
+    }
+    const generalCategory = postableCategories.find((cat) => cat.name === "General")
     if (generalCategory) setCategory(generalCategory.id.toString())
-    else if (categories.length > 0) setCategory(categories[0].id.toString())
-  }, [categories])
+    else if (postableCategories.length > 0) setCategory(postableCategories[0].id.toString())
+  }, [postableCategories, lockedCategory])
 
   useEffect(() => {
     setCharCount(duaText.length)
@@ -351,29 +370,40 @@ export function DuaForm({
 
           <div className="mt-3 pt-3 border-t feed-divider flex items-center justify-between flex-wrap gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger
-                  className={cn(
-                    "h-9 w-[160px] rounded-full border-primary/25 bg-muted/40 text-sm",
-                    isArabicUi && arabicFontClassName,
-                  )}
+              {lockedCategory ? (
+                // Channel composer: the category is fixed to the channel, so we
+                // show it as a static pill instead of a picker.
+                <span
+                  className="inline-flex h-9 items-center rounded-full border border-primary/25 bg-muted/40 px-4 text-sm font-medium text-foreground"
                   dir={uiDirection}
                 >
-                  <SelectValue placeholder={categoryPlaceholder} />
-                </SelectTrigger>
-                <SelectContent position="popper" className={selectContentClassName}>
-                  {categories.map((cat) => (
-                    <SelectItem
-                      key={cat.id}
-                      value={cat.id.toString()}
-                      dir={uiDirection}
-                      className={isArabicUi ? arabicFontClassName : undefined}
-                    >
-                      {getCategoryLabel(cat)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  {lockedCategory.name}
+                </span>
+              ) : (
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger
+                    className={cn(
+                      "h-9 w-[160px] rounded-full border-primary/25 bg-muted/40 text-sm",
+                      isArabicUi && arabicFontClassName,
+                    )}
+                    dir={uiDirection}
+                  >
+                    <SelectValue placeholder={categoryPlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className={selectContentClassName}>
+                    {postableCategories.map((cat) => (
+                      <SelectItem
+                        key={cat.id}
+                        value={cat.id.toString()}
+                        dir={uiDirection}
+                        className={isArabicUi ? arabicFontClassName : undefined}
+                      >
+                        {getCategoryLabel(cat)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
               <Select
                 value={languageMode}

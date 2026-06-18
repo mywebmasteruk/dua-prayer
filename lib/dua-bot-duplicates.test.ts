@@ -18,6 +18,7 @@ const baseBot: DuaBot = {
   tone: "compassionate",
   language: "English",
   target_category_id: 42,
+  auto_categorize: false,
   publish_mode: "published",
   last_run_at: "2026-06-01T00:00:00.000Z",
   next_run_at: "2026-06-01T02:00:00.000Z",
@@ -47,6 +48,7 @@ describe("dua bot duplicates", () => {
       tone: "compassionate",
       language: "English",
       targetCategoryId: 42,
+      autoCategorize: false,
       publishMode: "published",
     })
   })
@@ -68,6 +70,7 @@ describe("dua bot duplicates", () => {
       tone: "compassionate",
       language: "English",
       target_category_id: 42,
+      auto_categorize: false,
       publish_mode: "published",
       next_run_at: null,
       created_by: "admin-user",

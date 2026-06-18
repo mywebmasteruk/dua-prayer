@@ -461,8 +461,16 @@ export async function createDua(formData: FormData) {
     if (!Number.isInteger(parsed)) return { error: "Choose a valid category" }
 
     const activeCategories = await getCategories()
-    if (!activeCategories.some((category) => category.id === parsed)) {
+    const target = activeCategories.find((category) => category.id === parsed)
+    if (!target) {
       return { error: "Choose a valid category" }
+    }
+    // Community channels are owner-only: only the channel owner may post into
+    // their channel. Everyone else may only post into official topic categories
+    // (channel_type === "category"). This mirrors the composer, which never
+    // offers community channels as a selectable category.
+    if (target.channel_type === "user" && (!user || user.id !== target.owner_id)) {
+      return { error: "Only the channel owner can post in this channel." }
     }
     validatedCategoryId = parsed
   }

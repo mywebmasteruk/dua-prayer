@@ -101,6 +101,9 @@ export default async function ChannelPage({
 
   const channelTotal = channelFirstPage.total
   const isVerified = channel.is_verified && channel.status === "approved"
+  // Only the channel owner may post into their channel, and they do it from
+  // here — the composer is hidden for everyone else and locked to this channel.
+  const isChannelOwner = Boolean(user && channel.owner_id === user.id)
 
   const turnstileSiteKey = isTurnstileEnabled() ? process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY : undefined
   const categoryLeaderboard = getCategoryLeaderboard(categories, duas)
@@ -170,8 +173,10 @@ export default async function ChannelPage({
 
             <NavigationContentLoader className="min-h-0">
               <section id="requests" className="overflow-hidden">
+                {isChannelOwner ? (
                 <HomeComposer
                   categories={categories}
+                  lockedCategory={channel}
                   turnstileSiteKey={turnstileSiteKey}
                   copy={{
                     composerTitleEn: siteCopy.composerTitleEn,
@@ -201,6 +206,7 @@ export default async function ChannelPage({
                   isSignedIn={Boolean(user)}
                   isAdmin={isAdmin}
                 />
+                ) : null}
                 <FeedSection
                   duas={duas}
                   categories={categories}

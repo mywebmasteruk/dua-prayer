@@ -205,6 +205,7 @@ export interface Database {
           tone: string
           language: string
           target_category_id: number | null
+          auto_categorize: boolean
           publish_mode: "pending" | "published"
           last_run_at: string | null
           next_run_at: string | null
@@ -230,6 +231,7 @@ export interface Database {
           tone?: string
           language?: string
           target_category_id?: number | null
+          auto_categorize?: boolean
           publish_mode?: "pending" | "published"
           last_run_at?: string | null
           next_run_at?: string | null
@@ -255,6 +257,7 @@ export interface Database {
           tone?: string
           language?: string
           target_category_id?: number | null
+          auto_categorize?: boolean
           publish_mode?: "pending" | "published"
           last_run_at?: string | null
           next_run_at?: string | null

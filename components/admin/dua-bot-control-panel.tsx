@@ -100,7 +100,7 @@ function draftFromBot(bot: DuaEventBot): BotDraft {
     maxDuasPerRun: bot.max_duas_per_run,
     tone: bot.tone,
     language: bot.language,
-    targetCategoryId: bot.target_category_id?.toString() ?? "none",
+    targetCategoryId: bot.auto_categorize ? "auto" : bot.target_category_id?.toString() ?? "none",
     publishMode: bot.publish_mode,
   }
 }
@@ -119,7 +119,7 @@ function duplicateDraftFromBot(bot: DuaEventBot): BotDraft {
     maxDuasPerRun: draft.maxDuasPerRun ?? 3,
     tone: draft.tone ?? "compassionate",
     language: draft.language ?? "English",
-    targetCategoryId: draft.targetCategoryId?.toString() ?? "none",
+    targetCategoryId: draft.autoCategorize ? "auto" : draft.targetCategoryId?.toString() ?? "none",
     publishMode: draft.publishMode ?? "pending",
   }
 }
@@ -160,9 +160,12 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
 
   const handleSave = async () => {
     setIsSaving(true)
+    const autoCategorize = draft.targetCategoryId === "auto"
     const payload = {
       ...draft,
-      targetCategoryId: draft.targetCategoryId === "none" ? null : Number.parseInt(draft.targetCategoryId, 10),
+      autoCategorize,
+      targetCategoryId:
+        autoCategorize || draft.targetCategoryId === "none" ? null : Number.parseInt(draft.targetCategoryId, 10),
     }
     const result = draft.id ? await updateAdminDuaBot({ ...payload, id: draft.id }) : await createAdminDuaBot(payload)
 
@@ -304,7 +307,7 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
                   <TableCell className="hidden xl:table-cell text-sm">
                     <p>{formatDate(bot.last_run_at)}</p>
                     {bot.last_error ? <p className="max-w-xs truncate text-xs text-destructive">{bot.last_error}</p> : null}
-                    {bot.target_category_id ? <p className="text-xs text-muted-foreground">Posts to {categoryMap.get(bot.target_category_id)}</p> : null}
+                    {bot.auto_categorize ? <p className="text-xs text-muted-foreground">Auto-categorised by AI</p> : bot.target_category_id ? <p className="text-xs text-muted-foreground">Posts to {categoryMap.get(bot.target_category_id)}</p> : null}
                   </TableCell>
                   <TableCell className="text-right">
                     <AdminRowActionsMenu
@@ -422,6 +425,7 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
                 <SelectTrigger id="bot-target-category"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No category</SelectItem>
+                  <SelectItem value="auto">Automatic (AI chooses)</SelectItem>
                   {categories.map((category) => (
                     <SelectItem key={category.id} value={category.id.toString()}>{category.name}</SelectItem>
                   ))}

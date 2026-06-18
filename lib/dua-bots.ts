@@ -35,6 +35,7 @@ export type DuaBot = {
   tone: string
   language: string
   target_category_id: number | null
+  auto_categorize: boolean
   publish_mode: BotPublishMode
   last_run_at: string | null
   next_run_at: string | null
@@ -82,6 +83,7 @@ export type BotFormInput = {
   tone?: string
   language?: string
   targetCategoryId?: number | null
+  autoCategorize?: boolean
   publishMode?: BotPublishMode
 }
 
@@ -99,6 +101,7 @@ export type NormalizedBotInput = {
   tone: string
   language: string
   target_category_id: number | null
+  auto_categorize: boolean
   publish_mode: BotPublishMode
 }
 
@@ -521,7 +524,8 @@ export function normalizeBotInput(input: BotFormInput): { value: NormalizedBotIn
       categories: normalizeList(input.categories ?? input.eventCategories),
       tone: tone.slice(0, 80),
       language: language.slice(0, 80),
-      target_category_id: input.targetCategoryId ?? null,
+      target_category_id: input.autoCategorize ? null : input.targetCategoryId ?? null,
+      auto_categorize: input.autoCategorize ?? false,
       publish_mode: input.publishMode === "published" ? "published" : "pending",
     },
   }
@@ -1029,6 +1033,67 @@ async function composeRetrievedDuaForEvent(
   return text
 }
 
+// When a bot is set to auto-categorise, ask the model to place the dua into the
+// best-fitting official topic category (channel_type = "category"). Returns the
+// chosen category id, or null when none fits / the model can't decide.
+async function pickCategoryForDua(
+  dua: string,
+  event: EventCandidate,
+  settings: AiProviderSettings,
+): Promise<number | null> {
+  const admin = createAdminSupabaseClient()
+  const { data, error } = await admin
+    .from("categories")
+    .select("id, name, description")
+    .eq("channel_type", "category")
+    .eq("is_active", true)
+    .eq("status", "approved")
+    .order("sort_order", { ascending: true })
+
+  if (error || !data || data.length === 0) return null
+  const validIds = new Set(data.map((category) => category.id))
+
+  const system = [
+    "You assign an Islamic dua (supplication) to the single best-fitting category from a fixed list.",
+    "Choose the category whose theme most closely matches the dua and its source event.",
+    'Return strict JSON only: {"categoryId": number | null}. Use null only if no category is a reasonable fit.',
+  ].join("\n")
+  const user = [
+    "Categories:",
+    data.map((category) => `- id ${category.id}: ${category.name}${category.description ? ` — ${category.description}` : ""}`).join("\n"),
+    "",
+    `Event title: ${JSON.stringify(event.title)}`,
+    "Dua:",
+    dua,
+  ].join("\n")
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), settings.requestTimeoutMs)
+  let raw: string
+  try {
+    raw = await callProviderChat(
+      settings,
+      [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      controller.signal,
+    )
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as { categoryId?: unknown }
+    const id = typeof parsed.categoryId === "number" ? parsed.categoryId : null
+    return id !== null && validIds.has(id) ? id : null
+  } catch {
+    return null
+  }
+}
+
 async function createDuaFromEvent(
   bot: DuaBot,
   runId: number | null,
@@ -1053,13 +1118,17 @@ async function createDuaFromEvent(
     throw new Error(`Generated dua blocked by moderation: ${moderation.reason}`)
   }
 
+  const categoryId = bot.auto_categorize
+    ? await pickCategoryForDua(text, event, aiSettings)
+    : bot.target_category_id
+
   const requiresReview = bot.publish_mode === "pending" || moderation.flagged || moderation.severity === "review"
   const admin = createAdminSupabaseClient()
   const { data: dua, error: duaError } = await admin
     .from("duas")
     .insert({
       text,
-      category_id: bot.target_category_id,
+      category_id: categoryId,
       published: !requiresReview,
       flagged: requiresReview,
       user_id: null,

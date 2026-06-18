@@ -27,6 +27,7 @@ export function buildDuplicateDuaBotDraft(bot: DuaBot): BotFormInput {
     tone: bot.tone,
     language: bot.language,
     targetCategoryId: bot.target_category_id,
+    autoCategorize: bot.auto_categorize,
     publishMode: bot.publish_mode,
   }
 }
@@ -48,6 +49,7 @@ export function buildDuplicateDuaBotInsert(bot: DuaBot, userId: string): DuaBotI
     tone: draft.tone,
     language: draft.language,
     target_category_id: draft.targetCategoryId,
+    auto_categorize: draft.autoCategorize,
     publish_mode: draft.publishMode,
     next_run_at: null,
     created_by: userId,

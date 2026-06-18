@@ -19,9 +19,11 @@ interface HomeComposerProps {
   postingMode: PostingMode
   isSignedIn: boolean
   isAdmin: boolean
+  /** When set, the composer posts into this fixed category (channel-page owner composer). */
+  lockedCategory?: Category | null
 }
 
-export function HomeComposer({ categories, turnstileSiteKey, copy, postingMode, isSignedIn, isAdmin }: HomeComposerProps) {
+export function HomeComposer({ categories, turnstileSiteKey, copy, postingMode, isSignedIn, isAdmin, lockedCategory }: HomeComposerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [composerLanguage, setComposerLanguage] = useState<LanguageMode>("auto")
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -165,6 +167,7 @@ export function HomeComposer({ categories, turnstileSiteKey, copy, postingMode, 
                         postingMode={postingMode}
                         isSignedIn={isSignedIn}
                         isAdmin={isAdmin}
+                        lockedCategory={lockedCategory}
                       />
                     </div>
                   </div>
