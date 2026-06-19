@@ -8,19 +8,31 @@ const DEFAULT_POLL_INTERVAL_MS = 45_000
 export function useNewDuasPoll({
   enabled,
   sinceCreatedAt,
+  languages,
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
 }: {
   enabled: boolean
   sinceCreatedAt: string | null
+  /** Mirror the feed's language preference so counts match what's shown. */
+  languages?: string[]
   pollIntervalMs?: number
 }) {
   const [count, setCount] = useState(0)
   const sinceCreatedAtRef = useRef(sinceCreatedAt)
+  const languagesRef = useRef(languages)
+
+  // Serialize so a new array identity each render doesn't churn the effect.
+  const languagesKey = (languages ?? []).join(",")
 
   useEffect(() => {
     sinceCreatedAtRef.current = sinceCreatedAt
     setCount(0)
   }, [sinceCreatedAt])
+
+  useEffect(() => {
+    languagesRef.current = languages
+    setCount(0)
+  }, [languagesKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!enabled) {
@@ -32,7 +44,7 @@ export function useNewDuasPoll({
 
     const runCheck = async () => {
       if (cancelled || document.hidden) return
-      const newCount = await countNewDuasSince(sinceCreatedAtRef.current)
+      const newCount = await countNewDuasSince(sinceCreatedAtRef.current, languagesRef.current)
       if (!cancelled) setCount(newCount)
     }
 

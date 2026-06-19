@@ -343,15 +343,23 @@ export async function enrichDuas(
 }
 
 /** Count published duas newer than the feed watermark (matches getFeedDuas sort: created_at DESC). */
-export async function countNewDuasSince(sinceCreatedAt: string | null) {
+export async function countNewDuasSince(sinceCreatedAt: string | null, languages?: string[]) {
   if (!sinceCreatedAt) return 0
 
   const supabase = await createServerSupabaseClient()
-  const { count, error } = await supabase
+  let query = supabase
     .from("duas")
     .select("id", { count: "exact", head: true })
     .eq("published", true)
     .gt("created_at", sinceCreatedAt)
+
+  // Mirror the feed's language filter so the banner never counts duas the
+  // feed won't show (which would leave it stuck and unclearable).
+  if (languages && languages.length > 0) {
+    query = query.in("language", languages)
+  }
+
+  const { count, error } = await query
 
   if (error) {
     console.error("Error counting new duas:", error)
@@ -359,6 +367,11 @@ export async function countNewDuasSince(sinceCreatedAt: string | null) {
   }
 
   return count ?? 0
+}
+
+/** Bust the shared feed cache so freshly-posted duas appear immediately. */
+export async function revalidateFeed() {
+  revalidateTag("duas-feed")
 }
 
 /**

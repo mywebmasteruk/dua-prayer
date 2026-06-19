@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { getFeedDuas } from "@/app/actions/duas"
+import { getFeedDuas, revalidateFeed } from "@/app/actions/duas"
 import type { Category, Dua } from "@/lib/types/dua"
 import { getChannelHandle } from "@/lib/channels"
 import { detectLanguage } from "@/lib/detect-language"
@@ -201,11 +201,15 @@ export function FeedSection({
   const { count: newDuasCount, dismiss: dismissNewDuasBanner } = useNewDuasPoll({
     enabled: isDefaultFeedView,
     sinceCreatedAt: newestSeenCreatedAt,
+    languages: preferredLanguages,
   })
 
-  const handleShowNewDuas = useCallback(() => {
+  const handleShowNewDuas = useCallback(async () => {
     dismissNewDuasBanner()
     window.scrollTo({ top: 0, behavior: "smooth" })
+    // router.refresh() alone won't bust the 30s feed cache; revalidate first so
+    // the new duas actually appear instead of leaving the banner stuck.
+    await revalidateFeed()
     router.refresh()
   }, [dismissNewDuasBanner, router])
 
