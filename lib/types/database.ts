@@ -218,6 +218,7 @@ export interface Database {
           language: string
           target_category_id: number | null
           auto_categorize: boolean
+          web_search_enabled: boolean
           publish_mode: "pending" | "published"
           last_run_at: string | null
           next_run_at: string | null
@@ -244,6 +245,7 @@ export interface Database {
           language?: string
           target_category_id?: number | null
           auto_categorize?: boolean
+          web_search_enabled?: boolean
           publish_mode?: "pending" | "published"
           last_run_at?: string | null
           next_run_at?: string | null
@@ -270,6 +272,7 @@ export interface Database {
           language?: string
           target_category_id?: number | null
           auto_categorize?: boolean
+          web_search_enabled?: boolean
           publish_mode?: "pending" | "published"
           last_run_at?: string | null
           next_run_at?: string | null

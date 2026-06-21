@@ -36,6 +36,7 @@ export type DuaBot = {
   language: string
   target_category_id: number | null
   auto_categorize: boolean
+  web_search_enabled: boolean
   publish_mode: BotPublishMode
   last_run_at: string | null
   next_run_at: string | null
@@ -84,6 +85,7 @@ export type BotFormInput = {
   language?: string
   targetCategoryId?: number | null
   autoCategorize?: boolean
+  webSearchEnabled?: boolean
   publishMode?: BotPublishMode
 }
 
@@ -102,6 +104,7 @@ export type NormalizedBotInput = {
   language: string
   target_category_id: number | null
   auto_categorize: boolean
+  web_search_enabled: boolean
   publish_mode: BotPublishMode
 }
 
@@ -526,6 +529,7 @@ export function normalizeBotInput(input: BotFormInput): { value: NormalizedBotIn
       language: language.slice(0, 80),
       target_category_id: input.autoCategorize ? null : input.targetCategoryId ?? null,
       auto_categorize: input.autoCategorize ?? false,
+      web_search_enabled: input.webSearchEnabled ?? false,
       publish_mode: input.publishMode === "published" ? "published" : "pending",
     },
   }
@@ -1316,10 +1320,11 @@ async function runOneBot(bot: DuaBot): Promise<{ created: number; error: string 
     }
 
     // The static sources produced nothing this run (no matches, all already
-    // posted, or the only new event failed extraction). Rather than skip, post an
-    // authentic dua via web search (Tavily) or the local library so the feed moves.
+    // posted, or the only new event failed extraction). If the bot opts into web
+    // search, post an authentic dua via web search (Tavily) or the local library
+    // so the feed keeps moving; otherwise it just skips (sources only).
     let fallbackUsed = false
-    if (created === 0) {
+    if (created === 0 && bot.web_search_enabled) {
       try {
         if (await createFallbackDua(bot, runId, aiSettings, usedTags)) {
           created += 1

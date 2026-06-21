@@ -19,6 +19,7 @@ const baseBot: DuaBot = {
   language: "English",
   target_category_id: 42,
   auto_categorize: false,
+  web_search_enabled: true,
   publish_mode: "published",
   last_run_at: "2026-06-01T00:00:00.000Z",
   next_run_at: "2026-06-01T02:00:00.000Z",
@@ -49,6 +50,7 @@ describe("dua bot duplicates", () => {
       language: "English",
       targetCategoryId: 42,
       autoCategorize: false,
+      webSearchEnabled: true,
       publishMode: "published",
     })
   })
@@ -71,6 +73,7 @@ describe("dua bot duplicates", () => {
       language: "English",
       target_category_id: 42,
       auto_categorize: false,
+      web_search_enabled: true,
       publish_mode: "published",
       next_run_at: null,
       created_by: "admin-user",

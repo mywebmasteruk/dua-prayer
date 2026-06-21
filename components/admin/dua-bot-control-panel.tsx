@@ -27,6 +27,7 @@ import { AdminSection } from "@/components/admin/admin-section"
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge"
 import { AdminTableShell } from "@/components/admin/admin-table-shell"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -59,6 +60,7 @@ type BotDraft = {
   tone: string
   language: string
   targetCategoryId: string
+  webSearchEnabled: boolean
   publishMode: "pending" | "published"
 }
 
@@ -74,6 +76,7 @@ const blankDraft: BotDraft = {
   tone: "compassionate",
   language: "English",
   targetCategoryId: "none",
+  webSearchEnabled: false,
   publishMode: "pending",
 }
 
@@ -101,6 +104,7 @@ function draftFromBot(bot: DuaEventBot): BotDraft {
     tone: bot.tone,
     language: bot.language,
     targetCategoryId: bot.auto_categorize ? "auto" : bot.target_category_id?.toString() ?? "none",
+    webSearchEnabled: bot.web_search_enabled,
     publishMode: bot.publish_mode,
   }
 }
@@ -120,6 +124,7 @@ function duplicateDraftFromBot(bot: DuaEventBot): BotDraft {
     tone: draft.tone ?? "compassionate",
     language: draft.language ?? "English",
     targetCategoryId: draft.autoCategorize ? "auto" : draft.targetCategoryId?.toString() ?? "none",
+    webSearchEnabled: draft.webSearchEnabled ?? false,
     publishMode: draft.publishMode ?? "pending",
   }
 }
@@ -441,6 +446,23 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
                   <SelectItem value="published">Publish if moderation passes</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="bot-web-search"
+                  checked={draft.webSearchEnabled}
+                  onCheckedChange={(checked) => setDraft({ ...draft, webSearchEnabled: checked === true })}
+                />
+                <div className="space-y-0.5">
+                  <Label htmlFor="bot-web-search">Allow web search (Tavily)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Search the sources first; if they have nothing new, search the web for an authentic
+                    dua so the bot still posts. When off, the bot uses the sources only and skips when
+                    they are exhausted.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
           <DialogFooter>
