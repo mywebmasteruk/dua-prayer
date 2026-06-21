@@ -11,7 +11,7 @@ import {
 } from "@/lib/ai-provider"
 import { evaluateDuaModeration } from "@/lib/ai-moderation"
 import { extractHashtags, normalizeHashtag } from "@/lib/hashtags"
-import { curatedDuaCatalogue } from "@/lib/dua-library"
+import { curatedDuaCatalogue, DUA_LIBRARY } from "@/lib/dua-library"
 import { detectLanguage, languageToCode } from "@/lib/detect-language"
 
 export type BotStatus = "active" | "paused"
@@ -1094,6 +1094,117 @@ async function pickCategoryForDua(
   }
 }
 
+// Rotating themes for the exhaustion fallback. When a bot's static sources have
+// nothing new, we web-search (then fall back to the local library) for an
+// authentic dua on the next theme in rotation so the feed keeps moving.
+const FALLBACK_DUA_THEMES = [
+  "forgiveness and repentance",
+  "healing and good health",
+  "relief from anxiety and grief",
+  "gratitude and thankfulness to Allah",
+  "guidance and steadfastness on the straight path",
+  "lawful provision (rizq) and barakah",
+  "protection from harm and evil",
+  "patience in hardship",
+  "mercy for parents",
+  "beneficial knowledge",
+  "ease in difficulty",
+  "a good end and a good death",
+  "increase in faith (iman)",
+  "entering Paradise and refuge from the Fire",
+  "success and the best of this life and the next",
+  "trust in Allah (tawakkul)",
+  "the wellbeing of the Muslim ummah",
+  "contentment and a peaceful heart",
+]
+
+// How many fallback duas this bot has already posted — used to rotate themes and
+// library entries deterministically so consecutive runs don't repeat.
+async function countFallbackPosts(botId: number): Promise<number> {
+  try {
+    const admin = createAdminSupabaseClient()
+    const { count } = await admin
+      .from("dua_bot_event_posts")
+      .select("id", { count: "exact", head: true })
+      .eq("bot_id", botId)
+      .in("source_url", ["search:tavily", "library:fallback"])
+    return count ?? 0
+  } catch {
+    return 0
+  }
+}
+
+// Sources exhausted → post an authentic dua anyway. First try a live web search
+// (Tavily) and extract a dua VERBATIM via the retrieve engine; if that yields
+// nothing usable, fall back to the verbatim local library. Returns true on post.
+async function createFallbackDua(
+  bot: DuaBot,
+  runId: number | null,
+  aiSettings: AiProviderSettings,
+  usedTags: Set<string>,
+): Promise<boolean> {
+  const rotation = await countFallbackPosts(bot.id)
+  const theme = FALLBACK_DUA_THEMES[rotation % FALLBACK_DUA_THEMES.length]
+
+  // 1) Web search → verbatim extraction (reuses the retrieve engine over the
+  //    search snippets as if they were a source page).
+  const snippets = await searchAuthenticDuaSources({ title: theme } as EventCandidate)
+  if (snippets.length > 0) {
+    const searchEvent: EventCandidate = {
+      key: `fallback:search:${bot.id}:${Date.now()}`,
+      title: `Authentic dua: ${theme}`,
+      summary: snippets.join("\n\n"),
+      url: null,
+      publishedAt: null,
+      sourceType: "rss",
+      sourceUrl: "search:tavily",
+    }
+    try {
+      if (await createDuaFromEvent(bot, runId, searchEvent, aiSettings, usedTags)) return true
+    } catch (error) {
+      console.warn("Dua bot fallback web search failed", { botId: bot.id, error: error instanceof Error ? error.message : String(error) })
+    }
+  }
+
+  // 2) Local library fallback — verbatim, no AI call (works even with no credits).
+  return createLibraryFallbackDua(bot, runId, rotation, aiSettings)
+}
+
+async function createLibraryFallbackDua(
+  bot: DuaBot,
+  runId: number | null,
+  rotation: number,
+  aiSettings: AiProviderSettings,
+): Promise<boolean> {
+  if (DUA_LIBRARY.length === 0) return false
+  const language = bot.language?.trim() || "English"
+  const arabic = isArabicLanguage(language)
+  const entry = DUA_LIBRARY[rotation % DUA_LIBRARY.length]
+  const body = (arabic ? entry.arabic : entry.translation)?.trim()
+  if (!body || body.length < 5) return false
+
+  const themeWord = entry.themes[0] ?? "dua"
+  const rawTag = arabic
+    ? "#دعاء_مأثور"
+    : `#${themeWord.charAt(0).toUpperCase()}${themeWord.slice(1)}_Dua`
+  const hashtag = normalizeLanguageHashtag(rawTag, language)
+  let text = hashtag ? `${body}\n\n${hashtag}` : body
+  if (text.length > CURATED_MAX_LENGTH) {
+    text = text.slice(0, CURATED_MAX_LENGTH).replace(/\s+\S*$/, "").trim()
+  }
+
+  const event: EventCandidate = {
+    key: `fallback:library:${bot.id}:${entry.id}:${Date.now()}`,
+    title: `Authentic dua (${entry.source})`,
+    summary: null,
+    url: null,
+    publishedAt: null,
+    sourceType: "rss",
+    sourceUrl: "library:fallback",
+  }
+  return persistDuaFromEvent(bot, runId, event, text, aiSettings)
+}
+
 async function createDuaFromEvent(
   bot: DuaBot,
   runId: number | null,
@@ -1113,6 +1224,18 @@ async function createDuaFromEvent(
     return false
   }
 
+  return persistDuaFromEvent(bot, runId, event, text, aiSettings)
+}
+
+// Moderate, categorise, insert the dua, and record the source event. Shared by
+// the engine path (createDuaFromEvent) and the exhaustion fallback below.
+async function persistDuaFromEvent(
+  bot: DuaBot,
+  runId: number | null,
+  event: EventCandidate,
+  text: string,
+  aiSettings: AiProviderSettings,
+): Promise<boolean> {
   const moderation = await evaluateDuaModeration({ text, settings: aiSettings })
   if (moderation.severity === "block") {
     throw new Error(`Generated dua blocked by moderation: ${moderation.reason}`)
@@ -1172,27 +1295,38 @@ async function runOneBot(bot: DuaBot): Promise<{ created: number; error: string 
     const matchedEvents = discovery.events
     warnings = discovery.warnings
 
-    if (matchedEvents.length === 0) {
-      const message = warnings.length > 0
-        ? `No matching events found. Source warnings: ${warnings.join("; ")}`
-        : "No matching recent events found from configured sources."
-      await finishRun(runId, "skipped", 0, 0, message)
-      await updateBotRunState(bot, "skipped", message)
-      return { created: 0, error: null }
-    }
+    const usedTags = await getRecentHashtagSet()
 
-    const postedKeys = await getPostedEventKeys(bot.id, matchedEvents.map((event) => event.key))
-    const selection = selectUnpostedDuaBotEvents(matchedEvents, postedKeys, normalizeMaxDuasPerRun(bot.max_duas_per_run))
+    let selection: EventSelection = { events: [], totalMatched: 0, skippedDuplicates: 0 }
+    if (matchedEvents.length > 0) {
+      const postedKeys = await getPostedEventKeys(bot.id, matchedEvents.map((event) => event.key))
+      selection = selectUnpostedDuaBotEvents(matchedEvents, postedKeys, normalizeMaxDuasPerRun(bot.max_duas_per_run))
+    }
     events = selection.events
 
+    // Sources had nothing new (no matches, or every match already posted). Rather
+    // than skip, post an authentic dua via web search (Tavily) or the local library.
     if (events.length === 0) {
-      const message = `No new matching events found. ${selection.totalMatched} matched event(s), ${selection.skippedDuplicates} already posted.${warnings.length > 0 ? ` Source warnings: ${warnings.join("; ")}` : ""}`
+      const sourceNote = matchedEvents.length === 0
+        ? (warnings.length > 0 ? `No matching events found. Source warnings: ${warnings.join("; ")}` : "No matching recent events from sources.")
+        : `${selection.totalMatched} matched, ${selection.skippedDuplicates} already posted.`
+      let fallbackError: string | null = null
+      try {
+        if (await createFallbackDua(bot, runId, aiSettings, usedTags)) {
+          const message = `Sources exhausted (${sourceNote}) — posted an authentic dua via fallback.`
+          await finishRun(runId, "success", selection.totalMatched, 1, message)
+          await updateBotRunState(bot, "success", message)
+          return { created: 1, error: null }
+        }
+      } catch (error) {
+        fallbackError = error instanceof Error ? error.message : String(error)
+      }
+      const message = `No new duas; fallback produced nothing. ${sourceNote}${fallbackError ? ` Fallback error: ${fallbackError}` : ""}`
       await finishRun(runId, "skipped", selection.totalMatched, 0, message)
       await updateBotRunState(bot, "skipped", message)
       return { created: 0, error: null }
     }
 
-    const usedTags = await getRecentHashtagSet()
     const eventErrors: string[] = []
     for (const event of events) {
       try {
