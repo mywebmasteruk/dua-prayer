@@ -155,11 +155,13 @@ export function AdminFilters({ categories, resultCount }: AdminFiltersProps) {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All categories</SelectItem>
-          {categories.map((cat) => (
-            <SelectItem key={cat.id} value={cat.id.toString()}>
-              {cat.name}
-            </SelectItem>
-          ))}
+          {categories
+            .filter((cat) => cat.channel_type === "category")
+            .map((cat) => (
+              <SelectItem key={cat.id} value={cat.id.toString()}>
+                {cat.name}
+              </SelectItem>
+            ))}
         </SelectContent>
       </Select>
 
