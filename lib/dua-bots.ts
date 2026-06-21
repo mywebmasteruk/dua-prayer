@@ -696,34 +696,50 @@ const SEARCH_TIMEOUT_MS = 8_000
 // Flip this single value to switch systems.
 const DUA_BOT_ENGINE: "freeform" | "curated" | "retrieve" = "retrieve"
 
-// Live web search for an authentic dua relevant to the event. Uses the free
-// Tavily tier when TAVILY_API_KEY is set; returns [] (→ library fallback) when
-// the key is absent, the quota is spent, or the request fails.
-async function searchAuthenticDuaSources(event: EventCandidate): Promise<string[]> {
+type TavilyResult = { title: string; content: string; url: string }
+
+// Live web search for authentic duas. Uses the free Tavily tier when
+// TAVILY_API_KEY is set; returns [] when the key is absent, the quota is spent,
+// or the request fails. Each result keeps its own source URL so the dua we post
+// can be attributed to (and linked back to) the exact page it came from.
+async function searchAuthenticDuaResults(query: string): Promise<TavilyResult[]> {
   const key = process.env.TAVILY_API_KEY?.trim()
   if (!key) return []
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS)
   try {
-    const query = `authentic Islamic dua (supplication) from the Quran or an authentic hadith relevant to: ${event.title}`
     const res = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ api_key: key, query, max_results: 5, search_depth: "basic" }),
+      body: JSON.stringify({ api_key: key, query, max_results: 5, search_depth: "basic", include_raw_content: true }),
       signal: controller.signal,
     })
     if (!res.ok) return []
-    const data = (await res.json()) as { results?: Array<{ title?: string; content?: string; url?: string }> }
+    const data = (await res.json()) as { results?: Array<{ title?: string; content?: string; raw_content?: string; url?: string }> }
     return (data.results ?? [])
-      .map((r) => [r.title, r.content, r.url ? `(source: ${r.url})` : ""].filter(Boolean).join(" ").trim())
-      .filter(Boolean)
+      .map((r) => ({
+        title: (r.title ?? "").trim(),
+        content: ((r.raw_content || r.content) ?? "").trim().slice(0, 4000),
+        url: (r.url ?? "").trim(),
+      }))
+      .filter((r) => r.content.length > 0 && r.url.length > 0)
       .slice(0, 5)
   } catch {
     return []
   } finally {
     clearTimeout(timeout)
   }
+}
+
+// String form used by the curated engine (it adapts from a combined corpus and
+// does not need per-result attribution).
+async function searchAuthenticDuaSources(event: EventCandidate): Promise<string[]> {
+  const query = `authentic Islamic dua (supplication) from the Quran or an authentic hadith relevant to: ${event.title}`
+  const results = await searchAuthenticDuaResults(query)
+  return results
+    .map((r) => [r.title, r.content, r.url ? `(source: ${r.url})` : ""].filter(Boolean).join(" ").trim())
+    .filter(Boolean)
 }
 
 // Strip forbidden closing words and tidy whitespace WITHOUT collapsing the line
@@ -1138,35 +1154,50 @@ async function countFallbackPosts(botId: number): Promise<number> {
   }
 }
 
+// Where a fallback dua came from, so the run log can name (and link to) the source.
+type FallbackResult = { posted: boolean; sourceLabel: string | null; sourceUrl: string | null }
+
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "")
+  } catch {
+    return url
+  }
+}
+
 // Sources exhausted → post an authentic dua anyway. First try a live web search
-// (Tavily) and extract a dua VERBATIM via the retrieve engine; if that yields
-// nothing usable, fall back to the verbatim local library. Returns true on post.
+// (Tavily) and extract a dua VERBATIM via the retrieve engine, attributing it to
+// the exact page it came from; if that yields nothing usable, fall back to the
+// verbatim local library.
 async function createFallbackDua(
   bot: DuaBot,
   runId: number | null,
   aiSettings: AiProviderSettings,
   usedTags: Set<string>,
-): Promise<boolean> {
+): Promise<FallbackResult> {
   const rotation = await countFallbackPosts(bot.id)
   const theme = FALLBACK_DUA_THEMES[rotation % FALLBACK_DUA_THEMES.length]
 
-  // 1) Web search → verbatim extraction (reuses the retrieve engine over the
-  //    search snippets as if they were a source page).
-  const snippets = await searchAuthenticDuaSources({ title: theme } as EventCandidate)
-  if (snippets.length > 0) {
+  // 1) Web search → verbatim extraction, one result page at a time so the dua we
+  //    keep is tied to the precise URL it was extracted from.
+  const query = `authentic Islamic dua (supplication) from the Quran or an authentic hadith relevant to: ${theme}`
+  const results = await searchAuthenticDuaResults(query)
+  for (const result of results) {
     const searchEvent: EventCandidate = {
       key: `fallback:search:${bot.id}:${Date.now()}`,
-      title: `Authentic dua: ${theme}`,
-      summary: snippets.join("\n\n"),
-      url: null,
+      title: result.title || `Authentic dua: ${theme}`,
+      summary: `${result.title}\n${result.content}`.trim(),
+      url: result.url,
       publishedAt: null,
       sourceType: "rss",
       sourceUrl: "search:tavily",
     }
     try {
-      if (await createDuaFromEvent(bot, runId, searchEvent, aiSettings, usedTags)) return true
+      if (await createDuaFromEvent(bot, runId, searchEvent, aiSettings, usedTags)) {
+        return { posted: true, sourceLabel: result.title || hostnameOf(result.url), sourceUrl: result.url }
+      }
     } catch (error) {
-      console.warn("Dua bot fallback web search failed", { botId: bot.id, error: error instanceof Error ? error.message : String(error) })
+      console.warn("Dua bot fallback web search failed", { botId: bot.id, url: result.url, error: error instanceof Error ? error.message : String(error) })
     }
   }
 
@@ -1179,13 +1210,14 @@ async function createLibraryFallbackDua(
   runId: number | null,
   rotation: number,
   aiSettings: AiProviderSettings,
-): Promise<boolean> {
-  if (DUA_LIBRARY.length === 0) return false
+): Promise<FallbackResult> {
+  const none: FallbackResult = { posted: false, sourceLabel: null, sourceUrl: null }
+  if (DUA_LIBRARY.length === 0) return none
   const language = bot.language?.trim() || "English"
   const arabic = isArabicLanguage(language)
   const entry = DUA_LIBRARY[rotation % DUA_LIBRARY.length]
   const body = (arabic ? entry.arabic : entry.translation)?.trim()
-  if (!body || body.length < 5) return false
+  if (!body || body.length < 5) return none
 
   const themeWord = entry.themes[0] ?? "dua"
   const rawTag = arabic
@@ -1206,7 +1238,8 @@ async function createLibraryFallbackDua(
     sourceType: "rss",
     sourceUrl: "library:fallback",
   }
-  return persistDuaFromEvent(bot, runId, event, text, aiSettings)
+  const posted = await persistDuaFromEvent(bot, runId, event, text, aiSettings)
+  return { posted, sourceLabel: posted ? `local library (${entry.source})` : null, sourceUrl: null }
 }
 
 async function createDuaFromEvent(
@@ -1323,12 +1356,13 @@ async function runOneBot(bot: DuaBot): Promise<{ created: number; error: string 
     // posted, or the only new event failed extraction). If the bot opts into web
     // search, post an authentic dua via web search (Tavily) or the local library
     // so the feed keeps moving; otherwise it just skips (sources only).
-    let fallbackUsed = false
+    let fallback: FallbackResult | null = null
     if (created === 0 && bot.web_search_enabled) {
       try {
-        if (await createFallbackDua(bot, runId, aiSettings, usedTags)) {
+        const result = await createFallbackDua(bot, runId, aiSettings, usedTags)
+        if (result.posted) {
           created += 1
-          fallbackUsed = true
+          fallback = result
         }
       } catch (error) {
         eventErrors.push(`Fallback error: ${error instanceof Error ? error.message : String(error)}`)
@@ -1340,9 +1374,14 @@ async function runOneBot(bot: DuaBot): Promise<{ created: number; error: string 
     const status = created > 0 ? "success" : eventErrors.length > 0 ? "error" : "skipped"
     const warningSuffix = warnings.length > 0 ? ` Warnings: ${warnings.join("; ")}` : ""
     const sourceNote = `${selection.totalMatched} matched, ${selection.skippedDuplicates} duplicate(s) skipped.`
+    const fallbackVia = fallback
+      ? (fallback.sourceUrl
+        ? `web search — found at ${fallback.sourceUrl}`
+        : `fallback (${fallback.sourceLabel ?? "local library"})`)
+      : null
     const message = created > 0
-      ? (fallbackUsed
-        ? `Posted 1 authentic dua via fallback (sources exhausted: ${sourceNote})${warningSuffix}`
+      ? (fallback
+        ? `Posted 1 authentic dua via ${fallbackVia} (sources exhausted: ${sourceNote})${warningSuffix}`
         : `Created ${created}. ${sourceNote}${warningSuffix}`)
       : eventErrors.length > 0
         ? `No duas created — every attempt failed. ${sourceNote}${warningSuffix}`

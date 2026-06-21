@@ -136,6 +136,26 @@ function statusTone(status: string): "success" | "warning" | "danger" | "neutral
   return "neutral"
 }
 
+// Render a run message, turning any http(s) URL it contains into a clickable link
+// (e.g. the web-search source a fallback dua was found at).
+function renderRunMessage(message: string) {
+  return message.split(/(https?:\/\/[^\s]+)/g).map((part, index) =>
+    /^https?:\/\//.test(part) ? (
+      <a
+        key={index}
+        href={part}
+        target="_blank"
+        rel="noreferrer"
+        className="break-all underline underline-offset-2 hover:text-foreground"
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    ),
+  )
+}
+
 export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtimeStatus }: DuaBotControlPanelProps) {
   const router = useRouter()
   const [bots, setBots] = useState(initialBots)
@@ -352,7 +372,7 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
                 <div>
                   <p className="font-medium text-foreground">Bot #{run.bot_id} · {formatDate(run.started_at)}</p>
                   <p className="text-muted-foreground">{run.events_found} event(s), {run.duas_created} dua(s)</p>
-                  {run.message ? <p className="text-xs text-muted-foreground">{run.message}</p> : null}
+                  {run.message ? <p className="text-xs text-muted-foreground">{renderRunMessage(run.message)}</p> : null}
                 </div>
                 <AdminStatusBadge label={run.status} tone={statusTone(run.status)} />
               </div>
