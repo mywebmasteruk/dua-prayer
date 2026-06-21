@@ -1304,29 +1304,6 @@ async function runOneBot(bot: DuaBot): Promise<{ created: number; error: string 
     }
     events = selection.events
 
-    // Sources had nothing new (no matches, or every match already posted). Rather
-    // than skip, post an authentic dua via web search (Tavily) or the local library.
-    if (events.length === 0) {
-      const sourceNote = matchedEvents.length === 0
-        ? (warnings.length > 0 ? `No matching events found. Source warnings: ${warnings.join("; ")}` : "No matching recent events from sources.")
-        : `${selection.totalMatched} matched, ${selection.skippedDuplicates} already posted.`
-      let fallbackError: string | null = null
-      try {
-        if (await createFallbackDua(bot, runId, aiSettings, usedTags)) {
-          const message = `Sources exhausted (${sourceNote}) — posted an authentic dua via fallback.`
-          await finishRun(runId, "success", selection.totalMatched, 1, message)
-          await updateBotRunState(bot, "success", message)
-          return { created: 1, error: null }
-        }
-      } catch (error) {
-        fallbackError = error instanceof Error ? error.message : String(error)
-      }
-      const message = `No new duas; fallback produced nothing. ${sourceNote}${fallbackError ? ` Fallback error: ${fallbackError}` : ""}`
-      await finishRun(runId, "skipped", selection.totalMatched, 0, message)
-      await updateBotRunState(bot, "skipped", message)
-      return { created: 0, error: null }
-    }
-
     const eventErrors: string[] = []
     for (const event of events) {
       try {
@@ -1337,15 +1314,34 @@ async function runOneBot(bot: DuaBot): Promise<{ created: number; error: string 
         console.warn("Dua bot event failed", { botId: bot.id, eventKey: event.key, error: message })
       }
     }
-    if (eventErrors.length > 0) warnings.push(...eventErrors.map((err) => `Event error: ${err}`))
+
+    // The static sources produced nothing this run (no matches, all already
+    // posted, or the only new event failed extraction). Rather than skip, post an
+    // authentic dua via web search (Tavily) or the local library so the feed moves.
+    let fallbackUsed = false
+    if (created === 0) {
+      try {
+        if (await createFallbackDua(bot, runId, aiSettings, usedTags)) {
+          created += 1
+          fallbackUsed = true
+        }
+      } catch (error) {
+        eventErrors.push(`Fallback error: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+
+    if (eventErrors.length > 0) warnings.push(...eventErrors.map((err) => err.startsWith("Fallback") ? err : `Event error: ${err}`))
 
     const status = created > 0 ? "success" : eventErrors.length > 0 ? "error" : "skipped"
     const warningSuffix = warnings.length > 0 ? ` Warnings: ${warnings.join("; ")}` : ""
+    const sourceNote = `${selection.totalMatched} matched, ${selection.skippedDuplicates} duplicate(s) skipped.`
     const message = created > 0
-      ? `Created ${created}. ${selection.totalMatched} matched, ${selection.skippedDuplicates} duplicate(s) skipped.${warningSuffix}`
+      ? (fallbackUsed
+        ? `Posted 1 authentic dua via fallback (sources exhausted: ${sourceNote})${warningSuffix}`
+        : `Created ${created}. ${sourceNote}${warningSuffix}`)
       : eventErrors.length > 0
-        ? `No duas created — every selected event failed. ${selection.totalMatched} matched.${warningSuffix}`
-        : `No new duas. ${selection.totalMatched} matched, ${selection.skippedDuplicates} duplicate(s) skipped.${warningSuffix}`
+        ? `No duas created — every attempt failed. ${sourceNote}${warningSuffix}`
+        : `No new duas. ${sourceNote}${warningSuffix}`
     await finishRun(runId, status, selection.totalMatched, created, message)
     await updateBotRunState(bot, status, message)
     return { created, error: null }
