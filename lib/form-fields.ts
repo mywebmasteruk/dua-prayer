@@ -208,7 +208,10 @@ export function isFieldVisible(
 ): boolean {
   if (!field.visibleWhen) return true
   const current = answers[field.visibleWhen.field]
-  return typeof current === "string" && field.visibleWhen.in.includes(current)
+  // Coerce a controlling checkbox's boolean to "true"/"false" so a details field
+  // can depend on a ticked checkbox via `in: ["true"]`.
+  const normalized = typeof current === "boolean" ? (current ? "true" : "false") : current
+  return typeof normalized === "string" && field.visibleWhen.in.includes(normalized)
 }
 
 // --- validation --------------------------------------------------------------
@@ -248,6 +251,41 @@ export function fieldForBinding(
 }
 
 // --- defaults ----------------------------------------------------------------
+
+// Common UTC-offset timezone options for the volunteer form. Value is a stable
+// offset string; label adds a representative region for clarity.
+export const TIMEZONE_OPTIONS: FormFieldOption[] = [
+  { value: "UTC-12:00", label: "UTC−12:00" },
+  { value: "UTC-11:00", label: "UTC−11:00" },
+  { value: "UTC-10:00", label: "UTC−10:00 (Hawaii)" },
+  { value: "UTC-09:00", label: "UTC−09:00 (Alaska)" },
+  { value: "UTC-08:00", label: "UTC−08:00 (US Pacific)" },
+  { value: "UTC-07:00", label: "UTC−07:00 (US Mountain)" },
+  { value: "UTC-06:00", label: "UTC−06:00 (US Central)" },
+  { value: "UTC-05:00", label: "UTC−05:00 (US Eastern)" },
+  { value: "UTC-04:00", label: "UTC−04:00 (Atlantic)" },
+  { value: "UTC-03:00", label: "UTC−03:00 (Brazil / Argentina)" },
+  { value: "UTC-02:00", label: "UTC−02:00" },
+  { value: "UTC-01:00", label: "UTC−01:00 (Cape Verde)" },
+  { value: "UTC+00:00", label: "UTC+00:00 (London / Lisbon)" },
+  { value: "UTC+01:00", label: "UTC+01:00 (Central Europe / West Africa)" },
+  { value: "UTC+02:00", label: "UTC+02:00 (Cairo / Johannesburg)" },
+  { value: "UTC+03:00", label: "UTC+03:00 (Istanbul / Riyadh / Moscow)" },
+  { value: "UTC+03:30", label: "UTC+03:30 (Tehran)" },
+  { value: "UTC+04:00", label: "UTC+04:00 (Dubai)" },
+  { value: "UTC+04:30", label: "UTC+04:30 (Kabul)" },
+  { value: "UTC+05:00", label: "UTC+05:00 (Pakistan)" },
+  { value: "UTC+05:30", label: "UTC+05:30 (India / Sri Lanka)" },
+  { value: "UTC+06:00", label: "UTC+06:00 (Bangladesh)" },
+  { value: "UTC+07:00", label: "UTC+07:00 (Jakarta / Bangkok)" },
+  { value: "UTC+08:00", label: "UTC+08:00 (China / Singapore / Malaysia)" },
+  { value: "UTC+09:00", label: "UTC+09:00 (Japan / Korea)" },
+  { value: "UTC+10:00", label: "UTC+10:00 (Sydney)" },
+  { value: "UTC+11:00", label: "UTC+11:00" },
+  { value: "UTC+12:00", label: "UTC+12:00 (New Zealand)" },
+  { value: "UTC+13:00", label: "UTC+13:00" },
+  { value: "UTC+14:00", label: "UTC+14:00" },
+]
 
 function field(def: Partial<FormFieldDefinition> & Pick<FormFieldDefinition, "id" | "label" | "type" | "order">): FormFieldDefinition {
   return {
@@ -342,7 +380,27 @@ export const DEFAULT_VOLUNTEER_REGISTRY: FormRegistry = {
     field({ id: "name", label: "Name", type: "text", order: 10, systemBinding: "name" }),
     field({ id: "email", label: "Email", type: "email", order: 20, required: true, systemBinding: "email" }),
     field({ id: "skills", label: "Skills / area of support", type: "textarea", order: 30 }),
-    field({ id: "timezone", label: "Timezone", type: "text", order: 40 }),
+    field({
+      id: "moderation_experience",
+      label: "Do you have prior experience with content moderation?",
+      type: "checkbox",
+      order: 34,
+    }),
+    field({
+      id: "moderation_experience_details",
+      label: "Please provide details",
+      type: "textarea",
+      order: 36,
+      placeholder: "Where, what kind of content, how long, and any tools you used.",
+      visibleWhen: { field: "moderation_experience", in: ["true"] },
+    }),
+    field({
+      id: "timezone",
+      label: "Timezone",
+      type: "select",
+      order: 40,
+      options: TIMEZONE_OPTIONS,
+    }),
     field({
       id: "availability",
       label: "Availability",
