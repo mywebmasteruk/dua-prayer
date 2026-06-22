@@ -53,7 +53,6 @@ export function HomeRightRail({
   categoryCount,
   channelCount,
   compactNumber,
-  isSignedIn = false,
 }: HomeRightRailProps) {
   return (
     <div className="space-y-4">
@@ -73,13 +72,13 @@ export function HomeRightRail({
       </section>
 
       <section id="support" className={rightRailCardClass}>
-        <h2 className={rightRailHeadingClass}>Start a dua channel</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className={rightRailHeadingClass}>Start a dua channel</h2>
+          <LayoutGrid className="h-4 w-4 text-muted-foreground/70" aria-hidden="true" />
+        </div>
         <p className={`${rightRailBodyClass} mt-2`}>
-          Create a shared space for a reputable imam, masjid, or organisation to collect requests and respond with ameen.
+          Create a shared space for a reputable imam, masjid, or organisation.
         </p>
-        {!isSignedIn ? (
-          <p className="mt-2 text-xs font-medium text-slate-500">Sign in to apply for a channel.</p>
-        ) : null}
         <Link
           href="/channels/apply"
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"

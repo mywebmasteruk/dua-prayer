@@ -418,8 +418,12 @@ export const DEFAULT_VOLUNTEER_REGISTRY: FormRegistry = {
     field({
       id: "moderation_experience",
       label: "Do you have prior experience with content moderation?",
-      type: "checkbox",
+      type: "radio",
       order: 34,
+      options: [
+        { value: "yes", label: "Yes" },
+        { value: "no", label: "No" },
+      ],
     }),
     field({
       id: "moderation_experience_details",
@@ -427,7 +431,7 @@ export const DEFAULT_VOLUNTEER_REGISTRY: FormRegistry = {
       type: "textarea",
       order: 36,
       placeholder: "Where, what kind of content, how long, and any tools you used.",
-      visibleWhen: { field: "moderation_experience", in: ["true"] },
+      visibleWhen: { field: "moderation_experience", in: ["yes"] },
     }),
     field({
       id: "timezone",
@@ -451,6 +455,13 @@ export const DEFAULT_VOLUNTEER_REGISTRY: FormRegistry = {
         { value: "few_hours_week", label: "A few hours per week" },
         { value: "on_call", label: "On-call / as needed" },
       ],
+    }),
+    field({
+      id: "social_media",
+      label: "Social media profile",
+      type: "url",
+      order: 55,
+      placeholder: "https://… (LinkedIn, X/Twitter, Instagram, etc.)",
     }),
     field({
       id: "message",
