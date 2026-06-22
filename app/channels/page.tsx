@@ -113,7 +113,8 @@ export default async function ChannelsPage() {
               supportedRequests={supportedRequests}
               totalDuas={total}
               totalAmeens={totalAmeens}
-              categoryCount={categories.length}
+              categoryCount={categories.filter((c) => c.channel_type === "category").length}
+              channelCount={categories.filter((c) => c.channel_type === "user").length}
               compactNumber={compactNumber}
             />
           </aside>

@@ -1,11 +1,11 @@
 import Link from "next/link"
 import {
+  Activity,
   ArrowUpRight,
   HeartHandshake,
   LayoutGrid,
   LockKeyhole,
   MessageCircle,
-  ShieldCheck,
   Users,
 } from "lucide-react"
 import { HomeSearchInput } from "./home-search-input"
@@ -35,6 +35,7 @@ interface HomeRightRailProps {
   totalDuas: number
   totalAmeens: number
   categoryCount: number
+  channelCount: number
   compactNumber: (value: number) => string
   isSignedIn?: boolean
 }
@@ -50,6 +51,7 @@ export function HomeRightRail({
   totalDuas,
   totalAmeens,
   categoryCount,
+  channelCount,
   compactNumber,
   isSignedIn = false,
 }: HomeRightRailProps) {
@@ -89,19 +91,16 @@ export function HomeRightRail({
 
       <section className={rightRailCardClass}>
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Live signals</p>
-            <h2 className={rightRailHeadingClass}>Platform activity</h2>
-          </div>
-          <LayoutGrid className="h-4 w-4 text-muted-foreground/70" aria-hidden="true" />
+          <h2 className={rightRailHeadingClass}>Platform activity</h2>
+          <Activity className="h-4 w-4 text-muted-foreground/70" aria-hidden="true" />
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-5 rounded-2xl bg-slate-50 p-4">
+        <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-6 rounded-2xl bg-slate-50 p-4">
           {[
             { icon: Users, label: "Duas shared", value: compactNumber(totalDuas) },
-            { icon: MessageCircle, label: "Ameens shown", value: compactNumber(totalAmeens) },
-            { icon: ShieldCheck, label: "Moderated", value: "Yes" },
-            { icon: HeartHandshake, label: "Topics", value: String(categoryCount) },
+            { icon: MessageCircle, label: "Ameens", value: compactNumber(totalAmeens) },
+            { icon: LayoutGrid, label: "Channels", value: compactNumber(channelCount) },
+            { icon: HeartHandshake, label: "Topics", value: compactNumber(categoryCount) },
           ].map((signal) => {
             const SignalIcon = signal.icon
 
@@ -111,7 +110,7 @@ export function HomeRightRail({
                   <SignalIcon className="h-3.5 w-3.5 text-primary/70" aria-hidden="true" />
                   <p className="truncate text-[11px] font-medium leading-tight">{signal.label}</p>
                 </div>
-                <p className="mt-1.5 text-lg font-semibold tracking-tight text-foreground/78">{signal.value}</p>
+                <p className="mt-1 text-3xl font-bold tracking-tight text-foreground/85">{signal.value}</p>
               </div>
             )
           })}
