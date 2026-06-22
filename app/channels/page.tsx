@@ -12,6 +12,7 @@ import { HomeRightRail } from "@/components/home-right-rail"
 import { HomeMobileBottomNav } from "@/components/home-mobile-bottom-nav"
 import { ChannelSection } from "@/components/channel-section"
 import { NavigationContentLoader } from "@/components/navigation-content-loader"
+import { Footer } from "@/components/footer"
 import type { Category, Dua } from "@/lib/types/dua"
 
 export const metadata: Metadata = {
@@ -98,6 +99,7 @@ export default async function ChannelsPage() {
               </header>
 
               <ChannelSection channels={channels} />
+              <Footer footerTagline={siteCopy.footerTagline} layout="column" />
             </NavigationContentLoader>
           </main>
 
