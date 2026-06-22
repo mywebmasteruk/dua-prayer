@@ -36,6 +36,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
 import { getBotLanguageOptions } from "@/lib/bot-language-options"
+import { defaultRetrieveSystemPrompt } from "@/lib/dua-bot-prompt"
 import { buildDuplicateDuaBotDraft } from "@/lib/dua-bot-duplicates"
 import type { BotRuntimeStatus, DuaEventBot, DuaBotRun } from "@/lib/dua-bots"
 import type { Category } from "@/lib/types/dua"
@@ -397,9 +398,37 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
               <p className="text-xs text-muted-foreground">Guides the dua content this bot generates, such as who to focus on and what kind of support to encourage.</p>
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="bot-system-prompt">System prompt</Label>
-              <Textarea id="bot-system-prompt" value={draft.systemPrompt} onChange={(event) => setDraft({ ...draft, systemPrompt: event.target.value })} />
-              <p className="text-xs text-muted-foreground">Optional higher-level guardrails for style, boundaries, or religious guidance. The app still adds safety defaults.</p>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="bot-system-prompt">System prompt</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      systemPrompt: defaultRetrieveSystemPrompt({
+                        language: draft.language,
+                        keywords: draft.keywords.split(/[\n,]/).map((k) => k.trim()).filter(Boolean),
+                      }),
+                    })
+                  }
+                >
+                  Load default template
+                </Button>
+              </div>
+              <Textarea
+                id="bot-system-prompt"
+                rows={10}
+                value={draft.systemPrompt}
+                onChange={(event) => setDraft({ ...draft, systemPrompt: event.target.value })}
+                placeholder="Leave blank to use the recommended default for the selected language."
+              />
+              <p className="text-xs text-muted-foreground">
+                The full system prompt sent to the AI — what dua to pick, output language, hashtag style, and what to
+                avoid. This is authoritative: nothing here is overridden. Leave blank to use the recommended default;
+                the app only appends a hidden technical line for the JSON output format.
+              </p>
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="bot-sources">Sources</Label>

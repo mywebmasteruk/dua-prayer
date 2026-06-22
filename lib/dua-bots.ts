@@ -12,6 +12,7 @@ import {
 import { evaluateDuaModeration } from "@/lib/ai-moderation"
 import { extractHashtags, normalizeHashtag } from "@/lib/hashtags"
 import { curatedDuaCatalogue, DUA_LIBRARY } from "@/lib/dua-library"
+import { defaultRetrieveSystemPrompt, RETRIEVE_OUTPUT_CONTRACT } from "@/lib/dua-bot-prompt"
 import { detectLanguage, languageToCode } from "@/lib/detect-language"
 
 export type BotStatus = "active" | "paused"
@@ -988,27 +989,11 @@ async function composeRetrievedDuaForEvent(
   if (!pageText || pageText.length < 40) return null
 
   const language = bot.language?.trim() || "English"
-  const arabic = isArabicLanguage(language)
-  const languageRule = arabic
-    ? "OUTPUT LANGUAGE: Arabic ONLY. Return just the Arabic script of the dua. Do NOT include any transliteration (romanized text) or English translation."
-    : `OUTPUT LANGUAGE: ${language} ONLY. Return just the ${language} translation/meaning of the dua. Do NOT include Arabic script, and do NOT include romanized transliteration (e.g. 'Allahumma inni…'). Plain ${language} sentences only.`
-  const tagExample = arabic ? "#دعاءالرحمة" : "#MercyDua"
-  const system = [
-    "You extract ONE complete, well-known dua (Islamic supplication) from the provided web-page text.",
-    "Copy the chosen-language text VERBATIM from the page — do not paraphrase, summarize, add, or remove words. If the page shows multiple language versions, take only the one for the required output language, exactly as written.",
-    languageRule,
-    "Pick a complete, self-contained dua (not a heading, fragment, or commentary). Prefer a widely-known authentic one.",
-    bot.keywords.length > 0
-      ? `Prefer a dua whose theme relates to: ${bot.keywords.join(", ")} — but any complete, well-known dua on the page is acceptable.`
-      : "",
-    "The `dua` field must contain ONLY the dua text — no source, reference, citation, transliteration, hashtag, or any other text.",
-    "Exclude navigation text, ads, author commentary, and the words Amen/Ameen.",
-    `The \`hashtag\` field: ONE context-relevant hashtag of at least two meaningful words in ${language}${arabic ? ", joined directly" : ", each word Capitalized and joined directly (CamelCase, e.g. ForgivenessDua)"}, with NO spaces, dashes, or underscores, prefixed with # (e.g. ${tagExample}). It must be written in ${arabic ? "Arabic script" : language}, matching the dua's language.`,
-    'Return strict JSON only: {"dua": string, "hashtag": string}. If the page has no complete dua in the required language, return {"dua": "", "hashtag": ""}.',
-    bot.system_prompt ? `Extra instruction: ${bot.system_prompt}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n")
+  // The bot's own system prompt is authoritative (admin-editable in the form);
+  // fall back to the default editorial template when blank. The only thing the
+  // code adds is the hidden technical output contract — no hardcoded editorial.
+  const editorial = bot.system_prompt?.trim() || defaultRetrieveSystemPrompt({ language, keywords: bot.keywords })
+  const system = `${editorial}\n${RETRIEVE_OUTPUT_CONTRACT}`
   const user = [
     `Page title: ${JSON.stringify(event.title)}`,
     event.url ? `Page URL: ${event.url}` : "",
