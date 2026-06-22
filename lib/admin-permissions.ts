@@ -52,6 +52,29 @@ export function isAdminPermission(value: string): value is AdminPermission {
   return (ADMIN_PERMISSIONS as readonly string[]).includes(value)
 }
 
+/**
+ * Permissions that can be toggled per-role in the admin matrix. `manage_admins`
+ * is intentionally excluded — it stays founder-only so a role preset can never
+ * grant the ability to manage other admins (privilege-escalation guard).
+ */
+export const EDITABLE_ROLE_PERMISSIONS: readonly AdminPermission[] = ADMIN_PERMISSIONS.filter(
+  (p) => p !== "manage_admins",
+)
+
+/** Resolve effective permissions from an explicit base list + per-user overrides. */
+export function resolvePermissionsFrom(
+  base: readonly AdminPermission[],
+  overrides: AdminPermissionOverrides = {},
+): AdminPermission[] {
+  const set = new Set<AdminPermission>(base)
+  for (const [key, enabled] of Object.entries(overrides)) {
+    if (!isAdminPermission(key)) continue
+    if (enabled) set.add(key)
+    else set.delete(key)
+  }
+  return ADMIN_PERMISSIONS.filter((p) => set.has(p))
+}
+
 export type AdminPermissionOverrides = Partial<Record<AdminPermission, boolean>>
 
 export function resolvePermissions(

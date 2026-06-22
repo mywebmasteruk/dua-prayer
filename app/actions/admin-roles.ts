@@ -1,8 +1,9 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 import { findAuthUserIdByEmail } from "@/lib/auth-users"
+import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
 import {
   ADMIN_PERMISSIONS,
   ASSIGNABLE_ADMIN_ROLES,
@@ -229,6 +230,49 @@ export async function revokeAdminAccess(userId: string) {
   if (error) return { error: error.message }
 
   revalidatePath("/admin/settings/roles")
+  revalidatePath("/admin/users/roles")
+  revalidatePath("/admin")
+  return { success: true as const }
+}
+
+// Edit a role's permission preset (applies to every admin with that role).
+export async function saveRolePermissions(input: { role: AdminRoleType; permissions: AdminPermission[] }) {
+  const gate = await requirePermission("manage_admins")
+  if (!gate.ok) return { error: gate.error === "Forbidden" ? "Only the founding admin can edit roles." : "Unauthorized" }
+
+  const editableRoles: AdminRoleType[] = [...ASSIGNABLE_ADMIN_ROLES, "volunteer"]
+  if (!editableRoles.includes(input.role)) return { error: "That role cannot be edited." }
+
+  // Keep only valid permissions; manage_admins stays founder-only.
+  const permissions = ADMIN_PERMISSIONS.filter(
+    (p) => p !== "manage_admins" && input.permissions.includes(p),
+  )
+
+  const admin = createAdminSupabaseClient()
+  const { data } = await admin
+    .from("site_settings")
+    .select("value")
+    .eq("key", SITE_SETTING_KEYS.adminRolePermissions)
+    .maybeSingle()
+
+  let stored: Record<string, unknown> = {}
+  if (data?.value) {
+    try {
+      const parsed = JSON.parse(data.value as string)
+      if (parsed && typeof parsed === "object") stored = parsed as Record<string, unknown>
+    } catch {
+      stored = {}
+    }
+  }
+  stored[input.role] = permissions
+
+  const { error } = await admin.from("site_settings").upsert(
+    { key: SITE_SETTING_KEYS.adminRolePermissions, value: JSON.stringify(stored), updated_at: new Date().toISOString() },
+    { onConflict: "key" },
+  )
+  if (error) return { error: error.message }
+
+  revalidateTag("admin-role-permissions")
   revalidatePath("/admin/users/roles")
   revalidatePath("/admin")
   return { success: true as const }

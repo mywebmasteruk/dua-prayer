@@ -65,6 +65,8 @@ export const SITE_SETTING_KEYS = {
   // Max ms to wait for a generation AI call before aborting.
   aiRequestTimeoutMs: "ai_moderation.request_timeout_ms",
   postingMode: "posting.mode",
+  // Editable role → permission presets (JSON). Overrides the hardcoded defaults.
+  adminRolePermissions: "admin.role_permissions",
   customCodeHeader: "custom_code.header",
   customCodeFooter: "custom_code.footer",
   // SEO & social share (Open Graph / Twitter cards) + favicon.
