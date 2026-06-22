@@ -368,16 +368,19 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
           <p className="text-sm text-muted-foreground">No bot runs recorded yet.</p>
         ) : (
           <div className="space-y-3">
-            {recentRuns.map((run) => (
+            {recentRuns.map((run) => {
+              const runBotName = bots.find((b) => b.id === run.bot_id)?.name ?? `Bot #${run.bot_id}`
+              return (
               <div key={run.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 p-3 text-sm">
                 <div>
-                  <p className="font-medium text-foreground">Bot #{run.bot_id} · {formatDate(run.started_at)}</p>
+                  <p className="font-medium text-foreground">{runBotName} · {formatDate(run.started_at)}</p>
                   <p className="text-muted-foreground">{run.events_found} event(s), {run.duas_created} dua(s)</p>
                   {run.message ? <p className="text-xs text-muted-foreground">{renderRunMessage(run.message)}</p> : null}
                 </div>
                 <AdminStatusBadge label={run.status} tone={statusTone(run.status)} />
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </AdminSection>
