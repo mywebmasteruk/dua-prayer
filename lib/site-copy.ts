@@ -20,7 +20,7 @@ export const SITE_COPY_DEFAULTS = {
   composerDescriptionEn:
     "Please do not include personal or private details and keep it positive. All posts are subject to moderation. JZK",
   composerPlaceholderEn: "Make a dua for yourself, your family, or someone who needs support...",
-  composerCategoryPlaceholderEn: "Category",
+  composerCategoryPlaceholderEn: "Topic",
   composerSubmitEn: "Make",
   composerSubmitAriaEn: "Make Dua",
   composerSubmittingEn: "Making…",

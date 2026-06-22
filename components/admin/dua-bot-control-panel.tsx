@@ -445,11 +445,11 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="bot-target-category">Post category</Label>
+              <Label htmlFor="bot-target-category">Post topic</Label>
               <Select value={draft.targetCategoryId} onValueChange={(value) => setDraft({ ...draft, targetCategoryId: value })}>
                 <SelectTrigger id="bot-target-category"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No category</SelectItem>
+                  <SelectItem value="none">No topic</SelectItem>
                   <SelectItem value="auto">Automatic (AI chooses)</SelectItem>
                   {categories.map((category) => (
                     <SelectItem key={category.id} value={category.id.toString()}>{category.name}</SelectItem>

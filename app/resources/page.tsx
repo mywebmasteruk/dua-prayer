@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 const guidelines = [
   "Share duas with sincerity — keep requests respectful and free of hate or harassment.",
   "Avoid posting private identifying details (full names, phone numbers, addresses).",
-  "Use channels and categories so others can find and support related requests.",
+  "Use channels and topics so others can find and support related requests.",
   "Respond with ameen to uplift others; do not use replies to debate or criticize faith.",
   "Report content that feels unsafe or off-topic so volunteers can review it.",
 ] as const

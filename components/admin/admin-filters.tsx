@@ -150,11 +150,11 @@ export function AdminFilters({ categories, resultCount }: AdminFiltersProps) {
       </Select>
 
       <Select value={category || "all"} onValueChange={handleCategoryChange}>
-        <SelectTrigger className="h-9 w-full sm:w-[168px]" aria-label="Filter by category">
-          <SelectValue placeholder="Category" />
+        <SelectTrigger className="h-9 w-full sm:w-[168px]" aria-label="Filter by topic">
+          <SelectValue placeholder="Topic" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All categories</SelectItem>
+          <SelectItem value="all">All topics</SelectItem>
           {categories
             .filter((cat) => cat.channel_type === "category")
             .map((cat) => (

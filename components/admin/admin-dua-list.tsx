@@ -249,7 +249,7 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
                 />
               </TableHead>
               <TableHead className="py-2.5">Content</TableHead>
-              <TableHead className="hidden py-2.5 sm:table-cell">Category</TableHead>
+              <TableHead className="hidden py-2.5 sm:table-cell">Topic</TableHead>
               <TableHead className="py-2.5">Status</TableHead>
               <TableHead className="hidden py-2.5 md:table-cell">Ameen</TableHead>
               <TableHead className="hidden py-2.5 lg:table-cell">Flag</TableHead>
@@ -335,10 +335,10 @@ export function AdminDuaList({ initialDuas, categories }: AdminDuaListProps) {
               <Textarea id="edit-text" value={editText} onChange={(e) => setEditText(e.target.value)} rows={5} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-category">Category</Label>
+              <Label htmlFor="edit-category">Topic</Label>
               <Select value={editCategory} onValueChange={setEditCategory}>
                 <SelectTrigger id="edit-category">
-                  <SelectValue placeholder="Select category" />
+                  <SelectValue placeholder="Select topic" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>

@@ -64,10 +64,7 @@ export function HomeRightRail({
 
       <section className={rightRailCardClass}>
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Community</p>
-            <h2 className={rightRailHeadingClass}>Trending</h2>
-          </div>
+          <h2 className={rightRailHeadingClass}>Trending</h2>
           <TrendingInfoTooltip />
         </div>
         <TrendingList trendingByLang={trendingByLang} categoryLeaderboard={categoryLeaderboard} />
