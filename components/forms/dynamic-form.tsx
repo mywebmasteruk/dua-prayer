@@ -31,16 +31,13 @@ import {
 import { HONEYPOT_FIELD, TURNSTILE_FIELD } from "@/lib/form-submit"
 import { cn } from "@/lib/utils"
 
-// Field types that read better spanning the full form width (one per row).
-const FULL_WIDTH_TYPES = new Set(["textarea", "file", "checkbox", "multiselect", "radio"])
+// Field types that span the full form width (one per row). Multi-selects sit
+// half-width (the dropdown panel grows to fit its options), so they pair with a
+// neighbour and keep the form compact.
+const FULL_WIDTH_TYPES = new Set(["textarea", "file", "checkbox", "radio"])
 
-// Whether a field should span both grid columns. Short multi-selects (few
-// options) sit half-width so they pair with a neighbour (e.g. Availability next
-// to Timezone); long option lists stay full-width for readability.
 function fieldSpansFullWidth(field: FormFieldDefinition): boolean {
-  if (!FULL_WIDTH_TYPES.has(field.type)) return false
-  if (field.type === "multiselect") return (field.options?.length ?? 0) > 8
-  return true
+  return FULL_WIDTH_TYPES.has(field.type)
 }
 
 type SubmitResult = { success: true } | { error: string } | { success: true; status: string }
@@ -207,7 +204,7 @@ export function DynamicForm({
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
         {shownFields.map((field) => (
-          <div key={field.id} className={cn(FULL_WIDTH_TYPES.has(field.type) && "sm:col-span-2")}>
+          <div key={field.id} className={cn(fieldSpansFullWidth(field) && "sm:col-span-2")}>
             {field.systemBinding === "handle" ? (
               <HandleField
                 field={field}
@@ -315,7 +312,7 @@ function FieldRow({ field, value, error, uploading, readOnly = false, onChange, 
         return <MultiSelectDropdown field={field} value={value} onChange={onChange} triggerClass={selectClass} />
       case "radio":
         return (
-          <div className="space-y-2">
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
             {(field.options ?? []).map((opt) => (
               <label key={opt.value} className="flex items-center gap-2 text-sm">
                 <input
@@ -420,7 +417,7 @@ function MultiSelectDropdown({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className="max-h-64 w-[--radix-dropdown-menu-trigger-width] overflow-y-auto"
+        className="max-h-64 w-[--radix-dropdown-menu-trigger-width] min-w-[16rem] overflow-y-auto"
       >
         {options.map((opt) => (
           <DropdownMenuCheckboxItem
