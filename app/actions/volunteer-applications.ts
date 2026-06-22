@@ -37,8 +37,8 @@ export async function submitVolunteerApplication(formData: FormData): Promise<Su
   const application: VolunteerApplicationPayload = {
     fields: answers,
     message: stringAnswer(answers, "message") ?? null,
-    skills: stringAnswer(answers, "skills") ?? null,
-    timezone: stringAnswer(answers, "timezone") ?? null,
+    skills: readableAnswer(registry, answers, "skills"),
+    timezone: readableAnswer(registry, answers, "timezone"),
     availability: readableAnswer(registry, answers, "availability"),
   }
 
