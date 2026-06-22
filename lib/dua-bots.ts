@@ -304,15 +304,22 @@ function enforceLanguageScript(body: string, language: string): string {
 }
 
 // Sanitize a model-provided hashtag and require it to match the dua's language
-// (Arabic dua → Arabic-script tag, otherwise → non-Arabic tag). Returns "" if
-// it can't be made into a valid, language-matching tag.
+// (Arabic dua → Arabic-script tag, otherwise → non-Arabic tag). The words are
+// joined CamelCase with NO spaces, dashes, or underscores. Returns "" if it
+// can't be made into a valid, language-matching tag.
 function normalizeLanguageHashtag(raw: string, language: string): string {
-  const token = raw
+  // Split into words on any non-alphanumeric (spaces, dashes, underscores, punctuation).
+  const words = raw
     .trim()
     .replace(/^#+/, "")
-    .replace(/\s+/g, "_")
-    .replace(/[^\p{L}\p{N}_-]/gu, "")
-    .slice(0, 40)
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+  // Arabic has no letter case — concatenate directly. Latin scripts → CamelCase.
+  const token = (
+    isArabicLanguage(language)
+      ? words.join("")
+      : words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join("")
+  ).slice(0, 40)
   if (token.length < 2) return ""
   const hasArabic = ARABIC_SCRIPT.test(token)
   if (isArabicLanguage(language) ? !hasArabic : hasArabic) return ""
@@ -985,7 +992,7 @@ async function composeRetrievedDuaForEvent(
   const languageRule = arabic
     ? "OUTPUT LANGUAGE: Arabic ONLY. Return just the Arabic script of the dua. Do NOT include any transliteration (romanized text) or English translation."
     : `OUTPUT LANGUAGE: ${language} ONLY. Return just the ${language} translation/meaning of the dua. Do NOT include Arabic script, and do NOT include romanized transliteration (e.g. 'Allahumma inni…'). Plain ${language} sentences only.`
-  const tagExample = arabic ? "#دعاء_الرحمة" : "#Mercy_Dua"
+  const tagExample = arabic ? "#دعاءالرحمة" : "#MercyDua"
   const system = [
     "You extract ONE complete, well-known dua (Islamic supplication) from the provided web-page text.",
     "Copy the chosen-language text VERBATIM from the page — do not paraphrase, summarize, add, or remove words. If the page shows multiple language versions, take only the one for the required output language, exactly as written.",
@@ -996,7 +1003,7 @@ async function composeRetrievedDuaForEvent(
       : "",
     "The `dua` field must contain ONLY the dua text — no source, reference, citation, transliteration, hashtag, or any other text.",
     "Exclude navigation text, ads, author commentary, and the words Amen/Ameen.",
-    `The \`hashtag\` field: ONE context-relevant hashtag of two meaningful words in ${language}, joined by an underscore, prefixed with # (e.g. ${tagExample}). It must be written in ${arabic ? "Arabic script" : language}, matching the dua's language.`,
+    `The \`hashtag\` field: ONE context-relevant hashtag of at least two meaningful words in ${language}${arabic ? ", joined directly" : ", each word Capitalized and joined directly (CamelCase, e.g. ForgivenessDua)"}, with NO spaces, dashes, or underscores, prefixed with # (e.g. ${tagExample}). It must be written in ${arabic ? "Arabic script" : language}, matching the dua's language.`,
     'Return strict JSON only: {"dua": string, "hashtag": string}. If the page has no complete dua in the required language, return {"dua": "", "hashtag": ""}.',
     bot.system_prompt ? `Extra instruction: ${bot.system_prompt}` : "",
   ]
