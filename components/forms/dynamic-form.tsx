@@ -34,6 +34,15 @@ import { cn } from "@/lib/utils"
 // Field types that read better spanning the full form width (one per row).
 const FULL_WIDTH_TYPES = new Set(["textarea", "file", "checkbox", "multiselect", "radio"])
 
+// Whether a field should span both grid columns. Short multi-selects (few
+// options) sit half-width so they pair with a neighbour (e.g. Availability next
+// to Timezone); long option lists stay full-width for readability.
+function fieldSpansFullWidth(field: FormFieldDefinition): boolean {
+  if (!FULL_WIDTH_TYPES.has(field.type)) return false
+  if (field.type === "multiselect") return (field.options?.length ?? 0) > 8
+  return true
+}
+
 type SubmitResult = { success: true } | { error: string } | { success: true; status: string }
 
 type DynamicFormProps = {
