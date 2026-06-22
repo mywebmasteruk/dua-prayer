@@ -22,7 +22,7 @@ export const SEO_DEFAULTS: SeoSettings = {
   siteName: "DuaPrayer",
   title: "DuaPrayer — Make Dua & Pray For The Ummah",
   description: "Share duas and pray for the Muslim Ummah. A community prayer wall.",
-  image: "/logo-wide.png",
+  image: "/og-image.png",
   favicon: "/favicon.png",
 } as const
 
