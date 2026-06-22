@@ -34,11 +34,16 @@ type DynamicFormProps = {
   formKind: FormKind
   registry: FormRegistry
   action: (formData: FormData) => Promise<SubmitResult>
-  prefill?: { email?: string | null }
+  prefill?: { email?: string | null; name?: string | null }
+  /** When true, fields prefilled from the signed-in account (name/email) render read-only. */
+  lockPrefill?: boolean
   turnstileSiteKey?: string | null
   submitLabel: string
   onSuccess?: () => void
 }
+
+// System bindings that come from the signed-in account and should lock when prefilled.
+const ACCOUNT_BOUND = new Set(["email", "name"])
 
 const SELECT_CLASS =
   "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -48,6 +53,7 @@ export function DynamicForm({
   registry,
   action,
   prefill,
+  lockPrefill = false,
   turnstileSiteKey,
   submitLabel,
   onSuccess,
@@ -58,10 +64,26 @@ export function DynamicForm({
     const initial: Record<string, FormAnswerValue> = {}
     for (const field of fields) {
       if (field.systemBinding === "email" && prefill?.email) initial[field.id] = prefill.email
+      if (field.systemBinding === "name" && prefill?.name) initial[field.id] = prefill.name
       if (field.type === "checkbox") initial[field.id] = false
     }
     return initial
   })
+
+  // Account-bound fields prefilled from the signed-in user — shown read-only.
+  const lockedIds = new Set(
+    lockPrefill
+      ? fields
+          .filter(
+            (field) =>
+              field.systemBinding &&
+              ACCOUNT_BOUND.has(field.systemBinding) &&
+              ((field.systemBinding === "email" && prefill?.email) ||
+                (field.systemBinding === "name" && prefill?.name)),
+          )
+          .map((field) => field.id)
+      : [],
+  )
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -184,6 +206,7 @@ export function DynamicForm({
                 value={values[field.id]}
                 error={errors[field.id]}
                 uploading={!!uploading[field.id]}
+                readOnly={lockedIds.has(field.id)}
                 onChange={(value) => setValue(field.id, value)}
                 onFile={(file) => handleFile(field, file)}
                 selectClass={SELECT_CLASS}
@@ -235,12 +258,13 @@ type FieldRowProps = {
   value: FormAnswerValue | undefined
   error?: string
   uploading: boolean
+  readOnly?: boolean
   onChange: (value: FormAnswerValue | undefined) => void
   onFile: (file: File | undefined) => void
   selectClass: string
 }
 
-function FieldRow({ field, value, error, uploading, onChange, onFile, selectClass }: FieldRowProps) {
+function FieldRow({ field, value, error, uploading, readOnly = false, onChange, onFile, selectClass }: FieldRowProps) {
   const id = `field-${field.id}`
   const labelText = field.required ? `${field.label} *` : field.label
 
@@ -341,6 +365,10 @@ function FieldRow({ field, value, error, uploading, onChange, onFile, selectClas
             placeholder={field.placeholder}
             value={typeof value === "string" ? value : ""}
             onChange={(e) => onChange(e.target.value)}
+            readOnly={readOnly}
+            aria-readonly={readOnly || undefined}
+            tabIndex={readOnly ? -1 : undefined}
+            className={cn(readOnly && "cursor-not-allowed bg-muted text-muted-foreground")}
           />
         )
     }
@@ -350,7 +378,11 @@ function FieldRow({ field, value, error, uploading, onChange, onFile, selectClas
     <div className="space-y-1.5">
       {field.type !== "checkbox" ? <Label htmlFor={id}>{labelText}</Label> : null}
       {control()}
-      {field.helpText ? <p className="text-xs text-muted-foreground">{field.helpText}</p> : null}
+      {readOnly ? (
+        <p className="text-xs text-muted-foreground">From your account.</p>
+      ) : field.helpText ? (
+        <p className="text-xs text-muted-foreground">{field.helpText}</p>
+      ) : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   )

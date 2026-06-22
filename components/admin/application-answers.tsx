@@ -46,15 +46,16 @@ function FileAnswerLink({ file }: { file: FormFileAnswer }) {
   )
 }
 
-function renderValue(value: FormAnswerValue): React.ReactNode {
+function renderValue(value: FormAnswerValue, optionLabels?: Map<string, string>): React.ReactNode {
   if (isFileAnswer(value)) return <FileAnswerLink file={value} />
   if (typeof value === "boolean") return value ? "Yes" : "No"
-  if (Array.isArray(value)) return value.join(", ")
+  if (Array.isArray(value)) return value.map((v) => optionLabels?.get(v) ?? v).join(", ")
+  if (optionLabels?.has(String(value))) return optionLabels.get(String(value))
   return String(value)
 }
 
 export function ApplicationAnswers({ registry, answers, legacy, title = "Submitted application details" }: ApplicationAnswersProps) {
-  const rows: Array<{ label: string; value: FormAnswerValue }> = []
+  const rows: Array<{ label: string; value: FormAnswerValue; optionLabels?: Map<string, string> }> = []
 
   for (const field of visibleFields(registry)) {
     if (!field.showInReview) continue
@@ -66,7 +67,8 @@ export function ApplicationAnswers({ registry, answers, legacy, title = "Submitt
     if (raw === undefined || raw === null) continue
     if (typeof raw === "string" && raw.trim() === "") continue
     if (Array.isArray(raw) && raw.length === 0) continue
-    rows.push({ label: field.label, value: raw })
+    const optionLabels = field.options ? new Map(field.options.map((o) => [o.value, o.label])) : undefined
+    rows.push({ label: field.label, value: raw, optionLabels })
   }
 
   if (rows.length === 0) return null
@@ -78,7 +80,7 @@ export function ApplicationAnswers({ registry, answers, legacy, title = "Submitt
         {rows.map((row) => (
           <div key={row.label} className="flex flex-col">
             <dt className="text-xs text-muted-foreground">{row.label}</dt>
-            <dd className="break-words">{renderValue(row.value)}</dd>
+            <dd className="break-words">{renderValue(row.value, row.optionLabels)}</dd>
           </div>
         ))}
       </dl>

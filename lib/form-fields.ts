@@ -343,7 +343,22 @@ export const DEFAULT_VOLUNTEER_REGISTRY: FormRegistry = {
     field({ id: "email", label: "Email", type: "email", order: 20, required: true, systemBinding: "email" }),
     field({ id: "skills", label: "Skills / area of support", type: "textarea", order: 30 }),
     field({ id: "timezone", label: "Timezone", type: "text", order: 40 }),
-    field({ id: "availability", label: "Availability", type: "text", order: 50 }),
+    field({
+      id: "availability",
+      label: "Availability",
+      type: "multiselect",
+      order: 50,
+      helpText: "Select all that apply.",
+      options: [
+        { value: "weekday_mornings", label: "Weekday mornings" },
+        { value: "weekday_afternoons", label: "Weekday afternoons" },
+        { value: "weekday_evenings", label: "Weekday evenings" },
+        { value: "weekends", label: "Weekends" },
+        { value: "flexible", label: "Flexible / anytime" },
+        { value: "few_hours_week", label: "A few hours per week" },
+        { value: "on_call", label: "On-call / as needed" },
+      ],
+    }),
     field({ id: "message", label: "Message", type: "textarea", order: 60 }),
     field({
       id: "cv",

@@ -7,7 +7,7 @@ import { verifyTurnstile } from "@/lib/turnstile"
 import { getVolunteerFormRegistry } from "@/lib/site-settings-server"
 import { registerVolunteerApplicant } from "@/lib/volunteers"
 import { validateAnswers } from "@/lib/form-fields"
-import { HONEYPOT_FIELD, TURNSTILE_FIELD, boundString, readAnswersFromFormData, stringAnswer } from "@/lib/form-submit"
+import { HONEYPOT_FIELD, TURNSTILE_FIELD, boundString, readableAnswer, readAnswersFromFormData, stringAnswer } from "@/lib/form-submit"
 import type { VolunteerApplicationPayload } from "@/lib/volunteer-types"
 
 export type SubmitVolunteerResult = { success: true } | { error: string }
@@ -39,7 +39,7 @@ export async function submitVolunteerApplication(formData: FormData): Promise<Su
     message: stringAnswer(answers, "message") ?? null,
     skills: stringAnswer(answers, "skills") ?? null,
     timezone: stringAnswer(answers, "timezone") ?? null,
-    availability: stringAnswer(answers, "availability") ?? null,
+    availability: readableAnswer(registry, answers, "availability"),
   }
 
   const result = await registerVolunteerApplicant({

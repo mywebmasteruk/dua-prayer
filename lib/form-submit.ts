@@ -75,3 +75,23 @@ export function stringAnswer(
   const value = answers[id]
   return typeof value === "string" && value.trim() ? value.trim() : undefined
 }
+
+/**
+ * Human-readable summary of an answer for a denormalized column: joins a
+ * multiselect's selected option LABELS (falling back to values), or returns the
+ * plain string answer. Null when empty.
+ */
+export function readableAnswer(
+  registry: FormRegistry,
+  answers: Record<string, FormAnswerValue>,
+  id: string,
+): string | null {
+  const value = answers[id]
+  if (Array.isArray(value)) {
+    if (value.length === 0) return null
+    const field = visibleFields(registry).find((f) => f.id === id)
+    const byValue = new Map((field?.options ?? []).map((o) => [o.value, o.label]))
+    return value.map((v) => byValue.get(v) ?? v).join(", ")
+  }
+  return stringAnswer(answers, id) ?? null
+}

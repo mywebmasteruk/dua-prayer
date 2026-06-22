@@ -3,6 +3,8 @@ import { Code2, HandHeart, Palette, ShieldCheck } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { VolunteerApplySection } from "@/components/volunteer/volunteer-apply-section"
 import { getVolunteerFormRegistry } from "@/lib/site-settings-server"
+import { getServerUser } from "@/lib/server-user"
+import { getProfileAccessState } from "@/lib/account-status"
 
 export const metadata: Metadata = {
   title: "Volunteer — DuaPrayer",
@@ -32,10 +34,21 @@ const waysToHelp = [
 ] as const
 
 async function VolunteerApplyLoader() {
-  const registry = await getVolunteerFormRegistry()
+  const user = await getServerUser()
+  const [registry, profile] = await Promise.all([
+    getVolunteerFormRegistry(),
+    user ? getProfileAccessState(user.id) : Promise.resolve(null),
+  ])
+
+  const metaName =
+    (user?.user_metadata?.full_name as string | undefined) ?? (user?.user_metadata?.name as string | undefined) ?? null
+
   return (
     <VolunteerApplySection
       registry={registry}
+      isSignedIn={Boolean(user)}
+      userEmail={user?.email ?? null}
+      userName={profile?.displayName ?? metaName}
       turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? null}
     />
   )

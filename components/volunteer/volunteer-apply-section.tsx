@@ -19,9 +19,18 @@ const VOLUNTEER_EMAIL = "volunteers@duaprayer.app"
 type VolunteerApplySectionProps = {
   registry: FormRegistry
   turnstileSiteKey?: string | null
+  isSignedIn?: boolean
+  userEmail?: string | null
+  userName?: string | null
 }
 
-export function VolunteerApplySection({ registry, turnstileSiteKey }: VolunteerApplySectionProps) {
+export function VolunteerApplySection({
+  registry,
+  turnstileSiteKey,
+  isSignedIn = false,
+  userEmail,
+  userName,
+}: VolunteerApplySectionProps) {
   const [open, setOpen] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const volunteerMailto = `mailto:${VOLUNTEER_EMAIL}?subject=${encodeURIComponent("DuaPrayer volunteer inquiry")}`
@@ -67,6 +76,8 @@ export function VolunteerApplySection({ registry, turnstileSiteKey }: VolunteerA
               formKind="volunteer"
               registry={registry}
               action={submitVolunteerApplication}
+              prefill={isSignedIn ? { email: userEmail, name: userName } : undefined}
+              lockPrefill={isSignedIn}
               turnstileSiteKey={turnstileSiteKey}
               submitLabel="Submit application"
               onSuccess={() => setSubmitted(true)}
