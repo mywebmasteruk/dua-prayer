@@ -5,6 +5,8 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header"
 import { AdminSettingsHub } from "@/components/admin/admin-settings-hub"
 import { isSettingsTabId } from "@/lib/admin-settings-tabs"
 import { getCustomCodeForAdmin } from "@/app/actions/custom-code"
+import { getSeoSettingsForAdmin } from "@/app/actions/seo"
+import { SEO_DEFAULTS } from "@/lib/seo-settings-server"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
 import { getPostingModeForAdmin } from "@/lib/posting-settings"
@@ -55,9 +57,10 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
       }
     }
 
-    const [postingMode, customCode] = await Promise.all([
+    const [postingMode, customCode, seoSettings] = await Promise.all([
       safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const),
       safe("getCustomCodeForAdmin", () => getCustomCodeForAdmin(), { header: "", footer: "" }),
+      safe("getSeoSettingsForAdmin", () => getSeoSettingsForAdmin(), { ...SEO_DEFAULTS }),
     ])
 
     return (
@@ -65,13 +68,14 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
         <AdminPageHeader
           icon={Settings2}
           title="Settings"
-          description="Posting rules and custom code."
+          description="Posting rules, SEO & social sharing, and custom code."
         />
 
         <AdminSettingsHub
           initialTab={isSettingsTabId(tab) ? tab : "posting"}
           postingMode={postingMode}
           customCode={customCode}
+          seoSettings={seoSettings}
           canManageSettings={canManageSettings}
         />
       </InnerPageLayout>

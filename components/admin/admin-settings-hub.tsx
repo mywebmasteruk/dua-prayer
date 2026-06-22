@@ -4,9 +4,11 @@ import { useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { PostingAccessSettings } from "@/components/admin/posting-access-settings"
 import { CustomCodeSettings } from "@/components/admin/custom-code-settings"
+import { SeoSettingsForm } from "@/components/admin/seo-settings"
 import { AdminSection } from "@/components/admin/admin-section"
 import { cn } from "@/lib/utils"
 import type { CustomCode } from "@/lib/custom-code-server"
+import type { SeoSettings } from "@/lib/seo-settings-server"
 import { SETTINGS_TABS, resolveSettingsTab, type SettingsTabId } from "@/lib/admin-settings-tabs"
 import type { PostingMode } from "@/lib/posting-settings-shared"
 
@@ -14,6 +16,7 @@ type SettingsHubProps = {
   initialTab: SettingsTabId
   postingMode: PostingMode
   customCode: CustomCode
+  seoSettings: SeoSettings
   canManageSettings: boolean
 }
 
@@ -58,6 +61,7 @@ export function AdminSettingsHub({
   initialTab,
   postingMode,
   customCode,
+  seoSettings,
   canManageSettings,
 }: SettingsHubProps) {
   const router = useRouter()
@@ -86,6 +90,22 @@ export function AdminSettingsHub({
           className={activeTab === "posting" ? undefined : "hidden"}
         >
           <PostingAccessSettings initialMode={postingMode} canManageSettings={canManageSettings} />
+        </div>
+
+        {/* SEO & Social */}
+        <div
+          id="settings-panel-seo"
+          role="tabpanel"
+          aria-labelledby="settings-tab-seo"
+          className={activeTab === "seo" ? undefined : "hidden"}
+        >
+          {canManageSettings ? (
+            <SeoSettingsForm initialSettings={seoSettings} />
+          ) : (
+            <AdminSection title="SEO & Social Sharing" description="Search and link-preview metadata.">
+              <p className="text-sm text-muted-foreground">Settings access required.</p>
+            </AdminSection>
+          )}
         </div>
 
         {/* Custom Code */}

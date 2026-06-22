@@ -67,6 +67,12 @@ export const SITE_SETTING_KEYS = {
   postingMode: "posting.mode",
   customCodeHeader: "custom_code.header",
   customCodeFooter: "custom_code.footer",
+  // SEO & social share (Open Graph / Twitter cards) + favicon.
+  seoSiteName: "seo.site_name",
+  seoTitle: "seo.title",
+  seoDescription: "seo.description",
+  seoImage: "seo.image",
+  seoFavicon: "seo.favicon",
 } as const
 
 /** Keys stored in site_settings — never exposed via public RLS policy */

@@ -12,6 +12,7 @@ import { FollowedChannelsProvider } from "@/components/followed-channels-provide
 import { OnboardingGate } from "@/components/onboarding/onboarding-gate"
 import { BetaBanner } from "@/components/beta-banner"
 import { getCustomCode } from "@/lib/custom-code-server"
+import { getSeoSettings } from "@/lib/seo-settings-server"
 import { getServerUser } from "@/lib/server-user"
 import { listMyFollowIds } from "@/app/actions/follows"
 import { getMyPreferences } from "@/app/actions/preferences"
@@ -19,19 +20,35 @@ import { getCategories } from "@/app/actions/duas"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
-  title: "DuaPrayer — Make Dua & Pray For The Ummah",
-  description: "Share duas and pray for the Muslim Ummah. A community prayer wall.",
-  icons: {
-    icon: "/favicon.png",
-    apple: "/logo-icon.png",
-  },
-  openGraph: {
-    title: "DuaPrayer",
-    description: "Make Dua & Pray For The Ummah",
-    images: ["/logo-wide.png"],
-  },
+export async function generateMetadata(): Promise<Metadata> {
+  const seo = await getSeoSettings()
+  const metadataBase = new URL((process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").trim())
+
+  return {
+    metadataBase,
+    title: seo.title,
+    description: seo.description,
+    applicationName: seo.siteName,
+    icons: {
+      icon: seo.favicon,
+      shortcut: seo.favicon,
+      apple: "/logo-icon.png",
+    },
+    openGraph: {
+      type: "website",
+      siteName: seo.siteName,
+      title: seo.title,
+      description: seo.description,
+      url: metadataBase,
+      images: [{ url: seo.image, width: 1200, height: 630, alt: seo.siteName }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: seo.title,
+      description: seo.description,
+      images: [seo.image],
+    },
+  }
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
