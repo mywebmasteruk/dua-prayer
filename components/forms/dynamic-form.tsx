@@ -1,12 +1,18 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { ChevronDown, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/use-toast"
 import { TurnstileWidget, type TurnstileWidgetHandle } from "@/components/turnstile-widget"
 import { createClientSupabaseClient } from "@/lib/supabase/client"
@@ -297,26 +303,7 @@ function FieldRow({ field, value, error, uploading, readOnly = false, onChange, 
           </select>
         )
       case "multiselect":
-        return (
-          <div className="space-y-2">
-            {(field.options ?? []).map((opt) => {
-              const selected = Array.isArray(value) ? value.includes(opt.value) : false
-              return (
-                <label key={opt.value} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={selected}
-                    onCheckedChange={(checked) => {
-                      const current = Array.isArray(value) ? [...value] : []
-                      if (checked) onChange([...current, opt.value])
-                      else onChange(current.filter((v) => v !== opt.value))
-                    }}
-                  />
-                  {opt.label}
-                </label>
-              )
-            })}
-          </div>
-        )
+        return <MultiSelectDropdown field={field} value={value} onChange={onChange} triggerClass={selectClass} />
       case "radio":
         return (
           <div className="space-y-2">
@@ -385,6 +372,59 @@ function FieldRow({ field, value, error, uploading, readOnly = false, onChange, 
       ) : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
+  )
+}
+
+// Dropdown that allows selecting several options; the trigger shows the chosen
+// labels and the panel stays open while toggling.
+function MultiSelectDropdown({
+  field,
+  value,
+  onChange,
+  triggerClass,
+}: {
+  field: FormFieldDefinition
+  value: FormAnswerValue | undefined
+  onChange: (value: FormAnswerValue | undefined) => void
+  triggerClass: string
+}) {
+  const options = field.options ?? []
+  const selected = Array.isArray(value) ? value : []
+  const selectedLabels = options.filter((o) => selected.includes(o.value)).map((o) => o.label)
+  const toggle = (optionValue: string, checked: boolean) => {
+    if (checked) onChange([...selected, optionValue])
+    else onChange(selected.filter((v) => v !== optionValue))
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={cn(triggerClass, "flex items-center justify-between gap-2 text-left font-normal")}
+        >
+          <span className={cn("truncate", selectedLabels.length === 0 && "text-muted-foreground")}>
+            {selectedLabels.length > 0 ? selectedLabels.join(", ") : field.placeholder || "Select all that apply…"}
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-60" aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="max-h-64 w-[--radix-dropdown-menu-trigger-width] overflow-y-auto"
+      >
+        {options.map((opt) => (
+          <DropdownMenuCheckboxItem
+            key={opt.value}
+            checked={selected.includes(opt.value)}
+            onCheckedChange={(checked) => toggle(opt.value, checked === true)}
+            onSelect={(event) => event.preventDefault()}
+          >
+            {opt.label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
