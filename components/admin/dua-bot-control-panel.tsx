@@ -187,6 +187,10 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
   }
 
   const handleSave = async () => {
+    if (!draft.systemPrompt.trim()) {
+      toast({ title: "System prompt is required", description: "Add a prompt or click “Load default template”.", variant: "destructive" })
+      return
+    }
     setIsSaving(true)
     const autoCategorize = draft.targetCategoryId === "auto"
     const payload = {
@@ -404,7 +408,7 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="bot-system-prompt">System prompt</Label>
+                <Label htmlFor="bot-system-prompt">System prompt *</Label>
                 <Button
                   type="button"
                   variant="ghost"

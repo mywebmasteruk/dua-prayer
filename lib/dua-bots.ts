@@ -519,7 +519,11 @@ export function normalizeBotInput(input: BotFormInput): { value: NormalizedBotIn
   const tone = sanitizeText(input.tone, "compassionate")
   const language = sanitizeText(input.language, "English")
   const description = sanitizeText(input.description)
+  // The system prompt is the only source of editorial behaviour — it is required.
   const systemPrompt = sanitizeOptionalText(input.systemPrompt ?? input.system_prompt)
+  if (!systemPrompt) {
+    return { error: "A system prompt is required — it defines what the bot does (use “Load default template” to start)." }
+  }
 
   return {
     value: {
