@@ -68,7 +68,9 @@ type BotDraft = {
 const blankDraft: BotDraft = {
   name: "",
   description: "",
-  systemPrompt: "",
+  // A starting template the admin can keep or edit. Nothing is hardcoded at
+  // runtime — the engine sends exactly what's in this field (+ the JSON contract).
+  systemPrompt: defaultRetrieveSystemPrompt({ language: "English" }),
   status: "paused",
   sourceUrls: "https://www.aljazeera.com/xml/rss/all.xml",
   keywords: "earthquake, flood, wildfire, conflict, refugees, disaster",
@@ -425,12 +427,12 @@ export function DuaBotControlPanel({ initialBots, recentRuns, categories, runtim
                 rows={10}
                 value={draft.systemPrompt}
                 onChange={(event) => setDraft({ ...draft, systemPrompt: event.target.value })}
-                placeholder="Leave blank to use the recommended default for the selected language."
+                placeholder="Describe what dua to pick, the output language, tone, hashtag style, and what to avoid."
               />
               <p className="text-xs text-muted-foreground">
-                The full system prompt sent to the AI — what dua to pick, output language, hashtag style, and what to
-                avoid. This is authoritative: nothing here is overridden. Leave blank to use the recommended default;
-                the app only appends a hidden technical line for the JSON output format.
+                This is the entire system prompt sent to the AI — exactly as written, nothing hardcoded or overridden.
+                The app only appends one hidden technical line for the JSON output format. Use “Load default template”
+                for a recommended starting point for the selected language.
               </p>
             </div>
             <div className="space-y-1.5 sm:col-span-2">

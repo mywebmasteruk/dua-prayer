@@ -12,7 +12,7 @@ import {
 import { evaluateDuaModeration } from "@/lib/ai-moderation"
 import { extractHashtags, normalizeHashtag } from "@/lib/hashtags"
 import { curatedDuaCatalogue, DUA_LIBRARY } from "@/lib/dua-library"
-import { defaultRetrieveSystemPrompt, RETRIEVE_OUTPUT_CONTRACT } from "@/lib/dua-bot-prompt"
+import { RETRIEVE_OUTPUT_CONTRACT } from "@/lib/dua-bot-prompt"
 import { detectLanguage, languageToCode } from "@/lib/detect-language"
 
 export type BotStatus = "active" | "paused"
@@ -989,11 +989,10 @@ async function composeRetrievedDuaForEvent(
   if (!pageText || pageText.length < 40) return null
 
   const language = bot.language?.trim() || "English"
-  // The bot's own system prompt is authoritative (admin-editable in the form);
-  // fall back to the default editorial template when blank. The only thing the
-  // code adds is the hidden technical output contract — no hardcoded editorial.
-  const editorial = bot.system_prompt?.trim() || defaultRetrieveSystemPrompt({ language, keywords: bot.keywords })
-  const system = `${editorial}\n${RETRIEVE_OUTPUT_CONTRACT}`
+  // The system prompt comes ENTIRELY from the bot's form field — no editorial
+  // rules (language, tone, hashtag style, etc.) are hardcoded here. The only
+  // thing the code adds is the technical JSON output contract so the reply parses.
+  const system = [bot.system_prompt?.trim(), RETRIEVE_OUTPUT_CONTRACT].filter(Boolean).join("\n")
   const user = [
     `Page title: ${JSON.stringify(event.title)}`,
     event.url ? `Page URL: ${event.url}` : "",
