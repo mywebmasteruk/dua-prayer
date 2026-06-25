@@ -44,6 +44,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     applicationName: siteName,
+    authors: siteName ? [{ name: siteName }] : undefined,
     alternates,
     icons: {
       icon: seo.favicon,
@@ -68,8 +69,22 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [customCode, user] = await Promise.all([getCustomCode(), getServerUser()])
+  const [customCode, user, seo] = await Promise.all([getCustomCode(), getServerUser(), getSeoSettings()])
   const initialFollowedIds = user ? await listMyFollowIds() : []
+
+  // schema.org Organization — only emitted once the admin has set a site name
+  // (the DB owns the brand name; we never hardcode it). Logo is a shipped square asset.
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").trim().replace(/\/$/, "")
+  const organizationLd = seo.siteName
+    ? {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        name: seo.siteName,
+        url: appUrl,
+        logo: `${appUrl}/logo-512.png`,
+        ...(seo.description ? { description: seo.description } : {}),
+      }
+    : null
 
   // First-run onboarding: signed-in users who haven't completed it yet.
   let categories: Awaited<ReturnType<typeof getCategories>> = []
@@ -88,6 +103,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
+        {organizationLd ? (
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationLd) }}
+          />
+        ) : null}
         {customCode.header ? (
           <div dangerouslySetInnerHTML={{ __html: customCode.header }} />
         ) : null}
