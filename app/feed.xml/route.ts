@@ -35,7 +35,7 @@ function truncate(value: string, max: number): string {
 }
 
 function baseUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? "https://duaprayer.com").replace(/\/$/, "")
+  return (process.env.NEXT_PUBLIC_APP_URL ?? "https://duaprayer.com").trim().replace(/\/+$/, "")
 }
 
 function buildItemLink(siteUrl: string, dua: DuaRow, category: CategoryRow | undefined): string {
