@@ -14,10 +14,10 @@ import { ChannelSection } from "@/components/channel-section"
 import { NavigationContentLoader } from "@/components/navigation-content-loader"
 import { Footer } from "@/components/footer"
 import type { Category, Dua } from "@/lib/types/dua"
+import { getPageSeo } from "@/lib/page-seo-server"
 
-export const metadata: Metadata = {
-  title: "Channels — DuaPrayer",
-  description: "Browse community channels and follow the duas that matter most to you.",
+export async function generateMetadata(): Promise<Metadata> {
+  return getPageSeo("channels")
 }
 
 function compactNumber(value: number) {

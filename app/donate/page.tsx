@@ -15,10 +15,10 @@ import { getPlatformStats } from "@/lib/platform-stats-server"
 import { getDonationsStatus } from "@/lib/stripe"
 import { isTurnstileEnabled } from "@/lib/turnstile"
 import { getSiteCopy } from "@/lib/site-copy-server"
+import { getPageSeo } from "@/lib/page-seo-server"
 
-export const metadata: Metadata = {
-  title: "Donate — DuaPrayer",
-  description: "Support DuaPrayer and help keep the community prayer platform free and welcoming.",
+export async function generateMetadata(): Promise<Metadata> {
+  return getPageSeo("donate")
 }
 
 export default async function DonatePage({

@@ -5,11 +5,10 @@ import { ChannelApplySection } from "@/components/channels/channel-apply-section
 import { getMyPendingChannelApplication } from "@/app/actions/channel-applications"
 import { getChannelFormRegistry } from "@/lib/site-settings-server"
 import { getServerUser } from "@/lib/server-user"
+import { getPageSeo } from "@/lib/page-seo-server"
 
-export const metadata: Metadata = {
-  title: "Apply for a channel — DuaPrayer",
-  description:
-    "Apply to open a community channel on DuaPrayer for imams, masjids, and community teams.",
+export async function generateMetadata(): Promise<Metadata> {
+  return getPageSeo("channels-apply")
 }
 
 async function ChannelApplyLoader() {

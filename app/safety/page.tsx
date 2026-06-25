@@ -2,10 +2,10 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { EyeOff, LockKeyhole, Shield, ShieldCheck } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
+import { getPageSeo } from "@/lib/page-seo-server"
 
-export const metadata: Metadata = {
-  title: "Safety — DuaPrayer",
-  description: "Trust, safety, and privacy practices for sharing duas on DuaPrayer.",
+export async function generateMetadata(): Promise<Metadata> {
+  return getPageSeo("safety")
 }
 
 export default function SafetyPage() {

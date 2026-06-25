@@ -9,6 +9,7 @@ import { getSeoSettingsForAdmin } from "@/app/actions/seo"
 import { getRssSettingsForAdmin } from "@/app/actions/rss"
 import { getFooterLinksForAdmin } from "@/app/actions/footer-links"
 import { SEO_DEFAULTS } from "@/lib/seo-settings-server"
+import { getAllPageSeoForAdmin, PAGE_SEO_PAGES, PAGE_SEO_EMPTY, type PageSeoOverrides, type PageSeoSlug } from "@/lib/page-seo-server"
 import { RSS_DEFAULTS } from "@/lib/rss-settings-server"
 import { FOOTER_LINK_DEFAULTS } from "@/lib/footer-links-server"
 import { getAdminContext, hasPermission } from "@/lib/auth"
@@ -62,10 +63,15 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
       }
     }
 
-    const [postingMode, customCode, seoSettings, rssSettings, rssChannels, footerLinks] = await Promise.all([
+    const emptyPageSeo = Object.fromEntries(
+      PAGE_SEO_PAGES.map((p) => [p.slug, { ...PAGE_SEO_EMPTY }]),
+    ) as Record<PageSeoSlug, PageSeoOverrides>
+
+    const [postingMode, customCode, seoSettings, pageSeo, rssSettings, rssChannels, footerLinks] = await Promise.all([
       safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const),
       safe("getCustomCodeForAdmin", () => getCustomCodeForAdmin(), { header: "", footer: "" }),
       safe("getSeoSettingsForAdmin", () => getSeoSettingsForAdmin(), { ...SEO_DEFAULTS }),
+      safe("getAllPageSeoForAdmin", () => getAllPageSeoForAdmin(), emptyPageSeo),
       safe("getRssSettingsForAdmin", () => getRssSettingsForAdmin(), { ...RSS_DEFAULTS }),
       safe("loadRssChannelOptions", async () => {
         const admin = createAdminSupabaseClient()
@@ -96,6 +102,7 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
           postingMode={postingMode}
           customCode={customCode}
           seoSettings={seoSettings}
+          pageSeo={pageSeo}
           rssSettings={rssSettings}
           rssFeedUrl={rssFeedUrl}
           rssChannels={rssChannels}

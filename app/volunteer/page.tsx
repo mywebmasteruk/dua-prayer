@@ -5,11 +5,10 @@ import { VolunteerApplySection } from "@/components/volunteer/volunteer-apply-se
 import { getVolunteerFormRegistry } from "@/lib/site-settings-server"
 import { getServerUser } from "@/lib/server-user"
 import { getProfileAccessState } from "@/lib/account-status"
+import { getPageSeo } from "@/lib/page-seo-server"
 
-export const metadata: Metadata = {
-  title: "Volunteer — DuaPrayer",
-  description:
-    "Help keep DuaPrayer welcoming and available — moderation, engineering, design, and platform care for the community.",
+export async function generateMetadata(): Promise<Metadata> {
+  return getPageSeo("volunteer")
 }
 
 const waysToHelp = [

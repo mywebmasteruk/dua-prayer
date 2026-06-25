@@ -3,11 +3,10 @@ import Link from "next/link"
 import { HeartHandshake, Info, Sparkles } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
 import { getSiteCopy } from "@/lib/site-copy-server"
+import { getPageSeo } from "@/lib/page-seo-server"
 
-export const metadata: Metadata = {
-  title: "About — DuaPrayer",
-  description:
-    "Learn about DuaPrayer — a nonprofit community platform for sharing duas and responding with ameen.",
+export async function generateMetadata(): Promise<Metadata> {
+  return getPageSeo("about")
 }
 
 export default async function AboutPage() {

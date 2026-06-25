@@ -5,12 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { PostingAccessSettings } from "@/components/admin/posting-access-settings"
 import { CustomCodeSettings } from "@/components/admin/custom-code-settings"
 import { SeoSettingsForm } from "@/components/admin/seo-settings"
+import { PageSeoSettingsForm } from "@/components/admin/page-seo-settings"
 import { RssSettingsForm } from "@/components/admin/rss-settings"
 import { FooterLinksSettings } from "@/components/admin/footer-links-settings"
 import { AdminSection } from "@/components/admin/admin-section"
 import { cn } from "@/lib/utils"
 import type { CustomCode } from "@/lib/custom-code-server"
 import type { SeoSettings } from "@/lib/seo-settings-server"
+import type { PageSeoOverrides, PageSeoSlug } from "@/lib/page-seo-server"
 import type { RssSettings } from "@/lib/rss-settings-server"
 import type { FooterLink } from "@/lib/footer-links-server"
 import { SETTINGS_TABS, resolveSettingsTab, type SettingsTabId } from "@/lib/admin-settings-tabs"
@@ -21,6 +23,7 @@ type SettingsHubProps = {
   postingMode: PostingMode
   customCode: CustomCode
   seoSettings: SeoSettings
+  pageSeo: Record<PageSeoSlug, PageSeoOverrides>
   rssSettings: RssSettings
   rssFeedUrl: string
   rssChannels: ReadonlyArray<{ id: string; name: string }>
@@ -71,6 +74,7 @@ export function AdminSettingsHub({
   postingMode,
   customCode,
   seoSettings,
+  pageSeo,
   rssSettings,
   rssFeedUrl,
   rssChannels,
@@ -117,6 +121,22 @@ export function AdminSettingsHub({
             <SeoSettingsForm initialSettings={seoSettings} />
           ) : (
             <AdminSection title="SEO & Social Sharing" description="Search and link-preview metadata.">
+              <p className="text-sm text-muted-foreground">Settings access required.</p>
+            </AdminSection>
+          )}
+        </div>
+
+        {/* Per-page SEO */}
+        <div
+          id="settings-panel-page-seo"
+          role="tabpanel"
+          aria-labelledby="settings-tab-page-seo"
+          className={activeTab === "page-seo" ? undefined : "hidden"}
+        >
+          {canManageSettings ? (
+            <PageSeoSettingsForm initialOverrides={pageSeo} />
+          ) : (
+            <AdminSection title="Per-page SEO" description="Override title, description, and share image per page.">
               <p className="text-sm text-muted-foreground">Settings access required.</p>
             </AdminSection>
           )}

@@ -10,11 +10,10 @@ import {
   Users,
 } from "lucide-react"
 import { InnerPageLayout } from "@/components/inner-page-layout"
+import { getPageSeo } from "@/lib/page-seo-server"
 
-export const metadata: Metadata = {
-  title: "Resources — DuaPrayer",
-  description:
-    "Community guidelines, tips for sharing duas, and quick answers for getting the most from DuaPrayer.",
+export async function generateMetadata(): Promise<Metadata> {
+  return getPageSeo("resources")
 }
 
 const guidelines = [
