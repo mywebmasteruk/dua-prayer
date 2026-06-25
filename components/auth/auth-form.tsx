@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "@/components/ui/use-toast"
-import { signIn, sendMagicLink } from "@/app/actions/auth"
+import { signIn, signUp, sendMagicLink } from "@/app/actions/auth"
 import { createClientSupabaseClient } from "@/lib/supabase/client"
 
 interface AuthFormProps {
@@ -46,6 +46,8 @@ export function AuthForm({ error, resetSuccess, next, onMagicLinkSuccess }: Auth
   const [loading, setLoading] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
   const [magicLinkClosing, setMagicLinkClosing] = useState(false)
+  const [passwordMode, setPasswordMode] = useState<"signin" | "signup">("signin")
+  const [signupConfirmSent, setSignupConfirmSent] = useState(false)
 
   useEffect(() => {
     if (!magicLinkSent) return
@@ -118,6 +120,27 @@ export function AuthForm({ error, resetSuccess, next, onMagicLinkSuccess }: Auth
     setLoading(false)
   }
 
+  const handleSignUp = async (formData: FormData) => {
+    setLoading(true)
+    if (next) formData.set("next", next)
+    try {
+      const result = await signUp(formData)
+      if (result?.error) {
+        toast({ title: "Error", description: result.error, variant: "destructive" })
+      } else if (result?.needsConfirmation) {
+        setSignupConfirmSent(true)
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("NEXT_REDIRECT")) {
+        throw e
+      }
+      if (e instanceof Error) {
+        toast({ title: "Error", description: e.message, variant: "destructive" })
+      }
+    }
+    setLoading(false)
+  }
+
   const handleMagicLink = async (formData: FormData) => {
     setLoading(true)
     if (next) formData.set("next", next)
@@ -138,7 +161,7 @@ export function AuthForm({ error, resetSuccess, next, onMagicLinkSuccess }: Auth
         </CardTitle>
         <CardDescription className="text-center text-sm leading-6">
           Log in to save your activity, follow channels, and access more features.
-          New here? Continue with Google or magic link to create your account.
+          New here? Create an account with Google, a magic link, or an email and password.
         </CardDescription>
         {resetSuccess && (
           <p className="text-sm text-green-600 text-center">Password updated. You can sign in now.</p>
@@ -170,39 +193,84 @@ export function AuthForm({ error, resetSuccess, next, onMagicLinkSuccess }: Auth
           </TabsList>
 
           <TabsContent value="password" className="mt-4 space-y-4">
-            <form action={handleSignIn} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="signin-email">Email</Label>
-                <Input
-                  id="signin-email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                />
+            {passwordMode === "signup" && signupConfirmSent ? (
+              <div className="space-y-3 py-2 text-center">
+                <p className="text-sm font-medium text-green-600">Check your email</p>
+                <p className="text-sm text-muted-foreground">
+                  We sent a confirmation link. Click it to activate your account, then sign in.
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSignupConfirmSent(false)
+                    setPasswordMode("signin")
+                  }}
+                >
+                  Back to sign in
+                </Button>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="signin-password">Password</Label>
-                  <Link
-                    href={next ? `/auth/forgot-password?next=${encodeURIComponent(next)}` : "/auth/forgot-password"}
-                    className="text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
-                  >
-                    Forgot password?
-                  </Link>
+            ) : (
+              <form action={passwordMode === "signin" ? handleSignIn : handleSignUp} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signin-email">Email</Label>
+                  <Input
+                    id="signin-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                  />
                 </div>
-                <Input
-                  id="signin-password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Signing in..." : "Sign in"}
-              </Button>
-            </form>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="signin-password">Password</Label>
+                    {passwordMode === "signin" ? (
+                      <Link
+                        href={next ? `/auth/forgot-password?next=${encodeURIComponent(next)}` : "/auth/forgot-password"}
+                        className="text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+                      >
+                        Forgot password?
+                      </Link>
+                    ) : null}
+                  </div>
+                  <Input
+                    id="signin-password"
+                    name="password"
+                    type="password"
+                    autoComplete={passwordMode === "signin" ? "current-password" : "new-password"}
+                    minLength={passwordMode === "signup" ? 8 : undefined}
+                    required
+                  />
+                  {passwordMode === "signup" ? (
+                    <p className="text-xs text-muted-foreground">At least 8 characters.</p>
+                  ) : null}
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {passwordMode === "signin"
+                    ? loading
+                      ? "Signing in..."
+                      : "Sign in"
+                    : loading
+                      ? "Creating account..."
+                      : "Create account"}
+                </Button>
+              </form>
+            )}
+
+            {!signupConfirmSent ? (
+              <p className="text-center text-sm text-muted-foreground">
+                {passwordMode === "signin" ? "New here? " : "Already have an account? "}
+                <button
+                  type="button"
+                  onClick={() => setPasswordMode(passwordMode === "signin" ? "signup" : "signin")}
+                  className="font-medium text-foreground underline-offset-4 hover:underline"
+                >
+                  {passwordMode === "signin" ? "Create an account" : "Sign in"}
+                </button>
+              </p>
+            ) : null}
           </TabsContent>
 
           <TabsContent value="magic-link" className="mt-4">

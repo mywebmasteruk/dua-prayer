@@ -52,6 +52,42 @@ export async function signIn(formData: FormData) {
   redirect(destination)
 }
 
+export async function signUp(formData: FormData) {
+  const email = formData.get("email") as string
+  const password = formData.get("password") as string
+  const next = safeNextPath(formData.get("next") as string)
+
+  if (!email) return { error: "Email is required" }
+  if (!password || password.length < 8) return { error: "Password must be at least 8 characters" }
+
+  const supabase = await createServerSupabaseClient()
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: buildCallbackUrl(next) },
+  })
+
+  if (error) return { error: mapAuthErrorMessage(error.message) }
+
+  // Supabase returns a user with zero identities (and no error) when the email
+  // already exists — this avoids account enumeration. Surface a sign-in hint.
+  if (data.user && (data.user.identities?.length ?? 0) === 0) {
+    return { error: "An account with this email already exists. Try signing in instead." }
+  }
+
+  // Email confirmation is enabled → no session yet; the user must click the link.
+  if (!data.session || !data.user) {
+    return { success: true as const, needsConfirmation: true as const, message: "Check your email to confirm your account." }
+  }
+
+  // Confirmation disabled → the account is active immediately.
+  const access = await getProfileAccessState(data.user.id)
+  const accountStatusDestination = access ? accountStatusPostAuthRedirect(access.accountStatus) : null
+  const destination = accountStatusDestination ?? (await resolvePostAuthRedirect(next, data.user.id, data.user.email))
+  revalidatePath("/")
+  redirect(destination)
+}
+
 export async function sendMagicLink(formData: FormData) {
   const email = formData.get("email") as string
   const next = safeNextPath(formData.get("next") as string)
