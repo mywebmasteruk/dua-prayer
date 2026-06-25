@@ -88,6 +88,8 @@ export const SITE_SETTING_KEYS = {
   rssIncludeFreeformDuas: "rss.include_freeform_duas",
   rssExcludedChannelIds: "rss.excluded_channel_ids",
   rssOnlyVerifiedChannels: "rss.only_verified_channels",
+  // Admin-editable list of links rendered in the site footer.
+  footerLinks: "footer.links",
 } as const
 
 /** Keys stored in site_settings — never exposed via public RLS policy */

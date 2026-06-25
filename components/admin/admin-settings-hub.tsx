@@ -6,11 +6,13 @@ import { PostingAccessSettings } from "@/components/admin/posting-access-setting
 import { CustomCodeSettings } from "@/components/admin/custom-code-settings"
 import { SeoSettingsForm } from "@/components/admin/seo-settings"
 import { RssSettingsForm } from "@/components/admin/rss-settings"
+import { FooterLinksSettings } from "@/components/admin/footer-links-settings"
 import { AdminSection } from "@/components/admin/admin-section"
 import { cn } from "@/lib/utils"
 import type { CustomCode } from "@/lib/custom-code-server"
 import type { SeoSettings } from "@/lib/seo-settings-server"
 import type { RssSettings } from "@/lib/rss-settings-server"
+import type { FooterLink } from "@/lib/footer-links-server"
 import { SETTINGS_TABS, resolveSettingsTab, type SettingsTabId } from "@/lib/admin-settings-tabs"
 import type { PostingMode } from "@/lib/posting-settings-shared"
 
@@ -22,6 +24,8 @@ type SettingsHubProps = {
   rssSettings: RssSettings
   rssFeedUrl: string
   rssChannels: ReadonlyArray<{ id: string; name: string }>
+  footerLinks: FooterLink[]
+  footerLinkDefaults: ReadonlyArray<FooterLink>
   canManageSettings: boolean
 }
 
@@ -70,6 +74,8 @@ export function AdminSettingsHub({
   rssSettings,
   rssFeedUrl,
   rssChannels,
+  footerLinks,
+  footerLinkDefaults,
   canManageSettings,
 }: SettingsHubProps) {
   const router = useRouter()
@@ -131,6 +137,22 @@ export function AdminSettingsHub({
             />
           ) : (
             <AdminSection title="RSS Feed" description="Publish recent duas as an RSS 2.0 feed.">
+              <p className="text-sm text-muted-foreground">Settings access required.</p>
+            </AdminSection>
+          )}
+        </div>
+
+        {/* Footer Links */}
+        <div
+          id="settings-panel-footer-links"
+          role="tabpanel"
+          aria-labelledby="settings-tab-footer-links"
+          className={activeTab === "footer-links" ? undefined : "hidden"}
+        >
+          {canManageSettings ? (
+            <FooterLinksSettings initialLinks={footerLinks} defaults={footerLinkDefaults} />
+          ) : (
+            <AdminSection title="Footer Links" description="Add, edit, and reorder the links shown in the site footer.">
               <p className="text-sm text-muted-foreground">Settings access required.</p>
             </AdminSection>
           )}

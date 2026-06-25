@@ -3,6 +3,7 @@ import { Rss } from "lucide-react"
 import { BrandLogo } from "./brand-logo"
 import { signInHref } from "@/lib/auth-modal"
 import { getRssSettings } from "@/lib/rss-settings-server"
+import { getFooterLinks } from "@/lib/footer-links-server"
 
 const footerLinkClassName =
   "rounded-sm text-muted-foreground/75 transition hover:text-primary hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -20,7 +21,7 @@ export async function Footer({
   const year = new Date().getFullYear()
   const innerClassName =
     layout === "column" ? "w-full px-4 py-8 lg:px-6" : "site-container py-8"
-  const rss = await getRssSettings()
+  const [rss, footerLinks] = await Promise.all([getRssSettings(), getFooterLinks()])
 
   return (
     <footer className="site-shell-footer">
@@ -38,15 +39,16 @@ export async function Footer({
           </div>
 
           <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium">
-            <Link href="/" className={footerLinkClassName}>
-              Home
-            </Link>
-            <Link href="/donate" className={footerLinkClassName}>
-              Donate
-            </Link>
-            <Link href="/volunteer" className={footerLinkClassName}>
-              Volunteer
-            </Link>
+            {footerLinks.map((link) => (
+              <Link
+                key={`${link.label}-${link.href}`}
+                href={link.href}
+                className={footerLinkClassName}
+                {...(link.openInNewTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+              >
+                {link.label}
+              </Link>
+            ))}
             <Link href={signInHref()} className={footerLinkClassName}>
               Sign in
             </Link>

@@ -7,8 +7,10 @@ import { isSettingsTabId } from "@/lib/admin-settings-tabs"
 import { getCustomCodeForAdmin } from "@/app/actions/custom-code"
 import { getSeoSettingsForAdmin } from "@/app/actions/seo"
 import { getRssSettingsForAdmin } from "@/app/actions/rss"
+import { getFooterLinksForAdmin } from "@/app/actions/footer-links"
 import { SEO_DEFAULTS } from "@/lib/seo-settings-server"
 import { RSS_DEFAULTS } from "@/lib/rss-settings-server"
+import { FOOTER_LINK_DEFAULTS } from "@/lib/footer-links-server"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
 import { getPostingModeForAdmin } from "@/lib/posting-settings"
@@ -60,7 +62,7 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
       }
     }
 
-    const [postingMode, customCode, seoSettings, rssSettings, rssChannels] = await Promise.all([
+    const [postingMode, customCode, seoSettings, rssSettings, rssChannels, footerLinks] = await Promise.all([
       safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const),
       safe("getCustomCodeForAdmin", () => getCustomCodeForAdmin(), { header: "", footer: "" }),
       safe("getSeoSettingsForAdmin", () => getSeoSettingsForAdmin(), { ...SEO_DEFAULTS }),
@@ -75,6 +77,7 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
           .order("name", { ascending: true })
         return (data ?? []) as Array<{ id: string; name: string }>
       }, [] as Array<{ id: string; name: string }>),
+      safe("getFooterLinksForAdmin", () => getFooterLinksForAdmin(), []),
     ])
 
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://duaprayer.com").replace(/\/$/, "")
@@ -96,6 +99,8 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
           rssSettings={rssSettings}
           rssFeedUrl={rssFeedUrl}
           rssChannels={rssChannels}
+          footerLinks={footerLinks}
+          footerLinkDefaults={FOOTER_LINK_DEFAULTS}
           canManageSettings={canManageSettings}
         />
       </InnerPageLayout>
