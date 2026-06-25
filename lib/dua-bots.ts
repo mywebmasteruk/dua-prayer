@@ -682,10 +682,25 @@ async function composeRetrievedDuaForEvent(
 // When a bot is set to auto-categorise, ask the model to place the dua into the
 // best-fitting official topic category (channel_type = "category"). Returns the
 // chosen category id, or null when none fits / the model can't decide.
+async function firstApprovedCategoryId(): Promise<number | null> {
+  const admin = createAdminSupabaseClient()
+  const { data, error } = await admin
+    .from("categories")
+    .select("id")
+    .eq("channel_type", "category")
+    .eq("is_active", true)
+    .eq("status", "approved")
+    .order("sort_order", { ascending: true })
+    .limit(1)
+  if (error || !data || data.length === 0) return null
+  return data[0].id as number
+}
+
 async function pickCategoryForDua(
   dua: string,
   event: EventCandidate,
   settings: AiProviderSettings,
+  preferredFallbackId: number | null,
 ): Promise<number | null> {
   const admin = createAdminSupabaseClient()
   const { data, error } = await admin
@@ -698,6 +713,13 @@ async function pickCategoryForDua(
 
   if (error || !data || data.length === 0) return null
   const validIds = new Set(data.map((category) => category.id))
+  // Deterministic fallback so a bot dua is never categoryless when at least one
+  // category exists: prefer the bot's configured target, otherwise the first
+  // approved category by sort_order.
+  const fallbackId =
+    preferredFallbackId !== null && validIds.has(preferredFallbackId)
+      ? preferredFallbackId
+      : data[0].id
 
   const system = [
     "You assign an Islamic dua (supplication) to the single best-fitting category from a fixed list.",
@@ -726,7 +748,7 @@ async function pickCategoryForDua(
       controller.signal,
     )
   } catch {
-    return null
+    return fallbackId
   } finally {
     clearTimeout(timeout)
   }
@@ -734,9 +756,9 @@ async function pickCategoryForDua(
   try {
     const parsed = JSON.parse(raw) as { categoryId?: unknown }
     const id = typeof parsed.categoryId === "number" ? parsed.categoryId : null
-    return id !== null && validIds.has(id) ? id : null
+    return id !== null && validIds.has(id) ? id : fallbackId
   } catch {
-    return null
+    return fallbackId
   }
 }
 
@@ -898,9 +920,14 @@ async function persistDuaFromEvent(
     throw new Error(`Generated dua blocked by moderation: ${moderation.reason}`)
   }
 
-  const categoryId = bot.auto_categorize
-    ? await pickCategoryForDua(text, event, aiSettings)
+  let categoryId = bot.auto_categorize
+    ? await pickCategoryForDua(text, event, aiSettings, bot.target_category_id)
     : bot.target_category_id
+  // Final safety net: bot-authored duas must always have a category. Pick the
+  // first approved category if the AI + fallbacks somehow left us with null.
+  if (categoryId == null) {
+    categoryId = await firstApprovedCategoryId()
+  }
 
   const requiresReview = bot.publish_mode === "pending" || moderation.flagged || moderation.severity === "review"
   const admin = createAdminSupabaseClient()
