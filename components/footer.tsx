@@ -1,13 +1,15 @@
 import Link from "next/link"
+import { Rss } from "lucide-react"
 import { BrandLogo } from "./brand-logo"
 import { signInHref } from "@/lib/auth-modal"
+import { getRssSettings } from "@/lib/rss-settings-server"
 
 const footerLinkClassName =
   "rounded-sm text-muted-foreground/75 transition hover:text-primary hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 
 type FooterLayout = "page" | "column"
 
-export function Footer({
+export async function Footer({
   footerTagline = "A nonprofit community platform for sharing duas and responding with ameen — free for the Ummah.",
   layout = "page",
 }: {
@@ -18,6 +20,7 @@ export function Footer({
   const year = new Date().getFullYear()
   const innerClassName =
     layout === "column" ? "w-full px-4 py-8 lg:px-6" : "site-container py-8"
+  const rss = await getRssSettings()
 
   return (
     <footer className="site-shell-footer">
@@ -47,6 +50,17 @@ export function Footer({
             <Link href={signInHref()} className={footerLinkClassName}>
               Sign in
             </Link>
+            {rss.enabled ? (
+              <Link
+                href="/feed.xml"
+                className={`${footerLinkClassName} inline-flex items-center gap-1`}
+                aria-label="RSS feed"
+                title="RSS feed"
+              >
+                <Rss className="h-3.5 w-3.5" aria-hidden="true" />
+                RSS
+              </Link>
+            ) : null}
           </nav>
         </div>
 
