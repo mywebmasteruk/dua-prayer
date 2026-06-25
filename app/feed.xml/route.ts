@@ -20,8 +20,8 @@ type CategoryRow = {
   status: string | null
 }
 
-function xmlEscape(value: string): string {
-  return value
+function xmlEscape(value: unknown): string {
+  return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
