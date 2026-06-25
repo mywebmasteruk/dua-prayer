@@ -13,6 +13,7 @@ import { OnboardingGate } from "@/components/onboarding/onboarding-gate"
 import { BetaBanner } from "@/components/beta-banner"
 import { getCustomCode } from "@/lib/custom-code-server"
 import { getSeoSettings } from "@/lib/seo-settings-server"
+import { getRssSettings } from "@/lib/rss-settings-server"
 import { getServerUser } from "@/lib/server-user"
 import { listMyFollowIds } from "@/app/actions/follows"
 import { getMyPreferences } from "@/app/actions/preferences"
@@ -21,7 +22,7 @@ import { getCategories } from "@/app/actions/duas"
 const inter = Inter({ subsets: ["latin"] })
 
 export async function generateMetadata(): Promise<Metadata> {
-  const seo = await getSeoSettings()
+  const [seo, rss] = await Promise.all([getSeoSettings(), getRssSettings()])
   const metadataBase = new URL((process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").trim())
 
   // Empty strings mean "admin hasn't set this yet" — pass undefined so Next.js
@@ -30,11 +31,20 @@ export async function generateMetadata(): Promise<Metadata> {
   const description = seo.description || undefined
   const siteName = seo.siteName || undefined
 
+  const alternates: Metadata["alternates"] = rss.enabled
+    ? {
+        types: {
+          "application/rss+xml": [{ url: "/feed.xml", title: rss.title || siteName || "RSS Feed" }],
+        },
+      }
+    : undefined
+
   return {
     metadataBase,
     title,
     description,
     applicationName: siteName,
+    alternates,
     icons: {
       icon: seo.favicon,
       shortcut: seo.favicon,

@@ -6,10 +6,13 @@ import { AdminSettingsHub } from "@/components/admin/admin-settings-hub"
 import { isSettingsTabId } from "@/lib/admin-settings-tabs"
 import { getCustomCodeForAdmin } from "@/app/actions/custom-code"
 import { getSeoSettingsForAdmin } from "@/app/actions/seo"
+import { getRssSettingsForAdmin } from "@/app/actions/rss"
 import { SEO_DEFAULTS } from "@/lib/seo-settings-server"
+import { RSS_DEFAULTS } from "@/lib/rss-settings-server"
 import { getAdminContext, hasPermission } from "@/lib/auth"
 import { signInHref } from "@/lib/auth-modal"
 import { getPostingModeForAdmin } from "@/lib/posting-settings"
+import { createAdminSupabaseClient } from "@/lib/supabase/admin"
 
 type PageProps = {
   searchParams: Promise<{ tab?: string }>
@@ -57,11 +60,25 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
       }
     }
 
-    const [postingMode, customCode, seoSettings] = await Promise.all([
+    const [postingMode, customCode, seoSettings, rssSettings, rssChannels] = await Promise.all([
       safe("getPostingModeForAdmin", () => getPostingModeForAdmin(), "public" as const),
       safe("getCustomCodeForAdmin", () => getCustomCodeForAdmin(), { header: "", footer: "" }),
       safe("getSeoSettingsForAdmin", () => getSeoSettingsForAdmin(), { ...SEO_DEFAULTS }),
+      safe("getRssSettingsForAdmin", () => getRssSettingsForAdmin(), { ...RSS_DEFAULTS }),
+      safe("loadRssChannelOptions", async () => {
+        const admin = createAdminSupabaseClient()
+        const { data } = await admin
+          .from("categories")
+          .select("id, name")
+          .eq("is_active", true)
+          .eq("status", "approved")
+          .order("name", { ascending: true })
+        return (data ?? []) as Array<{ id: string; name: string }>
+      }, [] as Array<{ id: string; name: string }>),
     ])
+
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://duaprayer.com").replace(/\/$/, "")
+    const rssFeedUrl = `${appUrl}/feed.xml`
 
     return (
       <InnerPageLayout activePath="/admin/settings">
@@ -76,6 +93,9 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
           postingMode={postingMode}
           customCode={customCode}
           seoSettings={seoSettings}
+          rssSettings={rssSettings}
+          rssFeedUrl={rssFeedUrl}
+          rssChannels={rssChannels}
           canManageSettings={canManageSettings}
         />
       </InnerPageLayout>

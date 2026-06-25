@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { PostingAccessSettings } from "@/components/admin/posting-access-settings"
 import { CustomCodeSettings } from "@/components/admin/custom-code-settings"
 import { SeoSettingsForm } from "@/components/admin/seo-settings"
+import { RssSettingsForm } from "@/components/admin/rss-settings"
 import { AdminSection } from "@/components/admin/admin-section"
 import { cn } from "@/lib/utils"
 import type { CustomCode } from "@/lib/custom-code-server"
 import type { SeoSettings } from "@/lib/seo-settings-server"
+import type { RssSettings } from "@/lib/rss-settings-server"
 import { SETTINGS_TABS, resolveSettingsTab, type SettingsTabId } from "@/lib/admin-settings-tabs"
 import type { PostingMode } from "@/lib/posting-settings-shared"
 
@@ -17,6 +19,9 @@ type SettingsHubProps = {
   postingMode: PostingMode
   customCode: CustomCode
   seoSettings: SeoSettings
+  rssSettings: RssSettings
+  rssFeedUrl: string
+  rssChannels: ReadonlyArray<{ id: string; name: string }>
   canManageSettings: boolean
 }
 
@@ -62,6 +67,9 @@ export function AdminSettingsHub({
   postingMode,
   customCode,
   seoSettings,
+  rssSettings,
+  rssFeedUrl,
+  rssChannels,
   canManageSettings,
 }: SettingsHubProps) {
   const router = useRouter()
@@ -103,6 +111,26 @@ export function AdminSettingsHub({
             <SeoSettingsForm initialSettings={seoSettings} />
           ) : (
             <AdminSection title="SEO & Social Sharing" description="Search and link-preview metadata.">
+              <p className="text-sm text-muted-foreground">Settings access required.</p>
+            </AdminSection>
+          )}
+        </div>
+
+        {/* RSS Feed */}
+        <div
+          id="settings-panel-rss"
+          role="tabpanel"
+          aria-labelledby="settings-tab-rss"
+          className={activeTab === "rss" ? undefined : "hidden"}
+        >
+          {canManageSettings ? (
+            <RssSettingsForm
+              initialSettings={rssSettings}
+              channels={[...rssChannels]}
+              feedUrl={rssFeedUrl}
+            />
+          ) : (
+            <AdminSection title="RSS Feed" description="Publish recent duas as an RSS 2.0 feed.">
               <p className="text-sm text-muted-foreground">Settings access required.</p>
             </AdminSection>
           )}

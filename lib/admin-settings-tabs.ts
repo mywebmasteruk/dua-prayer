@@ -1,8 +1,9 @@
-export type SettingsTabId = "posting" | "seo" | "custom-code"
+export type SettingsTabId = "posting" | "seo" | "rss" | "custom-code"
 
 export const SETTINGS_TABS: ReadonlyArray<{ id: SettingsTabId; label: string }> = [
   { id: "posting", label: "Posting & Access" },
   { id: "seo", label: "SEO & Social" },
+  { id: "rss", label: "RSS Feed" },
   { id: "custom-code", label: "Custom Code" },
 ]
 

@@ -75,6 +75,19 @@ export const SITE_SETTING_KEYS = {
   seoDescription: "seo.description",
   seoImage: "seo.image",
   seoFavicon: "seo.favicon",
+  // RSS feed at /feed.xml.
+  rssEnabled: "rss.enabled",
+  rssTitle: "rss.title",
+  rssDescription: "rss.description",
+  rssAuthor: "rss.author",
+  rssCopyright: "rss.copyright",
+  rssLanguage: "rss.language",
+  rssTtlMinutes: "rss.ttl_minutes",
+  rssItemCount: "rss.item_count",
+  rssIncludeChannelPosts: "rss.include_channel_posts",
+  rssIncludeFreeformDuas: "rss.include_freeform_duas",
+  rssExcludedChannelIds: "rss.excluded_channel_ids",
+  rssOnlyVerifiedChannels: "rss.only_verified_channels",
 } as const
 
 /** Keys stored in site_settings — never exposed via public RLS policy */
