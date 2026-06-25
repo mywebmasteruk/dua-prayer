@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic"
 
 type DuaRow = {
   id: string
-  text: string
+  text: string | null
   channel_id: string | null
   language: string | null
   created_at: string
@@ -125,7 +125,7 @@ export async function GET() {
   const items = duas.map((dua) => {
     const category = dua.channel_id ? categoryById.get(dua.channel_id) : undefined
     const link = buildItemLink(siteUrl, dua, category)
-    const titleSource = dua.text.replace(/\s+/g, " ").trim()
+    const titleSource = String(dua.text ?? "").replace(/\s+/g, " ").trim()
     const title = truncate(titleSource, 90) || "Dua"
     const description = truncate(titleSource, 500)
     const pubDate = new Date(dua.created_at).toUTCString()
