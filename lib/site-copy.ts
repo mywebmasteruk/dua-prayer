@@ -19,11 +19,11 @@ export const SITE_COPY_DEFAULTS = {
   composerTitleEn: "Share your dua with the Ummah.",
   composerDescriptionEn:
     "Please do not include personal or private details and keep it positive. All posts are subject to moderation. JZK",
-  composerPlaceholderEn: "Make a dua for yourself, your family, or someone who needs support...",
+  composerPlaceholderEn: "Share a dua for yourself, your family, or someone who needs support...",
   composerCategoryPlaceholderEn: "Topic",
-  composerSubmitEn: "Make",
-  composerSubmitAriaEn: "Make Dua",
-  composerSubmittingEn: "Making…",
+  composerSubmitEn: "Share",
+  composerSubmitAriaEn: "Share Dua",
+  composerSubmittingEn: "Sharing…",
   composerTitleAr: "شارك دعاءك مع الأمة.",
   composerDescriptionAr:
     "يرجى عدم تضمين تفاصيل شخصية أو خاصة، واجعل الدعاء إيجابيًا. تخضع جميع المشاركات للمراجعة. جزاكم الله خيرًا",

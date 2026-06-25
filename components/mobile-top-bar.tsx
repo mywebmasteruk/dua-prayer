@@ -36,7 +36,7 @@ export function MobileTopBar({ showCompose = false }: MobileTopBarProps) {
             <button
               type="button"
               onClick={() => setComposeOpen(true)}
-              aria-label="Make dua"
+              aria-label="Share dua"
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_20px_rgba(22,163,74,0.16)] transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Plus className="h-5 w-5" aria-hidden="true" />

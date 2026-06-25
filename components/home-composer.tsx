@@ -86,23 +86,23 @@ export function HomeComposer({ categories, turnstileSiteKey, copy, postingMode, 
           className="flex min-w-0 flex-1 items-center rounded-full bg-muted px-4 py-3 text-[15px] font-medium text-muted-foreground shadow-[inset_0_0_0_1px_rgba(15,23,42,0.035)] transition hover:bg-white hover:text-foreground hover:shadow-[0_8px_22px_rgba(15,23,42,0.06)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-haspopup="dialog"
           aria-expanded={isOpen}
-          aria-label="Open composer to make a dua"
+          aria-label="Open composer to share a dua"
         >
-          <span className="truncate">What dua would you like to make?</span>
+          <span className="truncate">What dua would you like to share?</span>
         </button>
         {postingMode !== "public" ? (
           <span className="hidden rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground sm:inline-flex">
             {postingOption?.label}
           </span>
         ) : null}
-        <ActionIconTooltip label="Make dua">
+        <ActionIconTooltip label="Share dua">
           <button
             type="button"
             onClick={() => setIsOpen(true)}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_20px_rgba(22,163,74,0.16)] transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-haspopup="dialog"
             aria-expanded={isOpen}
-            aria-label="Open composer to make a dua"
+            aria-label="Open composer to share a dua"
           >
             <Plus className="h-5 w-5" aria-hidden="true" />
           </button>

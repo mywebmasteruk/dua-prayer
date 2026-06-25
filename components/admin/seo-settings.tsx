@@ -50,7 +50,7 @@ export function SeoSettingsForm({ initialSettings }: { initialSettings: SeoSetti
           label="Site title"
           hint="The headline for search results and link previews (the browser tab title and og:title)."
         >
-          <Input id="seo-title" value={settings.title} onChange={(e) => set("title", e.target.value)} placeholder="DuaPrayer — Make Dua & Pray For The Ummah" />
+          <Input id="seo-title" value={settings.title} onChange={(e) => set("title", e.target.value)} placeholder="DuaPrayer — Share Dua & Pray For The Ummah" />
         </Field>
 
         <Field
