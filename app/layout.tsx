@@ -24,11 +24,17 @@ export async function generateMetadata(): Promise<Metadata> {
   const seo = await getSeoSettings()
   const metadataBase = new URL((process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").trim())
 
+  // Empty strings mean "admin hasn't set this yet" — pass undefined so Next.js
+  // omits the tag entirely instead of rendering <title></title>.
+  const title = seo.title || undefined
+  const description = seo.description || undefined
+  const siteName = seo.siteName || undefined
+
   return {
     metadataBase,
-    title: seo.title,
-    description: seo.description,
-    applicationName: seo.siteName,
+    title,
+    description,
+    applicationName: siteName,
     icons: {
       icon: seo.favicon,
       shortcut: seo.favicon,
@@ -36,16 +42,16 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     openGraph: {
       type: "website",
-      siteName: seo.siteName,
-      title: seo.title,
-      description: seo.description,
+      siteName,
+      title,
+      description,
       url: metadataBase,
-      images: [{ url: seo.image, width: 1200, height: 630, alt: seo.siteName }],
+      images: [{ url: seo.image, width: 1200, height: 630, alt: siteName ?? "" }],
     },
     twitter: {
       card: "summary_large_image",
-      title: seo.title,
-      description: seo.description,
+      title,
+      description,
       images: [seo.image],
     },
   }

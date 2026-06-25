@@ -16,12 +16,13 @@ export type SeoSettings = {
   favicon: string
 }
 
-// Current shipped values stay the defaults so nothing regresses before an admin
-// fills the form in.
+// Editable copy lives in the DB only — admins own siteName/title/description.
+// Image/favicon defaults point at the shipped static assets so a fresh install
+// still has a valid og:image and favicon before anyone opens the admin form.
 export const SEO_DEFAULTS: SeoSettings = {
-  siteName: "DuaPrayer",
-  title: "DuaPrayer — Share Dua & Pray For The Ummah",
-  description: "Share duas and pray for the Muslim Ummah. A community prayer wall.",
+  siteName: "",
+  title: "",
+  description: "",
   image: "/og-image.png",
   favicon: "/favicon.png",
 } as const
