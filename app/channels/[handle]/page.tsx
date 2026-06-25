@@ -21,6 +21,7 @@ import { VerifiedChannelBadge } from "@/components/verified-channel-badge"
 import { buildTrendingHashtags, buildTrendingByLanguage } from "@/lib/hashtags"
 import { isTurnstileEnabled } from "@/lib/turnstile"
 import { getChannelHandle } from "@/lib/channels"
+import { getSeoSettings } from "@/lib/seo-settings-server"
 import type { Category, Dua } from "@/lib/types/dua"
 
 function compactNumber(value: number) {
@@ -62,7 +63,7 @@ export async function generateMetadata({
   params: Promise<{ handle: string }>
 }): Promise<Metadata> {
   const { handle } = await params
-  const categories = await getCategories()
+  const [categories, seo] = await Promise.all([getCategories(), getSeoSettings()])
   const channel = categories.find((c) => getChannelHandle(c) === handle)
   if (!channel) return {}
 
@@ -70,9 +71,28 @@ export async function generateMetadata({
     channel.description?.trim() ||
     `Duas and collective ameen in ${channel.name.toLowerCase()}.`
 
+  // Brand suffix comes from the DB site name (never hardcoded).
+  const title = seo.siteName ? `${channel.name} — ${seo.siteName}` : channel.name
+  const canonical = `/channels/${handle}`
+
   return {
-    title: `${channel.name} — DuaPrayer`,
+    title,
     description,
+    alternates: { canonical },
+    openGraph: {
+      type: "website",
+      siteName: seo.siteName || undefined,
+      title,
+      description,
+      url: canonical,
+      images: [{ url: seo.image, width: 1200, height: 630, alt: channel.name }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [seo.image],
+    },
   }
 }
 
@@ -104,6 +124,18 @@ export default async function ChannelPage({
       getMyPreferences(),
     ])
 
+  // BreadcrumbList structured data: Home › Channels › {channel}.
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://duaprayer.com").trim().replace(/\/$/, "")
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: appUrl },
+      { "@type": "ListItem", position: 2, name: "Channels", item: `${appUrl}/channels` },
+      { "@type": "ListItem", position: 3, name: channel.name, item: `${appUrl}/channels/${handle}` },
+    ],
+  }
+
   const channelTotal = channelFirstPage.total
   const isVerified = channel.is_verified && channel.status === "approved"
   // Only the channel owner may post into their channel, and they do it from
@@ -119,6 +151,10 @@ export default async function ChannelPage({
 
   return (
     <HomeSearchProvider>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+      />
       <div className="min-h-screen bg-muted text-foreground">
         <div className="mx-auto grid w-full max-w-[1265px] lg:grid-cols-[minmax(0,275px)_minmax(0,600px)_minmax(0,350px)] lg:justify-center">
           <aside

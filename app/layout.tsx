@@ -72,17 +72,32 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const [customCode, user, seo] = await Promise.all([getCustomCode(), getServerUser(), getSeoSettings()])
   const initialFollowedIds = user ? await listMyFollowIds() : []
 
-  // schema.org Organization — only emitted once the admin has set a site name
-  // (the DB owns the brand name; we never hardcode it). Logo is a shipped square asset.
+  // schema.org Organization + WebSite — only emitted once the admin has set a
+  // site name (the DB owns the brand name; we never hardcode it). Logo is a
+  // shipped square asset. No SearchAction: site search is client-side state, not
+  // a crawlable URL, so a sitelinks search box would point nowhere.
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").trim().replace(/\/$/, "")
-  const organizationLd = seo.siteName
+  const structuredData = seo.siteName
     ? {
         "@context": "https://schema.org",
-        "@type": "Organization",
-        name: seo.siteName,
-        url: appUrl,
-        logo: `${appUrl}/logo-512.png`,
-        ...(seo.description ? { description: seo.description } : {}),
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": `${appUrl}/#organization`,
+            name: seo.siteName,
+            url: appUrl,
+            logo: `${appUrl}/logo-512.png`,
+            ...(seo.description ? { description: seo.description } : {}),
+          },
+          {
+            "@type": "WebSite",
+            "@id": `${appUrl}/#website`,
+            name: seo.siteName,
+            url: appUrl,
+            publisher: { "@id": `${appUrl}/#organization` },
+            ...(seo.description ? { description: seo.description } : {}),
+          },
+        ],
       }
     : null
 
@@ -103,10 +118,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        {organizationLd ? (
+        {structuredData ? (
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationLd) }}
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
           />
         ) : null}
         {customCode.header ? (
