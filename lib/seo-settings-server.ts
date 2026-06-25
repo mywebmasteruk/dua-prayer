@@ -21,7 +21,8 @@ export type SeoSettings = {
 export const SEO_DEFAULTS: SeoSettings = {
   siteName: "DuaPrayer",
   title: "DuaPrayer — Share Dua & Pray For The Ummah",
-  description: "Share duas and pray for the Muslim Ummah. A community prayer wall.",
+  description:
+    "A nonprofit community platform to share dua and pray for the Muslim Ummah. A community prayer digital wall.",
   image: "/og-image.png",
   favicon: "/favicon.png",
 } as const
