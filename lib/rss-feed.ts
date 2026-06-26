@@ -171,6 +171,8 @@ export async function buildRssResponse({ feedPath, stripHashtags = false }: RssF
     // Author: a channel post is by the channel; a member submission is Anonymous;
     // everything else is posted by the platform/bot.
     const author = channel ? channel.name : dua.user_id ? "Anonymous" : channelTitle
+    // Per-item language code (en/ar/…); falls back to the feed default.
+    const itemLanguage = dua.language?.trim() || settings.language
 
     const raw = String(dua.text ?? "")
     const { body, tags } = stripHashtags ? splitHashtags(raw) : { body: raw, tags: [] as string[] }
@@ -193,6 +195,7 @@ export async function buildRssResponse({ feedPath, stripHashtags = false }: RssF
       <guid isPermaLink="false">dua-${xmlEscape(dua.id)}</guid>
       <pubDate>${pubDate}</pubDate>
       <dc:creator>${xmlEscape(author)}</dc:creator>
+      <dc:language>${xmlEscape(itemLanguage)}</dc:language>
 ${categoryTags}
       <description>${xmlEscape(description)}</description>
     </item>`
