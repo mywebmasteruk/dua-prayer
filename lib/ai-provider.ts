@@ -148,24 +148,7 @@ export const resolveLatestFreeModel = unstable_cache(fetchLatestFreeModel, ["lat
   tags: ["ai-provider-settings"],
 })
 
-type GenerateDuaInput = {
-  eventTitle: string
-  eventSummary?: string | null
-  eventUrl?: string | null
-  tone: string
-  language: string
-  messages?: ChatMessage[]
-  settings: AiProviderSettings
-  signal?: AbortSignal
-}
-
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string }
-
-const AI_TIMEOUT_MS = 20_000
-// Generous hard ceiling so a complete dua is never sliced mid-sentence here;
-// the bot prompt still asks for ~220 chars, and the bot layer does the final,
-// sentence-aware trim.
-const MAX_DUA_LENGTH = 600
 
 function trimOrNull(value: string | undefined | null): string | null {
   const trimmed = value?.trim()
@@ -174,10 +157,6 @@ function trimOrNull(value: string | undefined | null): string | null {
 
 function lastFour(value: string): string {
   return value.length <= 4 ? value : value.slice(-4)
-}
-
-function normalizeText(text: string): string {
-  return text.replace(/\s+/g, " ").trim()
 }
 
 function stripJsonFences(content: string): string {
@@ -281,16 +260,6 @@ export async function getAiProviderAdminView(): Promise<AiProviderAdminView> {
     temperature: settings.temperature,
     requestTimeoutMs: settings.requestTimeoutMs,
     autoModel: settings.modelMode === "auto" && settings.provider === "openrouter" ? settings.model : null,
-  }
-}
-
-async function withTimeout<T>(callback: (signal: AbortSignal) => Promise<T>, timeoutMs = AI_TIMEOUT_MS): Promise<T> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    return await callback(controller.signal)
-  } finally {
-    clearTimeout(timeout)
   }
 }
 
@@ -433,54 +402,3 @@ export async function callProviderChat(
   return stripJsonFences(content)
 }
 
-export async function generateDuaForEvent({
-  eventTitle,
-  eventSummary,
-  eventUrl,
-  tone,
-  language,
-  messages: customMessages,
-  settings,
-  signal,
-}: GenerateDuaInput): Promise<string> {
-  if (!isAiProviderReady(settings)) {
-    const providerLabel = settings.provider !== "none" ? PROVIDER_CATALOG[settings.provider]?.label : null
-    throw new Error(
-      providerLabel
-        ? `${providerLabel} is configured but the API key is missing. Save an API key under Admin → Integration → AI Provider.`
-        : "AI Provider is not configured. Enable a provider and save an API key under Admin → Integration → AI Provider.",
-    )
-  }
-
-  const messages: ChatMessage[] = customMessages ?? [
-    {
-      role: "system",
-      content: "You write concise, compassionate duas for a Muslim community platform. Return strict JSON only.",
-    },
-    {
-      role: "user",
-      content: [
-        `Write one dua in ${language}.`,
-        `Tone: ${tone}.`,
-        "The dua should ask the Ummah to pray for people affected by the event, including those suffering, grieving, displaced, injured, or who lost loved ones when relevant.",
-        "Do not invent casualty counts, locations, names, or religious rulings not present in the event.",
-        `Keep it under ${MAX_DUA_LENGTH} characters and return JSON: {"dua": string}.`,
-        `Event title: ${JSON.stringify(eventTitle)}`,
-        eventSummary ? `Event summary: ${JSON.stringify(eventSummary)}` : "",
-        eventUrl ? `Event URL: ${JSON.stringify(eventUrl)}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    },
-  ]
-
-  const run = async (requestSignal: AbortSignal) => {
-    const raw = await callProviderChat(settings, messages, signal ?? requestSignal)
-    const parsed = JSON.parse(raw) as { dua?: unknown }
-    const dua = normalizeText(typeof parsed.dua === "string" ? parsed.dua : "")
-    if (dua.length < 15) throw new Error("AI Provider returned a dua that was too short")
-    return dua.slice(0, MAX_DUA_LENGTH)
-  }
-
-  return signal ? run(signal) : withTimeout(run, settings.requestTimeoutMs)
-}

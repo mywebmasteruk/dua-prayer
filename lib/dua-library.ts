@@ -128,10 +128,3 @@ export function getCuratedDua(id: string): CuratedDua | null {
   const needle = id.trim()
   return NORMALIZED.find((d) => d.id === needle) ?? null
 }
-
-/** Compact catalogue the matcher model sees: themes + meaning + cite-able source. */
-export function curatedDuaCatalogue(): string {
-  return NORMALIZED.map(
-    (d) => `- themes: ${d.themes.join(", ")} — meaning: "${d.translation}" — source: ${d.source}`,
-  ).join("\n")
-}
