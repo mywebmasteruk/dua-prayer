@@ -181,12 +181,19 @@ export async function buildRssResponse({ feedPath, stripHashtags = false }: RssF
     const description = truncate(titleSource, 500)
     const pubDate = new Date(dua.created_at).toUTCString()
 
-    // Every tag is a plain <category> (the standard RSS element parsers read).
-    // First is the dua's topic; the rest are hashtags, each prefixed with # so
-    // they stay distinguishable from the topic in feed consumers like Make.com.
-    const categoryTags = [xmlEscape(topic?.name ?? "Dua")]
-      .concat(tags.map((tag) => xmlEscape(`#${tag}`)))
-      .map((name) => `      <category>${name}</category>`)
+    // Categories exposed via the standard <category> array (the one flexible
+    // per-item field RSS readers like Make.com reliably parse). Every value is
+    // self-describing: the topic has no prefix, the hashtags entry starts with #,
+    // the language entry starts with "lang:". The hashtags-feed packs all three so
+    // a Make scenario can route by language and append the tags; the plain feed
+    // keeps just the topic (its hashtags stay inline in the description).
+    const categoryValues = [topic?.name ?? "Dua"]
+    if (stripHashtags) {
+      categoryValues.push(tags.length > 0 ? tags.map((tag) => `#${tag}`).join(" ") : "")
+      categoryValues.push(`lang:${itemLanguage}`)
+    }
+    const categoryTags = categoryValues
+      .map((value) => `      <category>${xmlEscape(value)}</category>`)
       .join("\n")
 
     return `    <item>
