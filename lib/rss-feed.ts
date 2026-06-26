@@ -179,10 +179,12 @@ export async function buildRssResponse({ feedPath, stripHashtags = false }: RssF
     const description = truncate(titleSource, 500)
     const pubDate = new Date(dua.created_at).toUTCString()
 
-    // The <category> is the dua's topic; hashtags get their own domain="hashtag" tags.
+    // Every tag is a plain <category> (the standard RSS element parsers read).
+    // First is the dua's topic; the rest are hashtags, each prefixed with # so
+    // they stay distinguishable from the topic in feed consumers like Make.com.
     const categoryTags = [xmlEscape(topic?.name ?? "Dua")]
+      .concat(tags.map((tag) => xmlEscape(`#${tag}`)))
       .map((name) => `      <category>${name}</category>`)
-      .concat(tags.map((tag) => `      <category domain="hashtag">${xmlEscape(`#${tag}`)}</category>`))
       .join("\n")
 
     return `    <item>
