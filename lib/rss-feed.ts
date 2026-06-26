@@ -5,6 +5,7 @@ import { getRssSettings, type RssSettings } from "@/lib/rss-settings-server"
 type DuaRow = {
   id: string
   text: string | null
+  category_id: string | null
   channel_id: string | null
   language: string | null
   created_at: string
@@ -82,7 +83,7 @@ async function loadDuas(settings: RssSettings): Promise<{ duas: DuaRow[]; catego
 
   let query = admin
     .from("duas")
-    .select("id, text, channel_id, language, created_at")
+    .select("id, text, category_id, channel_id, language, created_at")
     .eq("published", true)
     .eq("flagged", false)
     .order("created_at", { ascending: false })
@@ -101,14 +102,21 @@ async function loadDuas(settings: RssSettings): Promise<{ duas: DuaRow[]; catego
   }
 
   const duas = (duaData ?? []) as DuaRow[]
-  const channelIds = Array.from(new Set(duas.map((d) => d.channel_id).filter((id): id is string => Boolean(id))))
+  // Look up both the dua's channel (for the link) and its topic (for <category>).
+  const lookupIds = Array.from(
+    new Set(
+      duas
+        .flatMap((d) => [d.channel_id, d.category_id])
+        .filter((id): id is string => Boolean(id)),
+    ),
+  )
 
   let categoryById = new Map<string, CategoryRow>()
-  if (channelIds.length > 0) {
+  if (lookupIds.length > 0) {
     const { data: catData, error: catError } = await admin
       .from("categories")
       .select("id, name, handle, is_verified, status")
-      .in("id", channelIds)
+      .in("id", lookupIds)
     if (catError) {
       console.error("[rss-feed] category lookup failed:", catError)
     } else {
@@ -155,8 +163,9 @@ export async function buildRssResponse({ feedPath, stripHashtags = false }: RssF
   const lastBuildDate = (duas[0]?.created_at ? new Date(duas[0].created_at) : new Date()).toUTCString()
 
   const items = duas.map((dua) => {
-    const category = dua.channel_id ? categoryById.get(dua.channel_id) : undefined
-    const link = buildItemLink(siteUrl, dua, category)
+    const channel = dua.channel_id ? categoryById.get(dua.channel_id) : undefined
+    const topic = dua.category_id ? categoryById.get(dua.category_id) : undefined
+    const link = buildItemLink(siteUrl, dua, channel)
 
     const raw = String(dua.text ?? "")
     const { body, tags } = stripHashtags ? splitHashtags(raw) : { body: raw, tags: [] as string[] }
@@ -165,7 +174,8 @@ export async function buildRssResponse({ feedPath, stripHashtags = false }: RssF
     const description = truncate(titleSource, 500)
     const pubDate = new Date(dua.created_at).toUTCString()
 
-    const categoryTags = [category ? xmlEscape(category.name) : "Dua"]
+    // The <category> is the dua's topic; hashtags get their own domain="hashtag" tags.
+    const categoryTags = [xmlEscape(topic?.name ?? "Dua")]
       .map((name) => `      <category>${name}</category>`)
       .concat(tags.map((tag) => `      <category domain="hashtag">${xmlEscape(`#${tag}`)}</category>`))
       .join("\n")
