@@ -7,6 +7,7 @@ type DuaRow = {
   text: string | null
   category_id: string | null
   channel_id: string | null
+  user_id: string | null
   language: string | null
   created_at: string
 }
@@ -83,7 +84,7 @@ async function loadDuas(settings: RssSettings): Promise<{ duas: DuaRow[]; catego
 
   let query = admin
     .from("duas")
-    .select("id, text, category_id, channel_id, language, created_at")
+    .select("id, text, category_id, channel_id, user_id, language, created_at")
     .eq("published", true)
     .eq("flagged", false)
     .order("created_at", { ascending: false })
@@ -167,6 +168,10 @@ export async function buildRssResponse({ feedPath, stripHashtags = false }: RssF
     const topic = dua.category_id ? categoryById.get(dua.category_id) : undefined
     const link = buildItemLink(siteUrl, dua, channel)
 
+    // Author: a channel post is by the channel; a member submission is Anonymous;
+    // everything else is posted by the platform/bot.
+    const author = channel ? channel.name : dua.user_id ? "Anonymous" : channelTitle
+
     const raw = String(dua.text ?? "")
     const { body, tags } = stripHashtags ? splitHashtags(raw) : { body: raw, tags: [] as string[] }
     const titleSource = body.replace(/\s+/g, " ").trim()
@@ -185,6 +190,7 @@ export async function buildRssResponse({ feedPath, stripHashtags = false }: RssF
       <link>${xmlEscape(link)}</link>
       <guid isPermaLink="false">dua-${xmlEscape(dua.id)}</guid>
       <pubDate>${pubDate}</pubDate>
+      <dc:creator>${xmlEscape(author)}</dc:creator>
 ${categoryTags}
       <description>${xmlEscape(description)}</description>
     </item>`
@@ -194,7 +200,7 @@ ${categoryTags}
   const copyrightTag = settings.copyright ? `\n    <copyright>${xmlEscape(settings.copyright)}</copyright>` : ""
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
     <title>${xmlEscape(channelTitle)}</title>
     <link>${xmlEscape(siteUrl)}</link>
