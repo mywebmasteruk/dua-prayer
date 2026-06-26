@@ -24,5 +24,19 @@ export function mapAuthErrorMessage(message: string): string {
     return "Please enter a valid email address."
   }
 
+  // Leaked-password protection (HaveIBeenPwned) rejects known-breached passwords.
+  if (normalized.includes("pwned") || normalized.includes("known to be") || normalized.includes("easy to guess")) {
+    return "That password has appeared in a data breach. Please choose a different one."
+  }
+
+  // Complexity policy: lowercase + uppercase + digits required.
+  if (normalized.includes("password should contain") || normalized.includes("character of each")) {
+    return "Password must include uppercase and lowercase letters and a number."
+  }
+
+  if (normalized.includes("password should be at least") || normalized.includes("password is too short")) {
+    return "Password is too short — use at least 8 characters."
+  }
+
   return message
 }
