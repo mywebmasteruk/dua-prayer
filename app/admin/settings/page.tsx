@@ -21,23 +21,18 @@ type PageProps = {
   searchParams: Promise<{ tab?: string }>
 }
 
-function ErrorPanel({ stage, error }: { stage: string; error: unknown }) {
-  const message = error instanceof Error ? error.message : String(error)
-  const stack = error instanceof Error ? error.stack : undefined
+function ErrorPanel({ stage }: { stage: string }) {
+  // Never render error.message / error.stack to the browser — that leaks server
+  // file paths and internals. The full error is logged server-side by the
+  // caller; the stage tag is enough for an admin to report the issue.
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-4 py-12">
-      <h1 className="text-xl font-semibold text-foreground">Settings diagnostic</h1>
+      <h1 className="text-xl font-semibold text-foreground">Something went wrong</h1>
       <p className="text-sm text-muted-foreground">
-        Stage <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{stage}</code> threw the following error.
+        The settings page failed to load{" "}
+        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{stage}</code>. Please refresh, and if it keeps
+        happening check the server logs.
       </p>
-      <pre className="whitespace-pre-wrap break-words rounded-md bg-muted px-3 py-2 font-mono text-xs text-foreground">
-        {message}
-      </pre>
-      {stack ? (
-        <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/60 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
-          {stack}
-        </pre>
-      ) : null}
     </div>
   )
 }
@@ -109,6 +104,7 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
           footerLinks={footerLinks}
           footerLinkDefaults={FOOTER_LINK_DEFAULTS}
           canManageSettings={canManageSettings}
+          canManageCustomCode={ctx.isFoundingAdmin}
         />
       </InnerPageLayout>
     )
@@ -117,6 +113,6 @@ export default async function AdminSettingsPage({ searchParams }: PageProps) {
       throw error
     }
     console.error("[admin/settings] page render failed:", error)
-    return <ErrorPanel stage="render" error={error} />
+    return <ErrorPanel stage="render" />
   }
 }

@@ -16,6 +16,10 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
   const canManageUsers = ctx.isFoundingAdmin || hasPermission(ctx, "manage_users")
   if (!canManageUsers) redirect("/admin/users/roles")
 
+  // Changing admin roles is founder-only (manage_admins); a plain manage_users
+  // admin can edit/delete users but not grant or revoke admin roles.
+  const canManageRoles = ctx.isFoundingAdmin || hasPermission(ctx, "manage_admins")
+
   const params = await searchParams
   const initialTypeFilter = parseUserTypeFilter(params.type)
 
@@ -27,6 +31,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
       users={users}
       currentUserId={ctx.user.id}
       initialTypeFilter={initialTypeFilter}
+      canManageRoles={canManageRoles}
     />
   )
 }

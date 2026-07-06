@@ -2,18 +2,21 @@
 
 import { revalidatePath, revalidateTag } from "next/cache"
 import { createAdminSupabaseClient } from "@/lib/supabase/admin"
-import { requirePermission } from "@/lib/auth"
+import { requireFounder } from "@/lib/auth"
 import { SITE_SETTING_KEYS } from "@/lib/settings-keys"
 import { getCustomCode, type CustomCode } from "@/lib/custom-code-server"
 
 export async function getCustomCodeForAdmin(): Promise<CustomCode> {
-  const gate = await requirePermission("manage_settings")
+  // Founder-only: custom code injects unsanitized <script> into every page.
+  const gate = await requireFounder()
   if (!gate.ok) return { header: "", footer: "" }
   return getCustomCode()
 }
 
 export async function saveCustomCode(input: CustomCode) {
-  const gate = await requirePermission("manage_settings")
+  // Founder-only: custom code injects unsanitized <script> into every page, so
+  // this must not be reachable via the delegable manage_settings permission.
+  const gate = await requireFounder()
   if (!gate.ok) return { error: gate.error === "Forbidden" ? "You cannot edit custom code." : "Unauthorized" }
 
   const admin = createAdminSupabaseClient()

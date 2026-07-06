@@ -124,6 +124,7 @@ export function HomeStreamTabs({
             duas={duas}
             categories={categories}
             pageSize={pageSize}
+            total={total}
             followingActive={activeTab === "following"}
             emptyCopy={emptyCopy}
           />

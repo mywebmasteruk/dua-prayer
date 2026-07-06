@@ -37,8 +37,12 @@ export async function fetchProviderModels(provider: AiProvider, newApiKey?: stri
     }
 
     if (provider === "google") {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-      const response = await fetch(url, { signal: AbortSignal.timeout(5_000) })
+      // Pass the key via header, not the query string — URLs land in proxy and
+      // access logs where a secret should never appear.
+      const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models", {
+        headers: { "x-goog-api-key": apiKey },
+        signal: AbortSignal.timeout(5_000),
+      })
       if (!response.ok) return { models: meta.fallbackModels }
       const data = (await response.json()) as {
         models?: Array<{ name: string; supportedGenerationMethods?: string[] }>

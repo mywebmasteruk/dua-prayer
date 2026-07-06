@@ -59,6 +59,8 @@ type AdminUsersListProps = {
   users: AppUserRecord[]
   currentUserId: string
   initialTypeFilter?: UserTypeFilter
+  /** Whether the current admin may grant/revoke admin roles (founder-only via manage_admins). */
+  canManageRoles?: boolean
 }
 
 const TYPE_FILTER_OPTIONS: Array<{ id: UserTypeFilter; label: string }> = [
@@ -79,6 +81,7 @@ export function AdminUsersList({
   users: initialUsers,
   currentUserId,
   initialTypeFilter = "all",
+  canManageRoles = false,
 }: AdminUsersListProps) {
   const router = useNavigationRouter()
   const searchParams = useSearchParams()
@@ -195,7 +198,7 @@ export function AdminUsersList({
       )
     }
 
-    if (!editingUser.isFoundingAdmin) {
+    if (canManageRoles && !editingUser.isFoundingAdmin) {
       const roleResult = await applyRole(editingUser, selectedRole as "user" | AdminRoleType)
       if ("error" in roleResult && roleResult.error) {
         setSavingId(null)
@@ -346,9 +349,13 @@ export function AdminUsersList({
         selectedCount={selectedCount}
         onClear={clear}
         actions={[
-          { label: "Set as User", onClick: () => runBulkRole("user", "Demote to User"), disabled: isBusy },
-          { label: "Set as Moderator", onClick: () => runBulkRole("moderator", "Promote to Moderator"), disabled: isBusy },
-          { label: "Set as Admin", onClick: () => runBulkRole("admin", "Promote to Admin"), disabled: isBusy },
+          ...(canManageRoles
+            ? [
+                { label: "Set as User", onClick: () => runBulkRole("user", "Demote to User"), disabled: isBusy },
+                { label: "Set as Moderator", onClick: () => runBulkRole("moderator", "Promote to Moderator"), disabled: isBusy },
+                { label: "Set as Admin", onClick: () => runBulkRole("admin", "Promote to Admin"), disabled: isBusy },
+              ]
+            : []),
           {
             label: "Delete",
             onClick: () => setBulkDeleteOpen(true),
@@ -419,19 +426,19 @@ export function AdminUsersList({
                         label={`Actions for ${user.email || user.id}`}
                         actions={[
                           { label: "Edit", onClick: () => openEditDialog(user) },
-                          ...(currentRole !== "user"
+                          ...(canManageRoles && currentRole !== "user"
                             ? [{ label: "Demote to User", onClick: () => applyRole(user, "user").then((r) => {
                                 if ("error" in r && r.error) toast({ title: "Could not update role", description: r.error, variant: "destructive" })
                                 else toast({ title: "User demoted" })
                               }) }]
                             : []),
-                          ...(currentRole !== "moderator"
+                          ...(canManageRoles && currentRole !== "moderator"
                             ? [{ label: "Set as Moderator", onClick: () => applyRole(user, "moderator").then((r) => {
                                 if ("error" in r && r.error) toast({ title: "Could not update role", description: r.error, variant: "destructive" })
                                 else toast({ title: "Role updated" })
                               }) }]
                             : []),
-                          ...(currentRole !== "admin"
+                          ...(canManageRoles && currentRole !== "admin"
                             ? [{ label: "Set as Admin", onClick: () => applyRole(user, "admin").then((r) => {
                                 if ("error" in r && r.error) toast({ title: "Could not update role", description: r.error, variant: "destructive" })
                                 else toast({ title: "Role updated" })
@@ -526,22 +533,24 @@ export function AdminUsersList({
                 onChange={(event) => setDisplayName(event.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-user-role">Role</Label>
-              <Select value={selectedRole} onValueChange={setSelectedRole}>
-                <SelectTrigger id="edit-user-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">{USER_ROLE_LABEL}</SelectItem>
-                  {(Object.keys(ADMIN_ROLE_LABELS) as AdminRoleType[]).map((roleKey) => (
-                    <SelectItem key={roleKey} value={roleKey}>
-                      {ADMIN_ROLE_LABELS[roleKey]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {canManageRoles ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-user-role">Role</Label>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger id="edit-user-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">{USER_ROLE_LABEL}</SelectItem>
+                    {(Object.keys(ADMIN_ROLE_LABELS) as AdminRoleType[]).map((roleKey) => (
+                      <SelectItem key={roleKey} value={roleKey}>
+                        {ADMIN_ROLE_LABELS[roleKey]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingUser(null)} disabled={savingId === editingUser?.id}>

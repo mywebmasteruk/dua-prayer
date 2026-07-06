@@ -155,6 +155,23 @@ export async function requirePermission(permission: AdminPermission) {
   return { ok: true as const, context: ctx, user: ctx.user }
 }
 
+/**
+ * Founder-only gate. Use for actions whose blast radius exceeds any delegable
+ * permission — e.g. injecting site-wide custom code that runs in every
+ * visitor's browser. `manage_settings` is delegable to non-founder admins, so
+ * it must not guard these.
+ */
+export async function requireFounder() {
+  const ctx = await getAdminContext()
+  if (!ctx) {
+    return { ok: false as const, error: "Unauthorized" as const, context: null, user: null }
+  }
+  if (!ctx.isFoundingAdmin) {
+    return { ok: false as const, error: "Forbidden" as const, context: ctx, user: ctx.user }
+  }
+  return { ok: true as const, context: ctx, user: ctx.user }
+}
+
 /** Any admin route access — at least one permission or founding admin */
 export async function requireAnyAdminAccess() {
   const ctx = await getAdminContext()
@@ -168,10 +185,18 @@ export async function requireAnyAdminAccess() {
 }
 
 export async function userHasAdminAccess(user: { id: string; email?: string | null }): Promise<boolean> {
-  return isFoundingAdminUser(user)
+  if (isFoundingAdminUser(user)) return true
+
+  const profile = await getProfileAdminFields(user.id)
+  if (!profile?.is_admin) return false
+
+  const rolePermissions = await getRolePermissions()
+  const base = profile.admin_role ? rolePermissions[profile.admin_role] : []
+  const permissions = resolvePermissionsFrom(base, profile.admin_permissions)
+  return permissions.length > 0
 }
 
 export async function resolveAdminLandingPath(user: { id: string; email?: string | null }): Promise<string> {
-  if (isFoundingAdminUser(user)) return "/admin"
+  if (await userHasAdminAccess(user)) return "/admin"
   return signInHref({ error: "not_admin" })
 }

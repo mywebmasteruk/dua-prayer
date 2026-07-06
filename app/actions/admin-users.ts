@@ -6,6 +6,7 @@ import { listAllAuthUsers } from "@/lib/auth-users"
 import { getFoundingAdminEmail, isFoundingAdminUser, requirePermission } from "@/lib/auth"
 import {
   ADMIN_ROLE_LABELS,
+  ASSIGNABLE_ADMIN_ROLES,
   SUPER_ADMIN_ROLE_LABEL,
   USER_ROLE_LABEL,
   type AdminRoleType,
@@ -143,8 +144,21 @@ export async function updateUserDisplayName(userId: string, displayName: string)
 }
 
 export async function setUserRole(input: { userId: string; role: "user" | AdminRoleType }) {
-  const gate = await requirePermission("manage_users")
-  if (!gate.ok) return { error: gate.error === "Forbidden" ? "You cannot manage users." : "Unauthorized" }
+  // Granting or revoking an admin role is admin-roster management, which is
+  // founder-only via `manage_admins` (see admin-permissions.ts). Gating this on
+  // the weaker `manage_users` would let a plain admin promote users to full
+  // admin or demote other admins — a privilege-escalation path.
+  const gate = await requirePermission("manage_admins")
+  if (!gate.ok) {
+    return { error: gate.error === "Forbidden" ? "Only the founding admin can change roles." : "Unauthorized" }
+  }
+
+  if (
+    input.role !== "user" &&
+    !ASSIGNABLE_ADMIN_ROLES.includes(input.role as (typeof ASSIGNABLE_ADMIN_ROLES)[number])
+  ) {
+    return { error: "Volunteer helper tiers are assigned from Admin → Volunteers → Roles." }
+  }
 
   const admin = createAdminSupabaseClient()
   const authUsers = await listAuthUserDetails()

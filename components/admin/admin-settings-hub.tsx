@@ -30,6 +30,8 @@ type SettingsHubProps = {
   footerLinks: FooterLink[]
   footerLinkDefaults: ReadonlyArray<FooterLink>
   canManageSettings: boolean
+  /** Custom code injects site-wide scripts, so it is founder-only, not delegable via manage_settings. */
+  canManageCustomCode: boolean
 }
 
 function SettingsTabBar({ activeTab, onTabChange }: { activeTab: SettingsTabId; onTabChange: (tab: SettingsTabId) => void }) {
@@ -81,6 +83,7 @@ export function AdminSettingsHub({
   footerLinks,
   footerLinkDefaults,
   canManageSettings,
+  canManageCustomCode,
 }: SettingsHubProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -185,11 +188,13 @@ export function AdminSettingsHub({
           aria-labelledby="settings-tab-custom-code"
           className={activeTab === "custom-code" ? undefined : "hidden"}
         >
-          {canManageSettings ? (
+          {canManageCustomCode ? (
             <CustomCodeSettings initialCode={customCode} />
           ) : (
             <AdminSection title="Custom Code" description="Inject scripts into the page header and footer.">
-              <p className="text-sm text-muted-foreground">Settings access required.</p>
+              <p className="text-sm text-muted-foreground">
+                Custom code runs on every page, so only the platform founder can edit it.
+              </p>
             </AdminSection>
           )}
         </div>

@@ -128,7 +128,14 @@ export async function registerChannelApplication(
 
   if (insertError || !inserted) {
     if (insertError?.code === "23505") {
-      const duplicatePending = insertError.message?.includes("categories_one_pending_application_per_owner")
+      // Two overlapping partial unique indexes both enforce "one pending
+      // application per owner" (categories_one_pending_per_owner_idx and
+      // categories_one_pending_application_per_owner). Postgres reports whichever
+      // it checks first, so match either to show the right message.
+      const message = insertError.message ?? ""
+      const duplicatePending =
+        message.includes("categories_one_pending_application_per_owner") ||
+        message.includes("categories_one_pending_per_owner_idx")
       return {
         ok: false,
         error: duplicatePending
