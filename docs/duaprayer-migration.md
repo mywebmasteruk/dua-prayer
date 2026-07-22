@@ -35,10 +35,11 @@ Replace the custom SaaS foundation with **Makerkit Pro**, while keeping DuaPraye
 | Language detect on create + RTL text direction | Done (basic ar/en) |
 | Feed language prefs (`accounts.public_data.feed_languages`) | Done (`/home/settings` + server feed filter) |
 | Client feed search (loaded batch) | Done |
+| Hashtag filter (`?tag=`) + trending chips from loaded feed | Done |
 | Community notifications (Makerkit `@kit/notifications`) | Done (ameen milestones, dua/channel/volunteer status) |
 | Turnstile (Makerkit CaptchaField) | Done (when `NEXT_PUBLIC_CAPTCHA_SITE_KEY` + `CAPTCHA_SECRET_TOKEN` set) |
 | Onboarding gate / topic prefs | Deferred |
-| Hashtags / trending discovery | Deferred |
+| Topic/trending leaderboard rail | Deferred |
 | Dua bots + cron | Deferred (large; remains in `legacy/dua-prayer`) |
 | Rich RSS filters / `/feed-tags.xml` | Deferred |
 | Full site-copy AR groups / footer CMS | Deferred |

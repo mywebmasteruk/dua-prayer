@@ -17,6 +17,7 @@
     "./types": "./src/types.ts",
     "./posting-settings": "./src/posting-settings.ts",
     "./feed-languages": "./src/feed-languages.ts",
+    "./hashtags": "./src/hashtags.ts",
     "./site-copy": "./src/site-copy.ts"
   },
   "scripts": {

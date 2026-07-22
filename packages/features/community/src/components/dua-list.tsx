@@ -11,6 +11,7 @@ import { Button } from '@kit/ui/button';
 import { cn } from '@kit/ui/utils';
 
 import { getTextDirection } from '../detect-language';
+import { getTopHashtags } from '../hashtags';
 import {
   flagDuaAction,
   prayForDuaAction,
@@ -25,6 +26,7 @@ interface DuaListProps {
   emptyDescription?: string;
   emptyCtaHref?: string;
   emptyCtaLabel?: string;
+  onSelectTag?: (tag: string) => void;
 }
 
 function formatDateTime(value: string) {
@@ -49,6 +51,7 @@ export function DuaList({
   emptyDescription = 'Be the first to share a dua with the community.',
   emptyCtaHref,
   emptyCtaLabel,
+  onSelectTag,
 }: DuaListProps) {
   const router = useRouter();
   const [duas, setDuas] = useState(initialDuas);
@@ -111,6 +114,36 @@ export function DuaList({
           >
             {dua.text}
           </p>
+
+          {(() => {
+            const tags = getTopHashtags(dua.text, 3);
+            if (tags.length === 0) return null;
+
+            return (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {tags.map((hashtag) =>
+                  onSelectTag ? (
+                    <button
+                      key={hashtag.tag}
+                      type="button"
+                      onClick={() => onSelectTag(hashtag.tag)}
+                      className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
+                    >
+                      {hashtag.label}
+                    </button>
+                  ) : (
+                    <Link
+                      key={hashtag.tag}
+                      href={`?tag=${encodeURIComponent(hashtag.tag)}`}
+                      className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
+                    >
+                      {hashtag.label}
+                    </Link>
+                  ),
+                )}
+              </div>
+            );
+          })()}
 
           <div className="mt-4 flex flex-wrap items-center gap-1">
             <Button

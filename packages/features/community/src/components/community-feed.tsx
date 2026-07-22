@@ -1,12 +1,24 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useDeferredValue, useEffect, useState, useTransition } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import {
+  Suspense,
+  useDeferredValue,
+  useEffect,
+  useState,
+  useTransition,
+} from 'react';
 
 import { Button } from '@kit/ui/button';
 import { Input } from '@kit/ui/input';
+import { cn } from '@kit/ui/utils';
 
+import {
+  buildTrendingHashtags,
+  matchesHashtag,
+  normalizeHashtag,
+} from '../hashtags';
 import type { PostingMode } from '../posting-settings';
 import { getFeedDuas } from '../server/server-actions';
 import type { SiteCopy } from '../site-copy';
@@ -38,7 +50,7 @@ function matchesSearch(dua: Dua, query: string) {
   );
 }
 
-export function CommunityFeed({
+function CommunityFeedInner({
   initialDuas,
   total,
   categories,
@@ -49,6 +61,9 @@ export function CommunityFeed({
   showLanguagePrefsLink = false,
 }: CommunityFeedProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeTag = normalizeHashtag(searchParams.get('tag') ?? '');
   const [tab, setTab] = useState<'latest' | 'following'>('latest');
   const [duas, setDuas] = useState(initialDuas);
   const [loadedTotal, setLoadedTotal] = useState(total);
@@ -61,9 +76,26 @@ export function CommunityFeed({
     setLoadedTotal(total);
   }, [initialDuas, total]);
 
-  const visibleDuas = deferredSearch.trim()
-    ? duas.filter((dua) => matchesSearch(dua, deferredSearch))
-    : duas;
+  const trending = buildTrendingHashtags(duas, 5);
+
+  const visibleDuas = duas.filter((dua) => {
+    if (activeTag && !matchesHashtag(dua.text, activeTag)) return false;
+    if (deferredSearch.trim() && !matchesSearch(dua, deferredSearch)) {
+      return false;
+    }
+    return true;
+  });
+
+  const setTag = (nextTag: string | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const normalized = nextTag ? normalizeHashtag(nextTag) : '';
+
+    if (normalized) params.set('tag', normalized);
+    else params.delete('tag');
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
 
   const reload = (nextTab: 'latest' | 'following', offset = 0) => {
     startTransition(async () => {
@@ -92,6 +124,8 @@ export function CommunityFeed({
       router.refresh();
     });
   };
+
+  const filteredEmpty = Boolean(activeTag || deferredSearch.trim());
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
@@ -156,6 +190,29 @@ export function CommunityFeed({
           </span>
         </div>
 
+        {trending.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {trending.map((item) => (
+              <button
+                key={item.tag}
+                type="button"
+                onClick={() => setTag(item.tag)}
+                className={cn(
+                  'border-border rounded-lg border px-2.5 py-1 text-xs transition-colors',
+                  activeTag === item.tag
+                    ? 'bg-primary text-primary-foreground border-transparent'
+                    : 'hover:bg-muted',
+                )}
+              >
+                {item.label}
+                <span className="text-muted-foreground ml-1 tabular-nums">
+                  {item.duas}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -163,29 +220,45 @@ export function CommunityFeed({
           aria-label="Search loaded duas"
         />
 
+        {activeTag ? (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-muted-foreground">
+              Showing duas tagged{' '}
+              <span className="text-foreground font-medium">#{activeTag}</span>
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setTag(null)}
+            >
+              Clear tag
+            </Button>
+          </div>
+        ) : null}
+
         <DuaList
           duas={visibleDuas}
+          onSelectTag={setTag}
           emptyTitle={
-            deferredSearch.trim()
+            filteredEmpty
               ? 'No matching duas'
               : tab === 'following'
                 ? copy.homeFollowingEmptyTitle
                 : copy.homeFeedEmptyTitle
           }
           emptyDescription={
-            deferredSearch.trim()
-              ? 'Try a different search, or load more from the feed.'
+            filteredEmpty
+              ? 'Try a different search or tag, or load more from the feed.'
               : tab === 'following'
                 ? copy.homeFollowingEmptyDescription
                 : copy.homeFeedEmptyDescription
           }
           emptyCtaHref={
-            !deferredSearch.trim() && tab === 'following'
-              ? '/channels'
-              : undefined
+            !filteredEmpty && tab === 'following' ? '/channels' : undefined
           }
           emptyCtaLabel={
-            !deferredSearch.trim() && tab === 'following'
+            !filteredEmpty && tab === 'following'
               ? copy.homeFollowingEmptyCta
               : undefined
           }
@@ -205,5 +278,19 @@ export function CommunityFeed({
         ) : null}
       </section>
     </div>
+  );
+}
+
+export function CommunityFeed(props: CommunityFeedProps) {
+  return (
+    <Suspense
+      fallback={
+        <div className="text-muted-foreground mx-auto max-w-2xl py-10 text-sm">
+          Loading feed…
+        </div>
+      }
+    >
+      <CommunityFeedInner {...props} />
+    </Suspense>
   );
 }
