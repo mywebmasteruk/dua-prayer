@@ -1,11 +1,14 @@
-# Deploy DuaPrayer to Vercel production on every push to main.
+# Deploy DuaPrayer (Makerkit monorepo) to Vercel production on every push to main.
 #
-# Uses a Vercel Deploy Hook so the build runs on Vercel's servers,
-# not GitHub Actions — this uses ~5 seconds of Actions minutes per push
-# instead of the ~3 minutes a full build would consume.
+# Primary path: Vercel Deploy Hook (build runs on Vercel).
+# This workflow then polls GitHub deployment status so a failed Vercel build
+# fails the Actions run instead of reporting a false green.
 #
-# Secret required (GitHub repo → Settings → Secrets and variables → Actions):
-#   VERCEL_DEPLOY_HOOK_URL   from Vercel dashboard → Project → Settings → Git → Deploy Hooks
+# Secrets (GitHub repo → Settings → Secrets and variables → Actions):
+#   VERCEL_DEPLOY_HOOK_URL   Vercel → Project → Settings → Git → Deploy Hooks
+#
+# Optional (for CLI fallback / inspect):
+#   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
 
 name: Deploy Vercel Production
 
@@ -20,10 +23,68 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 20
     steps:
       - name: Trigger Vercel deployment
+        id: trigger
         run: |
-          curl -s -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}" \
+          set -euo pipefail
+          RESPONSE="$(curl -sS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}" \
             -d "ref=main" \
-            --fail-with-body
+            --fail-with-body)"
+          echo "hook_response=$RESPONSE"
+          echo "$RESPONSE" | tee /tmp/vercel-hook.json
+          JOB_ID="$(node -e 'const j=JSON.parse(require("fs").readFileSync("/tmp/vercel-hook.json","utf8")); process.stdout.write(j.job?.id || "")')"
+          echo "job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for GitHub Production deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          echo "Waiting for Production deployment for $EXPECTED_SHA ..."
+          DEADLINE=$((SECONDS + 900))
+          LAST_STATE=""
+          while (( SECONDS < DEADLINE )); do
+            PAYLOAD="$(gh api "repos/${{ github.repository }}/deployments?environment=Production&per_page=5")"
+            DEPLOY_ID="$(echo "$PAYLOAD" | node -e '
+              const sha = process.env.EXPECTED_SHA;
+              const rows = JSON.parse(require("fs").readFileSync(0, "utf8"));
+              const match = rows.find((d) => d.sha === sha) || rows[0];
+              if (!match) process.exit(2);
+              process.stdout.write(String(match.id));
+            ')"
+            STATUS_JSON="$(gh api "repos/${{ github.repository }}/deployments/${DEPLOY_ID}/statuses")"
+            STATE="$(echo "$STATUS_JSON" | node -e '
+              const rows = JSON.parse(require("fs").readFileSync(0, "utf8"));
+              process.stdout.write(rows[0]?.state || "pending");
+            ')"
+            DESC="$(echo "$STATUS_JSON" | node -e '
+              const rows = JSON.parse(require("fs").readFileSync(0, "utf8"));
+              process.stdout.write(rows[0]?.description || "");
+            ')"
+            if [[ "$STATE" != "$LAST_STATE" ]]; then
+              echo "deployment=$DEPLOY_ID state=$STATE — $DESC"
+              LAST_STATE="$STATE"
+            fi
+            case "$STATE" in
+              success|inactive)
+                echo "Production deployment succeeded."
+                exit 0
+                ;;
+              failure|error)
+                echo "::error::Production deployment failed: $DESC"
+                echo "Inspect with: npx vercel inspect <deployment> --logs"
+                echo "Common Makerkit cutover fixes:"
+                echo "  1) Vercel Root Directory = apps/web (or repo root with pnpm --filter web build)"
+                echo "  2) Turn OFF dashboard Install/Build overrides so vercel.json applies"
+                echo "  3) Set Makerkit env: NEXT_PUBLIC_SUPABASE_PUBLIC_KEY (or keep legacy PUBLISHABLE/ANON),"
+                echo "     SUPABASE_SECRET_KEY (or SERVICE_ROLE), NEXT_PUBLIC_SITE_URL, Stripe, SUPABASE_DB_WEBHOOK_SECRET"
+                exit 1
+                ;;
+            esac
+            sleep 15
+          done
+          echo "::error::Timed out waiting for Production deployment"
+          exit 1
