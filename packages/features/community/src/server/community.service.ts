@@ -11,6 +11,7 @@ import type { AiModerationSettings } from '../ai-moderation';
 import {
   readFeedLanguagesFromPublicData,
   readFeedTopicsFromPublicData,
+  readOnboardedAtFromPublicData,
 } from '../feed-languages';
 import { normalizePostingMode, type PostingMode } from '../posting-settings';
 import { mergeSiteCopy, type SiteCopy } from '../site-copy';
@@ -216,6 +217,19 @@ class CommunityService {
     if (error || !data) return [];
 
     return readFeedTopicsFromPublicData(data.public_data);
+  }
+
+  async getOnboardedAt(userId: string): Promise<string | null> {
+    const { data, error } = await this.client
+      .from('accounts')
+      .select('public_data')
+      .eq('id', userId)
+      .eq('is_personal_account', true)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    return readOnboardedAtFromPublicData(data.public_data);
   }
 
   async enrichDuas(

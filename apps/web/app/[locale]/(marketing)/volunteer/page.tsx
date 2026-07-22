@@ -1,4 +1,5 @@
 import { VolunteerApplyForm } from '@kit/community/components';
+import { loadFormRegistry } from '@kit/community/server/form-registry';
 import { requireUserInServerComponent } from '~/lib/server/require-user-in-server-component';
 
 export const generateMetadata = async () => {
@@ -10,6 +11,7 @@ export const generateMetadata = async () => {
 
 async function VolunteerPage() {
   await requireUserInServerComponent();
+  const registry = await loadFormRegistry('volunteer');
 
   return (
     <div className="container mx-auto max-w-xl space-y-6 py-10">
@@ -20,7 +22,7 @@ async function VolunteerPage() {
           reviewed by admins.
         </p>
       </header>
-      <VolunteerApplyForm />
+      <VolunteerApplyForm registry={registry} />
     </div>
   );
 }

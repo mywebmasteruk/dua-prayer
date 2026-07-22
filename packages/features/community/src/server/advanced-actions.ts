@@ -4,7 +4,9 @@ import { revalidatePath } from 'next/cache';
 
 import * as z from 'zod';
 
+import { verifyCaptchaToken } from '@kit/auth/captcha/server';
 import { authActionClient } from '@kit/next/safe-action';
+import type { Json } from '@kit/supabase/database';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
@@ -12,6 +14,20 @@ import {
   channelHandleFromName,
   normalizeChannelHandle,
 } from '../channel-handle';
+import {
+  FOOTER_LINKS_SETTING_KEY,
+  parseFooterLinks,
+  resolveFooterLinks,
+  type FooterLink,
+} from '../footer-links';
+import {
+  fieldForBinding,
+  parseFormRegistry,
+  validateAnswers,
+  type FormAnswerValue,
+  type FormKind,
+  type FormRegistry,
+} from '../form-fields';
 import {
   parseRssSettings,
   RSS_DEFAULTS,
@@ -24,8 +40,51 @@ import {
   SITE_COPY_SETTING_KEYS,
   type SiteCopyKey,
 } from '../site-copy';
+import {
+  isVolunteerStatus,
+  isVolunteerTier,
+  VOLUNTEER_TIERS,
+  VOLUNTEER_STATUSES,
+} from '../volunteer-tiers';
 import { createCommunityApi } from './api';
+import {
+  createBot,
+  listBots,
+  runDueBotsStub,
+  setBotStatus,
+} from './dua-bots';
+import { loadFormRegistry, saveFormRegistry } from './form-registry';
 import { notifyAccount } from './notify';
+
+function answerString(
+  answers: Record<string, unknown>,
+  key: string,
+): string {
+  const value = answers[key];
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number') return String(value);
+  return '';
+}
+
+function bindingValue(
+  registry: FormRegistry,
+  answers: Record<string, unknown>,
+  binding: string,
+): string {
+  const field = fieldForBinding(registry, binding);
+  if (!field) return '';
+  return answerString(answers, field.id);
+}
+
+async function maybeVerifyCaptcha(captchaToken?: string) {
+  if (!process.env.CAPTCHA_SECRET_TOKEN) return;
+
+  if (!captchaToken) {
+    throw new Error('Bot verification failed. Please try again.');
+  }
+
+  await verifyCaptchaToken(captchaToken);
+}
 
 async function requireSuperAdmin() {
   const client = getSupabaseServerClient();
@@ -76,23 +135,16 @@ export async function listChannelApplications() {
 export const submitChannelApplicationAction = authActionClient
   .inputSchema(
     z.object({
-      channelName: z.string().trim().min(2).max(80),
-      handle: z.string().trim().min(2).max(32),
+      answers: z.record(z.string(), z.unknown()).optional(),
+      channelName: z.string().trim().min(2).max(80).optional(),
+      handle: z.string().trim().min(2).max(32).optional(),
       description: z.string().trim().max(500).optional(),
       message: z.string().trim().max(1000).optional(),
       captchaToken: z.string().optional(),
     }),
   )
   .action(async ({ parsedInput, ctx: { user } }) => {
-    if (process.env.CAPTCHA_SECRET_TOKEN) {
-      const { verifyCaptchaToken } = await import('@kit/auth/captcha/server');
-
-      if (!parsedInput.captchaToken) {
-        throw new Error('Bot verification failed. Please try again.');
-      }
-
-      await verifyCaptchaToken(parsedInput.captchaToken);
-    }
+    await maybeVerifyCaptcha(parsedInput.captchaToken);
 
     const pending = await getMyPendingChannelApplication();
 
@@ -100,9 +152,44 @@ export const submitChannelApplicationAction = authActionClient
       throw new Error('You already have a channel application under review.');
     }
 
+    const registry = await loadFormRegistry('channel');
+    const answers = (parsedInput.answers ?? {}) as Record<string, unknown>;
+
+    if (parsedInput.answers) {
+      const validation = validateAnswers(
+        registry,
+        answers as Record<string, FormAnswerValue | undefined>,
+      );
+      if (!validation.ok) {
+        throw new Error(Object.values(validation.errors)[0] ?? 'Invalid form');
+      }
+    }
+
+    const channelName =
+      bindingValue(registry, answers, 'channelName') ||
+      parsedInput.channelName?.trim() ||
+      '';
+    const description =
+      bindingValue(registry, answers, 'description') ||
+      parsedInput.description?.trim() ||
+      '';
+    const handleInput =
+      bindingValue(registry, answers, 'handle') ||
+      parsedInput.handle?.trim() ||
+      '';
+    const applicantName = bindingValue(registry, answers, 'applicantName');
+    const applicantEmail =
+      bindingValue(registry, answers, 'email') || user.email || '';
+    const message =
+      answerString(answers, 'message') || parsedInput.message?.trim() || '';
+
+    if (channelName.length < 2) {
+      throw new Error('Channel name is required.');
+    }
+
     const handle =
-      normalizeChannelHandle(parsedInput.handle) ||
-      channelHandleFromName(parsedInput.channelName);
+      normalizeChannelHandle(handleInput) ||
+      channelHandleFromName(channelName);
 
     if (handle.length < 2) {
       throw new Error('Channel handle must be at least 2 characters.');
@@ -120,8 +207,8 @@ export const submitChannelApplicationAction = authActionClient
     }
 
     const { error } = await admin.from('categories').insert({
-      name: parsedInput.channelName.trim(),
-      description: parsedInput.description?.trim() || '',
+      name: channelName,
+      description,
       handle,
       channel_type: 'user',
       status: 'pending_review',
@@ -129,10 +216,12 @@ export const submitChannelApplicationAction = authActionClient
       is_verified: false,
       owner_id: user.id,
       application: {
-        applicantEmail: user.email ?? '',
-        message: parsedInput.message ?? '',
+        applicantEmail,
+        applicantName,
+        message,
+        answers,
         source: 'in-app',
-      },
+      } as Json,
     });
 
     if (error) throw new Error(error.message);
@@ -208,24 +297,43 @@ export async function listVolunteerApplications() {
 export const submitVolunteerApplicationAction = authActionClient
   .inputSchema(
     z.object({
-      name: z.string().trim().min(2).max(80),
-      message: z.string().trim().min(10).max(2000),
+      answers: z.record(z.string(), z.unknown()).optional(),
+      name: z.string().trim().min(2).max(80).optional(),
+      message: z.string().trim().min(10).max(2000).optional(),
       captchaToken: z.string().optional(),
     }),
   )
   .action(async ({ parsedInput, ctx: { user } }) => {
-    if (process.env.CAPTCHA_SECRET_TOKEN) {
-      const { verifyCaptchaToken } = await import('@kit/auth/captcha/server');
+    await maybeVerifyCaptcha(parsedInput.captchaToken);
 
-      if (!parsedInput.captchaToken) {
-        throw new Error('Bot verification failed. Please try again.');
+    const registry = await loadFormRegistry('volunteer');
+    const answers = (parsedInput.answers ?? {}) as Record<string, unknown>;
+
+    if (parsedInput.answers) {
+      const validation = validateAnswers(
+        registry,
+        answers as Record<string, FormAnswerValue | undefined>,
+      );
+      if (!validation.ok) {
+        throw new Error(Object.values(validation.errors)[0] ?? 'Invalid form');
       }
-
-      await verifyCaptchaToken(parsedInput.captchaToken);
     }
 
-    if (!user.email) {
+    const email =
+      bindingValue(registry, answers, 'email') || user.email || '';
+    const name =
+      bindingValue(registry, answers, 'name') ||
+      parsedInput.name?.trim() ||
+      '';
+    const message =
+      answerString(answers, 'message') || parsedInput.message?.trim() || '';
+
+    if (!email) {
       throw new Error('Your account needs an email address to apply.');
+    }
+
+    if (!parsedInput.answers && message.length < 10) {
+      throw new Error('Please share a short note about why you want to help.');
     }
 
     const admin = getSupabaseServerAdminClient();
@@ -242,11 +350,11 @@ export const submitVolunteerApplicationAction = authActionClient
 
     const { error } = await admin.from('volunteer_applications').insert({
       user_id: user.id,
-      email: user.email,
-      name: parsedInput.name,
-      message: parsedInput.message,
+      email,
+      name: name || email,
+      message: message || 'Submitted via dynamic form.',
       status: 'pending',
-      payload: { source: 'in-app' },
+      payload: { source: 'in-app', answers } as Json,
     });
 
     if (error) throw new Error(error.message);
@@ -270,7 +378,7 @@ export const reviewVolunteerApplicationAction = authActionClient
 
     const { data: application } = await admin
       .from('volunteer_applications')
-      .select('user_id')
+      .select('user_id, email, name')
       .eq('id', parsedInput.applicationId)
       .maybeSingle();
 
@@ -288,6 +396,25 @@ export const reviewVolunteerApplicationAction = authActionClient
 
     const approved = parsedInput.decision === 'approved';
 
+    if (approved && application?.user_id) {
+      const now = new Date().toISOString();
+      const { error: rosterError } = await admin
+        .from('community_volunteers')
+        .upsert(
+          {
+            user_id: application.user_id,
+            email: application.email ?? '',
+            name: application.name ?? '',
+            tier: 'helper',
+            status: 'active',
+            updated_at: now,
+          },
+          { onConflict: 'user_id' },
+        );
+
+      if (rosterError) throw new Error(rosterError.message);
+    }
+
     await notifyAccount({
       accountId: application?.user_id,
       body: approved
@@ -295,6 +422,80 @@ export const reviewVolunteerApplicationAction = authActionClient
         : 'Your volunteer application was not approved at this time.',
       link: '/volunteer',
     });
+
+    revalidatePath('/admin/volunteers');
+
+    return { success: true as const };
+  });
+
+export async function listCommunityVolunteers() {
+  await requireSuperAdmin();
+  const admin = getSupabaseServerAdminClient();
+  const { data, error } = await admin
+    .from('community_volunteers')
+    .select(
+      'user_id, email, name, tier, status, notes, created_at, updated_at',
+    )
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (error) throw new Error(error.message);
+
+  return data ?? [];
+}
+
+export const updateVolunteerTierAction = authActionClient
+  .inputSchema(
+    z.object({
+      userId: z.string().uuid(),
+      tier: z.enum(VOLUNTEER_TIERS),
+    }),
+  )
+  .action(async ({ parsedInput }) => {
+    await requireSuperAdmin();
+    if (!isVolunteerTier(parsedInput.tier)) {
+      throw new Error('Invalid tier');
+    }
+
+    const admin = getSupabaseServerAdminClient();
+    const { error } = await admin
+      .from('community_volunteers')
+      .update({
+        tier: parsedInput.tier,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', parsedInput.userId);
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/admin/volunteers');
+
+    return { success: true as const };
+  });
+
+export const setVolunteerStatusAction = authActionClient
+  .inputSchema(
+    z.object({
+      userId: z.string().uuid(),
+      status: z.enum(VOLUNTEER_STATUSES),
+    }),
+  )
+  .action(async ({ parsedInput }) => {
+    await requireSuperAdmin();
+    if (!isVolunteerStatus(parsedInput.status)) {
+      throw new Error('Invalid status');
+    }
+
+    const admin = getSupabaseServerAdminClient();
+    const { error } = await admin
+      .from('community_volunteers')
+      .update({
+        status: parsedInput.status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', parsedInput.userId);
+
+    if (error) throw new Error(error.message);
 
     revalidatePath('/admin/volunteers');
 
@@ -506,4 +707,133 @@ export const updateAiModerationSettingsAction = authActionClient
     revalidatePath('/admin/settings');
 
     return { success: true as const };
+  });
+
+export async function getFooterLinks(): Promise<ReadonlyArray<FooterLink>> {
+  const admin = getSupabaseServerAdminClient();
+  const { data } = await admin
+    .from('site_settings')
+    .select('value')
+    .eq('key', FOOTER_LINKS_SETTING_KEY)
+    .maybeSingle();
+
+  return resolveFooterLinks(data?.value);
+}
+
+export const updateFooterLinksAction = authActionClient
+  .inputSchema(
+    z.object({
+      links: z.array(
+        z.object({
+          label: z.string(),
+          href: z.string(),
+          openInNewTab: z.boolean(),
+        }),
+      ),
+    }),
+  )
+  .action(async ({ parsedInput }) => {
+    await requireSuperAdmin();
+    const sanitized = parseFooterLinks(JSON.stringify(parsedInput.links));
+    const admin = getSupabaseServerAdminClient();
+    const { error } = await admin.from('site_settings').upsert({
+      key: FOOTER_LINKS_SETTING_KEY,
+      value: JSON.stringify(sanitized),
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/');
+    revalidatePath('/admin/copy');
+
+    return { success: true as const };
+  });
+
+export async function getFormRegistryForAdmin(kind: FormKind) {
+  await requireSuperAdmin();
+  return loadFormRegistry(kind);
+}
+
+export const updateFormRegistryAction = authActionClient
+  .inputSchema(
+    z.object({
+      kind: z.enum(['channel', 'volunteer']),
+      registry: z.object({
+        version: z.literal(1),
+        fields: z.array(z.unknown()),
+      }),
+    }),
+  )
+  .action(async ({ parsedInput }) => {
+    await requireSuperAdmin();
+    const fallback = await loadFormRegistry(parsedInput.kind);
+    const registry = parseFormRegistry(
+      JSON.stringify(parsedInput.registry),
+      fallback,
+    );
+
+    await saveFormRegistry(parsedInput.kind, registry);
+
+    revalidatePath('/admin/forms');
+    revalidatePath('/channels/apply');
+    revalidatePath('/volunteer');
+
+    return { success: true as const };
+  });
+
+export async function listDuaBotsForAdmin() {
+  await requireSuperAdmin();
+  return listBots();
+}
+
+export const createDuaBotAction = authActionClient
+  .inputSchema(
+    z.object({
+      name: z.string().trim().min(2).max(80),
+      description: z.string().trim().max(500).optional(),
+      frequencyMinutes: z.number().int().min(15).max(10080).optional(),
+    }),
+  )
+  .action(async ({ parsedInput, ctx: { user } }) => {
+    await requireSuperAdmin();
+    const bot = await createBot({
+      name: parsedInput.name,
+      description: parsedInput.description,
+      frequencyMinutes: parsedInput.frequencyMinutes,
+      createdBy: user.id,
+    });
+
+    revalidatePath('/admin/bots');
+
+    return { success: true as const, bot };
+  });
+
+export const setDuaBotStatusAction = authActionClient
+  .inputSchema(
+    z.object({
+      botId: z.number().int().positive(),
+      status: z.enum(['active', 'paused']),
+    }),
+  )
+  .action(async ({ parsedInput, ctx: { user } }) => {
+    await requireSuperAdmin();
+    await setBotStatus(parsedInput.botId, parsedInput.status, user.id);
+    revalidatePath('/admin/bots');
+
+    return { success: true as const };
+  });
+
+export const runDuaBotsStubAction = authActionClient
+  .inputSchema(
+    z.object({
+      botId: z.number().int().positive().optional(),
+    }),
+  )
+  .action(async ({ parsedInput }) => {
+    await requireSuperAdmin();
+    const result = await runDueBotsStub({ botId: parsedInput.botId });
+    revalidatePath('/admin/bots');
+
+    return { success: true as const, ...result };
   });

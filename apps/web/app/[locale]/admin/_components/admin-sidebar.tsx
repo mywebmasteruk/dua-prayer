@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 import {
+  Bot,
+  ClipboardList,
   FileText,
   HandHeart,
   LayoutDashboard,
@@ -34,6 +36,8 @@ const links = [
   { href: '/admin/duas', label: 'Duas', icon: HandHeart },
   { href: '/admin/channels', label: 'Channels', icon: Radio },
   { href: '/admin/volunteers', label: 'Volunteers', icon: UserRoundPlus },
+  { href: '/admin/forms', label: 'Forms', icon: ClipboardList },
+  { href: '/admin/bots', label: 'Bots', icon: Bot },
   { href: '/admin/copy', label: 'Site copy', icon: FileText },
   { href: '/admin/settings', label: 'Settings', icon: Settings2 },
 ];

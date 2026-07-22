@@ -66,3 +66,15 @@ export function readFeedTopicsFromPublicData(publicData: unknown): number[] {
 
   return parseFeedTopics(record.feed_topics);
 }
+
+/** ISO timestamp when the user finished first-run onboarding, or null. */
+export function readOnboardedAtFromPublicData(
+  publicData: unknown,
+): string | null {
+  if (!publicData || typeof publicData !== 'object') return null;
+
+  const record = publicData as Record<string, unknown>;
+  const value = record.onboarded_at;
+
+  return typeof value === 'string' && value.trim() ? value : null;
+}

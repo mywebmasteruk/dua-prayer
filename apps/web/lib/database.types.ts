@@ -952,6 +952,230 @@ export type Database = {
         };
         Relationships: [];
       };
+      community_volunteers: {
+        Row: {
+          user_id: string;
+          email: string;
+          name: string;
+          tier: string;
+          status: string;
+          notes: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          email?: string;
+          name?: string;
+          tier?: string;
+          status?: string;
+          notes?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          email?: string;
+          name?: string;
+          tier?: string;
+          status?: string;
+          notes?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      dua_bots: {
+        Row: {
+          id: number;
+          name: string;
+          description: string;
+          status: string;
+          frequency_minutes: number;
+          source_type: string;
+          rss_urls: string[];
+          keywords: string[];
+          categories: string[];
+          tone: string;
+          language: string;
+          system_prompt: string;
+          max_duas_per_run: number;
+          target_category_id: number | null;
+          publish_mode: string;
+          last_run_at: string | null;
+          next_run_at: string | null;
+          last_status: string;
+          last_error: string | null;
+          created_by: string | null;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: number;
+          name: string;
+          description?: string;
+          status?: string;
+          frequency_minutes?: number;
+          source_type?: string;
+          rss_urls?: string[];
+          keywords?: string[];
+          categories?: string[];
+          tone?: string;
+          language?: string;
+          system_prompt?: string;
+          max_duas_per_run?: number;
+          target_category_id?: number | null;
+          publish_mode?: string;
+          last_run_at?: string | null;
+          next_run_at?: string | null;
+          last_status?: string;
+          last_error?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: number;
+          name?: string;
+          description?: string;
+          status?: string;
+          frequency_minutes?: number;
+          source_type?: string;
+          rss_urls?: string[];
+          keywords?: string[];
+          categories?: string[];
+          tone?: string;
+          language?: string;
+          system_prompt?: string;
+          max_duas_per_run?: number;
+          target_category_id?: number | null;
+          publish_mode?: string;
+          last_run_at?: string | null;
+          next_run_at?: string | null;
+          last_status?: string;
+          last_error?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'dua_bots_target_category_id_fkey';
+            columns: ['target_category_id'];
+            isOneToOne: false;
+            referencedRelation: 'categories';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      dua_bot_runs: {
+        Row: {
+          id: number;
+          bot_id: number;
+          started_at: string;
+          finished_at: string | null;
+          status: string;
+          events_found: number;
+          duas_created: number;
+          message: string | null;
+        };
+        Insert: {
+          id?: number;
+          bot_id: number;
+          started_at?: string;
+          finished_at?: string | null;
+          status?: string;
+          events_found?: number;
+          duas_created?: number;
+          message?: string | null;
+        };
+        Update: {
+          id?: number;
+          bot_id?: number;
+          started_at?: string;
+          finished_at?: string | null;
+          status?: string;
+          events_found?: number;
+          duas_created?: number;
+          message?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'dua_bot_runs_bot_id_fkey';
+            columns: ['bot_id'];
+            isOneToOne: false;
+            referencedRelation: 'dua_bots';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      dua_bot_event_posts: {
+        Row: {
+          id: number;
+          bot_id: number;
+          run_id: number | null;
+          dua_id: number | null;
+          event_key: string;
+          event_title: string;
+          event_url: string | null;
+          event_published_at: string | null;
+          source_type: string;
+          source_url: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          bot_id: number;
+          run_id?: number | null;
+          dua_id?: number | null;
+          event_key: string;
+          event_title: string;
+          event_url?: string | null;
+          event_published_at?: string | null;
+          source_type?: string;
+          source_url?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          bot_id?: number;
+          run_id?: number | null;
+          dua_id?: number | null;
+          event_key?: string;
+          event_title?: string;
+          event_url?: string | null;
+          event_published_at?: string | null;
+          source_type?: string;
+          source_url?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'dua_bot_event_posts_bot_id_fkey';
+            columns: ['bot_id'];
+            isOneToOne: false;
+            referencedRelation: 'dua_bots';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'dua_bot_event_posts_run_id_fkey';
+            columns: ['run_id'];
+            isOneToOne: false;
+            referencedRelation: 'dua_bot_runs';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'dua_bot_event_posts_dua_id_fkey';
+            columns: ['dua_id'];
+            isOneToOne: false;
+            referencedRelation: 'duas';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       user_account_workspace: {

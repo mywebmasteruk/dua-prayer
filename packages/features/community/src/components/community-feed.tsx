@@ -12,19 +12,15 @@ import {
 
 import { Button } from '@kit/ui/button';
 import { Input } from '@kit/ui/input';
-import { cn } from '@kit/ui/utils';
 
-import {
-  buildTrendingHashtags,
-  matchesHashtag,
-  normalizeHashtag,
-} from '../hashtags';
+import { matchesHashtag, normalizeHashtag } from '../hashtags';
 import type { PostingMode } from '../posting-settings';
 import { getFeedDuas } from '../server/server-actions';
 import type { SiteCopy } from '../site-copy';
 import type { Category, Dua } from '../types';
 import { DuaForm } from './dua-form';
 import { DuaList } from './dua-list';
+import { TrendingRail } from './trending-rail';
 
 interface CommunityFeedProps {
   initialDuas: Dua[];
@@ -75,8 +71,6 @@ function CommunityFeedInner({
     setDuas(initialDuas);
     setLoadedTotal(total);
   }, [initialDuas, total]);
-
-  const trending = buildTrendingHashtags(duas, 5);
 
   const visibleDuas = duas.filter((dua) => {
     if (activeTag && !matchesHashtag(dua.text, activeTag)) return false;
@@ -190,41 +184,17 @@ function CommunityFeedInner({
           </span>
         </div>
 
-        {trending.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {trending.map((item) => (
-              <button
-                key={item.tag}
-                type="button"
-                onClick={() => setTag(item.tag)}
-                className={cn(
-                  'border-border rounded-lg border px-2.5 py-1 text-xs transition-colors',
-                  activeTag === item.tag
-                    ? 'bg-primary text-primary-foreground border-transparent'
-                    : 'hover:bg-muted',
-                )}
-              >
-                {item.label}
-                <span
-                  className={cn(
-                    'ml-1 tabular-nums',
-                    activeTag === item.tag
-                      ? 'text-primary-foreground/80'
-                      : 'text-muted-foreground',
-                  )}
-                >
-                  {item.duas}
-                </span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search loaded duas…"
           aria-label="Search loaded duas"
+        />
+
+        <TrendingRail
+          duas={duas}
+          categories={categories}
+          onSelectTag={setTag}
         />
 
         {activeTag ? (

@@ -20,11 +20,13 @@ import {
   parseFeedTopics,
   readFeedLanguagesFromPublicData,
   readFeedTopicsFromPublicData,
+  readOnboardedAtFromPublicData,
 } from '../feed-languages';
 import {
   shouldAllowPublicDuaSubmission,
   shouldHoldSubmissionForReview,
 } from '../posting-settings';
+import type { Category, ChannelItem } from '../types';
 import { createCommunityApi } from './api';
 import { crossedAmeenMilestone, notifyAccount } from './notify';
 import { checkRateLimit, getClientIp } from './rate-limit';
@@ -128,7 +130,7 @@ export async function getFeedDuas(
 
 async function updatePersonalPublicData(
   userId: string,
-  patch: Record<string, string[] | number[]>,
+  patch: Record<string, string | string[] | number[] | null>,
 ) {
   const client = getSupabaseServerClient();
   const { data: account, error: loadError } = await client
@@ -182,6 +184,77 @@ export async function getMyFeedTopics() {
 
   return createCommunityApi(client).getFeedTopics(user.id);
 }
+
+export async function getMyOnboardingState() {
+  const client = getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+
+  if (!user) {
+    return {
+      needsOnboarding: false,
+      topics: [] as Category[],
+      channels: [] as ChannelItem[],
+      followedIds: [] as number[],
+    };
+  }
+
+  const api = createCommunityApi(client);
+  const [onboardedAt, topics, channels, followedIds] = await Promise.all([
+    api.getOnboardedAt(user.id),
+    api.listCategories(),
+    api.listChannels(),
+    api.listFollowIds(user.id),
+  ]);
+
+  return {
+    needsOnboarding: !onboardedAt,
+    topics,
+    channels: channels.slice(0, 12),
+    followedIds,
+  };
+}
+
+export const completeOnboardingAction = authActionClient
+  .inputSchema(
+    z.object({
+      languages: z.array(z.string()).optional(),
+      topics: z.array(z.number().int().positive()).optional(),
+    }),
+  )
+  .action(async ({ parsedInput, ctx: { user } }) => {
+    const client = getSupabaseServerClient();
+    const api = createCommunityApi(client);
+    const patch: Record<string, string | string[] | number[]> = {
+      onboarded_at: new Date().toISOString(),
+    };
+
+    if (parsedInput.languages !== undefined) {
+      patch.feed_languages = parseFeedLanguages(parsedInput.languages);
+    }
+
+    if (parsedInput.topics !== undefined) {
+      const categories = await api.listCategories();
+      const allowed = new Set(categories.map((category) => category.id));
+      patch.feed_topics = parseFeedTopics(parsedInput.topics).filter((id) =>
+        allowed.has(id),
+      );
+    }
+
+    await updatePersonalPublicData(user.id, patch);
+
+    revalidatePath('/');
+    revalidatePath('/channels');
+    revalidatePath('/home/settings');
+
+    return {
+      success: true as const,
+      onboardedAt: readOnboardedAtFromPublicData({
+        onboarded_at: patch.onboarded_at,
+      }),
+    };
+  });
 
 export const updateMyFeedLanguagesAction = authActionClient
   .inputSchema(

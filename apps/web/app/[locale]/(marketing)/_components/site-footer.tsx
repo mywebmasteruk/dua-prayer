@@ -1,14 +1,23 @@
+import { getFooterLinks } from '@kit/community/server/advanced-actions';
+import { getSiteCopy } from '@kit/community/server/actions';
 import { Footer } from '@kit/ui/marketing';
 import { Trans } from '@kit/ui/trans';
 
 import { AppLogo } from '~/components/app-logo';
 import appConfig from '~/config/app.config';
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  const [links, copy] = await Promise.all([getFooterLinks(), getSiteCopy()]);
+
+  const productLinks = links.map((link) => ({
+    href: link.href,
+    label: link.label,
+  }));
+
   return (
     <Footer
       logo={<AppLogo className="w-[85px] md:w-[95px]" />}
-      description={<Trans i18nKey="marketing.footerDescription" />}
+      description={copy.footerTagline}
       copyright={
         <Trans
           i18nKey="marketing.copyright"
@@ -20,22 +29,8 @@ export function SiteFooter() {
       }
       sections={[
         {
-          heading: <Trans i18nKey="marketing.about" />,
-          links: [
-            { href: '/about', label: 'About' },
-            { href: '/resources', label: 'Resources' },
-            { href: '/safety', label: 'Safety' },
-            { href: '/contact', label: <Trans i18nKey="marketing.contact" /> },
-          ],
-        },
-        {
           heading: <Trans i18nKey="marketing.product" />,
-          links: [
-            { href: '/', label: 'Home' },
-            { href: '/channels', label: 'Channels' },
-            { href: '/volunteer', label: 'Volunteer' },
-            { href: '/donate', label: 'Support' },
-          ],
+          links: productLinks,
         },
         {
           heading: <Trans i18nKey="marketing.legal" />,
