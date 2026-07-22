@@ -1,0 +1,285 @@
+---
+status: "published"
+label: "Layout Style"
+title: "Configure Navigation Layout | Next.js Supabase SaaS Kit"
+order: 4
+description: "Choose between sidebar and header navigation layouts, configure collapsed states, and customize the navigation experience for your SaaS application."
+---
+
+Makerkit offers two navigation layouts: **sidebar** (default) and **header**. You can configure each workspace independently, with separate settings for personal accounts and team accounts. All layout options are controlled through environment variables.
+
+## Quick Configuration
+
+Set your preferred layout in `.env.local`:
+
+```bash title=".env.local"
+# Personal account workspace layout
+NEXT_PUBLIC_USER_NAVIGATION_STYLE=sidebar
+
+# Team account workspace layout
+NEXT_PUBLIC_TEAM_NAVIGATION_STYLE=sidebar
+```
+
+Available values: `sidebar`, `header`, or `custom`.
+
+## Layout Options Compared
+
+### Sidebar Layout (Default)
+
+The sidebar layout places navigation on the left side of the screen, providing a persistent, vertically-oriented menu.
+
+{% img src="/assets/images/docs/turbo-sidebar-layout.webp" width="2522" height="1910" /%}
+
+**Best for:**
+- Apps with many navigation items (5+)
+- Complex feature sets needing categorized menus
+- Desktop-first applications
+- Enterprise or admin-heavy dashboards
+
+**Configuration:**
+```bash title=".env.local"
+NEXT_PUBLIC_USER_NAVIGATION_STYLE=sidebar
+NEXT_PUBLIC_TEAM_NAVIGATION_STYLE=sidebar
+```
+
+### Header Layout
+
+The header layout places navigation horizontally at the top of the screen, with a more compact, traditional web app feel.
+
+{% img src="/assets/images/docs/turbo-header-layout.webp" width="3282" height="1918" /%}
+
+**Best for:**
+- Apps with fewer navigation items (3-5)
+- Consumer-facing products
+- Mobile-first designs
+- Simple, focused applications
+
+**Configuration:**
+```bash title=".env.local"
+NEXT_PUBLIC_USER_NAVIGATION_STYLE=header
+NEXT_PUBLIC_TEAM_NAVIGATION_STYLE=header
+```
+
+## Sidebar Behavior Options
+
+### Default Collapsed State
+
+Control whether the sidebar starts expanded or collapsed:
+
+```bash title=".env.local"
+# Personal account sidebar (home workspace)
+NEXT_PUBLIC_HOME_SIDEBAR_COLLAPSED=false
+
+# Team account sidebar
+NEXT_PUBLIC_TEAM_SIDEBAR_COLLAPSED=false
+```
+
+Set to `true` to start with a collapsed icon-only sidebar. Users can still expand it manually.
+
+### Collapsible Style
+
+Choose how the sidebar collapses and expands:
+
+```bash title=".env.local"
+# Options: offcanvas, icon, none
+NEXT_PUBLIC_SIDEBAR_COLLAPSIBLE_STYLE=offcanvas
+```
+
+| Style | Behavior |
+|-------|----------|
+| `offcanvas` | Sidebar slides in/out as an overlay (mobile-friendly) |
+| `icon` | Sidebar collapses to icons only, expanding on hover |
+| `none` | Sidebar cannot be collapsed |
+
+### Sidebar Trigger Visibility
+
+Show or hide the sidebar toggle button:
+
+```bash title=".env.local"
+NEXT_PUBLIC_ENABLE_SIDEBAR_TRIGGER=true
+```
+
+Set to `false` if you want the sidebar to remain in its configured state without user control.
+
+## Complete Configuration Example
+
+Here's a full example for a team-focused SaaS with different layouts per workspace:
+
+```bash title=".env.local"
+# Personal account: simple header navigation
+NEXT_PUBLIC_USER_NAVIGATION_STYLE=header
+
+# Team workspace: full sidebar with collapsed default
+NEXT_PUBLIC_TEAM_NAVIGATION_STYLE=sidebar
+NEXT_PUBLIC_TEAM_SIDEBAR_COLLAPSED=true
+NEXT_PUBLIC_SIDEBAR_COLLAPSIBLE_STYLE=icon
+NEXT_PUBLIC_ENABLE_SIDEBAR_TRIGGER=true
+
+# Theme settings
+NEXT_PUBLIC_DEFAULT_THEME_MODE=system
+NEXT_PUBLIC_ENABLE_THEME_TOGGLE=true
+```
+
+## Customizing Navigation Items
+
+Navigation items are defined in configuration files, not environment variables:
+
+| Workspace | Configuration File |
+|-----------|-------------------|
+| Personal Account | `apps/web/config/personal-account-navigation.config.tsx` |
+| Team Account | `apps/web/config/team-account-navigation.config.tsx` |
+
+### Personal Account Navigation
+
+```tsx title="apps/web/config/personal-account-navigation.config.tsx"
+import { CreditCard, Home, User, Settings } from 'lucide-react';
+import { NavigationConfigSchema } from '@kit/ui/navigation-schema';
+import pathsConfig from '~/config/paths.config';
+
+const iconClasses = 'w-4';
+
+const routes = [
+  {
+    label: 'common.routes.application',
+    children: [
+      {
+        label: 'common.routes.home',
+        path: pathsConfig.app.home,
+        Icon: <Home className={iconClasses} />,
+        highlightMatch: `${pathsConfig.app.home}$`,
+      },
+    ],
+  },
+  {
+    label: 'common.routes.settings',
+    children: [
+      {
+        label: 'common.routes.profile',
+        path: pathsConfig.app.personalAccountSettings,
+        Icon: <User className={iconClasses} />,
+      },
+      {
+        label: 'common.routes.billing',
+        path: pathsConfig.app.personalAccountBilling,
+        Icon: <CreditCard className={iconClasses} />,
+      },
+    ],
+  },
+];
+
+export const personalAccountNavigationConfig = NavigationConfigSchema.parse({
+  routes,
+  style: process.env.NEXT_PUBLIC_USER_NAVIGATION_STYLE,
+  sidebarCollapsed: process.env.NEXT_PUBLIC_HOME_SIDEBAR_COLLAPSED,
+  sidebarCollapsedStyle: process.env.NEXT_PUBLIC_SIDEBAR_COLLAPSIBLE_STYLE,
+});
+```
+
+### Adding a New Navigation Item
+
+To add a custom page to the navigation:
+
+```tsx title="apps/web/config/personal-account-navigation.config.tsx"
+import { BarChart3 } from 'lucide-react';
+
+const routes = [
+  {
+    label: 'common.routes.application',
+    children: [
+      {
+        label: 'common.routes.home',
+        path: pathsConfig.app.home,
+        Icon: <Home className={iconClasses} />,
+        highlightMatch: `${pathsConfig.app.home}$`,
+      },
+      // Add your custom navigation item
+      {
+        label: 'common.routes.analytics',
+        path: '/home/analytics',
+        Icon: <BarChart3 className={iconClasses} />,
+      },
+    ],
+  },
+  // ... rest of routes
+];
+```
+
+Remember to add the translation key to your locale files:
+
+```json title="apps/web/i18n/messages/en/common.json"
+{
+  "routes": {
+    "analytics": "Analytics"
+  }
+}
+```
+
+## Navigation Schema Reference
+
+The `NavigationConfigSchema` supports these properties:
+
+```typescript
+interface NavigationConfig {
+  routes: {
+    label: string;           // Translation key for section header
+    collapsible?: boolean;   // Allow section to collapse (default: false)
+    children: {
+      label: string;         // Translation key for item
+      path: string;          // Route path
+      Icon?: ReactNode;      // Lucide icon component
+      highlightMatch?: string; // Regex pattern for active route highlighting
+    }[];
+  }[];
+  style?: 'sidebar' | 'header' | 'custom';
+  sidebarCollapsed?: boolean | string;
+  sidebarCollapsedStyle?: 'offcanvas' | 'icon' | 'none';
+}
+```
+
+## Environment Variables Reference
+
+| Variable | Default | Options | Description |
+|----------|---------|---------|-------------|
+| `NEXT_PUBLIC_USER_NAVIGATION_STYLE` | `sidebar` | `sidebar`, `header`, `custom` | Personal account layout |
+| `NEXT_PUBLIC_TEAM_NAVIGATION_STYLE` | `sidebar` | `sidebar`, `header`, `custom` | Team account layout |
+| `NEXT_PUBLIC_HOME_SIDEBAR_COLLAPSED` | `false` | `true`, `false` | Personal sidebar default state |
+| `NEXT_PUBLIC_TEAM_SIDEBAR_COLLAPSED` | `false` | `true`, `false` | Team sidebar default state |
+| `NEXT_PUBLIC_SIDEBAR_COLLAPSIBLE_STYLE` | `icon` | `offcanvas`, `icon`, `none` | Collapse behavior |
+| `NEXT_PUBLIC_ENABLE_SIDEBAR_TRIGGER` | `true` | `true`, `false` | Show collapse toggle |
+
+## Common Mistakes
+
+**Mixing layout styles inconsistently**: If personal accounts use header layout but teams use sidebar, the experience can feel disjointed. Consider the transition between workspaces.
+
+**Too many items in header layout**: Header navigation works best with 3-5 top-level items. More than that causes horizontal overflow or cramped spacing. Use sidebar layout for complex navigation.
+
+**Forgetting mobile behavior**: Sidebar layout automatically converts to a slide-out drawer on mobile. Test both layouts on narrow viewports.
+
+**Not updating translations**: Navigation labels use translation keys. Adding items without corresponding translations shows raw keys like `common.routes.analytics`.
+
+## Verification
+
+After changing layout configuration:
+
+1. Clear your browser's local storage (layout preferences are cached)
+2. Restart the dev server for environment variable changes
+3. Test both personal account and team account workspaces
+4. Verify mobile responsiveness at 375px viewport width
+5. Check that sidebar collapse/expand works correctly
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Can I use different layouts for personal and team accounts?", "answer": "Yes. Set NEXT_PUBLIC_USER_NAVIGATION_STYLE and NEXT_PUBLIC_TEAM_NAVIGATION_STYLE to different values. This is useful when team workspaces need more navigation complexity than personal accounts."},
+     {"question": "How do I create a completely custom layout?", "answer": "Set the navigation style to 'custom' and implement your own layout component. You'll need to modify the layout files in apps/web/app/home/ to use your custom navigation component."},
+     {"question": "Why isn't my sidebar staying collapsed?", "answer": "User preferences are stored in local storage and override environment defaults. Clear local storage or use the browser's incognito mode to test default behavior."},
+     {"question": "How do I add icons to navigation items?", "answer": "Import icons from lucide-react and pass them as the Icon prop. Use className='w-4' to maintain consistent sizing with other navigation icons."}
+   ]
+/%}
+
+## Next Steps
+
+- Back to [Customization Overview](/docs/next-supabase-turbo/customization)
+- Configure your [theme colors](/docs/next-supabase-turbo/customization/theme) to match your navigation style
+- Set up [custom fonts](/docs/next-supabase-turbo/customization/fonts) for navigation typography
+- Update your [application logo](/docs/next-supabase-turbo/customization/logo) for the sidebar/header

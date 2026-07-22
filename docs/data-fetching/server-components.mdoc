@@ -1,0 +1,487 @@
+---
+status: "published"
+title: "Data Fetching with Server Components"
+label: "Server Components"
+description: "Load data in Next.js Server Components with Supabase. Covers streaming, Suspense boundaries, parallel data loading, caching, and error handling patterns."
+order: 3
+---
+
+Server Components fetch data on the server during rendering, streaming HTML directly to the browser without adding to your JavaScript bundle. They're the default for all data loading in MakerKit because they're secure (queries never reach the client), SEO-friendly (content renders for search engines), and fast (no client-side fetching waterfalls). Tested with Next.js 16 and React 19.
+
+{% callout title="When to use Server Components" %}
+**Use Server Components** (the default) for page loads, SEO content, and data that doesn't need real-time updates. Only switch to Client Components with React Query when you need optimistic updates, real-time subscriptions, or client-side filtering.
+{% /callout %}
+
+## Why Server Components for Data Fetching
+
+Server Components provide significant advantages for data loading:
+
+- **No client bundle impact** - Database queries don't increase JavaScript bundle size
+- **Direct database access** - Query Supabase directly without API round-trips
+- **Streaming** - Users see content progressively as data loads
+- **SEO-friendly** - Content is rendered on the server for search engines
+- **Secure by default** - Queries never reach the browser
+
+## Basic Data Fetching
+
+Every component in Next.js is a Server Component by default. Add the `async` keyword to fetch data directly:
+
+```tsx
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export default async function TasksPage() {
+  const supabase = getSupabaseServerClient();
+
+  const { data: tasks, error } = await supabase
+    .from('tasks')
+    .select('id, title, completed, created_at')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error('Failed to load tasks');
+  }
+
+  return (
+    <ul>
+      {tasks.map((task) => (
+        <li key={task.id}>{task.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Streaming with Suspense
+
+Suspense boundaries let you show loading states while data streams in. This prevents the entire page from waiting for slow queries.
+
+### Page-Level Loading States
+
+Create a `loading.tsx` file next to your page to show a loading UI while the page data loads:
+
+```tsx
+// app/tasks/loading.tsx
+export default function Loading() {
+  return (
+    <div className="space-y-4">
+      <div className="h-8 w-48 animate-pulse bg-muted rounded" />
+      <div className="h-64 animate-pulse bg-muted rounded" />
+    </div>
+  );
+}
+```
+
+### Component-Level Suspense
+
+For granular control, wrap individual components in Suspense boundaries:
+
+```tsx
+import { Suspense } from 'react';
+
+export default function DashboardPage() {
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      {/* Stats load first */}
+      <Suspense fallback={<StatsSkeleton />}>
+        <DashboardStats />
+      </Suspense>
+
+      {/* Tasks can load independently */}
+      <Suspense fallback={<TasksSkeleton />}>
+        <RecentTasks />
+      </Suspense>
+
+      {/* Activity loads last */}
+      <Suspense fallback={<ActivitySkeleton />}>
+        <ActivityFeed />
+      </Suspense>
+    </div>
+  );
+}
+
+// Each component fetches its own data
+async function DashboardStats() {
+  const supabase = getSupabaseServerClient();
+  const { data } = await supabase.rpc('get_dashboard_stats');
+  return <StatsDisplay stats={data} />;
+}
+
+async function RecentTasks() {
+  const supabase = getSupabaseServerClient();
+  const { data } = await supabase.from('tasks').select('*').limit(5);
+  return <TasksList tasks={data} />;
+}
+```
+
+## Parallel Data Loading
+
+Load multiple data sources simultaneously to minimize waterfall requests. Use `Promise.all` to fetch in parallel:
+
+```tsx
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export default async function AccountDashboard({
+  params,
+}: {
+  params: Promise<{ account: string }>;
+}) {
+  const { account } = await params;
+  const supabase = getSupabaseServerClient();
+
+  // All queries run in parallel
+  const [tasksResult, membersResult, statsResult] = await Promise.all([
+    supabase
+      .from('tasks')
+      .select('*')
+      .eq('account_slug', account)
+      .limit(10),
+    supabase
+      .from('account_members')
+      .select('*, user:users(name, avatar_url)')
+      .eq('account_slug', account),
+    supabase.rpc('get_account_stats', { account_slug: account }),
+  ]);
+
+  return (
+    <Dashboard
+      tasks={tasksResult.data}
+      members={membersResult.data}
+      stats={statsResult.data}
+    />
+  );
+}
+```
+
+### Avoiding Waterfalls
+
+A waterfall occurs when queries depend on each other sequentially:
+
+```tsx
+// BAD: Waterfall - each query waits for the previous
+async function SlowDashboard() {
+  const supabase = getSupabaseServerClient();
+
+  const { data: account } = await supabase
+    .from('accounts')
+    .select('*')
+    .single();
+
+  // This waits for account to load first
+  const { data: tasks } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('account_id', account.id);
+
+  // This waits for tasks to load
+  const { data: members } = await supabase
+    .from('members')
+    .select('*')
+    .eq('account_id', account.id);
+}
+
+// GOOD: Parallel loading when data is independent
+async function FastDashboard({ accountId }: { accountId: string }) {
+  const supabase = getSupabaseServerClient();
+
+  const [tasks, members] = await Promise.all([
+    supabase.from('tasks').select('*').eq('account_id', accountId),
+    supabase.from('members').select('*').eq('account_id', accountId),
+  ]);
+}
+```
+
+## Caching Strategies
+
+### Request Deduplication
+
+Next.js automatically deduplicates identical fetch requests within a single render. If multiple components need the same data, wrap your data fetching in React's `cache()`:
+
+```tsx
+import { cache } from 'react';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+// This query runs once per request, even if called multiple times
+export const getAccount = cache(async (slug: string) => {
+  const supabase = getSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from('accounts')
+    .select('*')
+    .eq('slug', slug)
+    .single();
+
+  if (error) throw error;
+  return data;
+});
+
+// Both components can call getAccount('acme') - only one query runs
+async function AccountHeader({ slug }: { slug: string }) {
+  const account = await getAccount(slug);
+  return <h1>{account.name}</h1>;
+}
+
+async function AccountSidebar({ slug }: { slug: string }) {
+  const account = await getAccount(slug);
+  return <nav>{/* uses account.settings */}</nav>;
+}
+```
+
+### Using `unstable_cache` for Persistent Caching
+
+For data that doesn't change often, use Next.js's `unstable_cache` to cache across requests:
+
+```tsx
+import { unstable_cache } from 'next/cache';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+const getCachedPricingPlans = unstable_cache(
+  async () => {
+    const supabase = getSupabaseServerClient();
+    const { data } = await supabase
+      .from('pricing_plans')
+      .select('*')
+      .eq('active', true);
+    return data;
+  },
+  ['pricing-plans'], // Cache key
+  {
+    revalidate: 3600, // Revalidate every hour
+    tags: ['pricing'], // Tag for manual revalidation
+  }
+);
+
+export default async function PricingPage() {
+  const plans = await getCachedPricingPlans();
+  return <PricingTable plans={plans} />;
+}
+```
+
+To invalidate the cache after updates:
+
+```tsx
+'use server';
+
+import { revalidateTag } from 'next/cache';
+
+export async function updatePricingPlan(data: PlanUpdate) {
+  const supabase = getSupabaseServerClient();
+  await supabase.from('pricing_plans').update(data).eq('id', data.id);
+
+  // Invalidate the pricing cache
+  revalidateTag('pricing');
+}
+```
+
+## Error Handling
+
+### Error Boundaries
+
+Create an `error.tsx` file to catch errors in your route segment:
+
+```tsx
+// app/tasks/error.tsx
+'use client';
+
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  return (
+    <div className="p-4 border border-destructive rounded-lg">
+      <h2 className="text-lg font-semibold">Something went wrong</h2>
+      <p className="text-muted-foreground">{error.message}</p>
+      <button
+        onClick={reset}
+        className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded"
+      >
+        Try again
+      </button>
+    </div>
+  );
+}
+```
+
+### Graceful Degradation
+
+For non-critical data, handle errors gracefully instead of throwing:
+
+```tsx
+async function OptionalWidget() {
+  const supabase = getSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from('widgets')
+    .select('*')
+    .limit(5);
+
+  // Don't crash the page if this fails
+  if (error || !data?.length) {
+    return null; // or return a fallback UI
+  }
+
+  return <WidgetList widgets={data} />;
+}
+```
+
+## Real-World Example: Team Dashboard
+
+Here's a complete example combining multiple patterns:
+
+```tsx
+// app/home/[account]/page.tsx
+import { Suspense } from 'react';
+import { cache } from 'react';
+import { notFound } from 'next/navigation';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+// Cached account loader - reusable across components
+const getAccount = cache(async (slug: string) => {
+  const supabase = getSupabaseServerClient();
+  const { data } = await supabase
+    .from('accounts')
+    .select('*')
+    .eq('slug', slug)
+    .single();
+  return data;
+});
+
+export default async function TeamDashboard({
+  params,
+}: {
+  params: Promise<{ account: string }>;
+}) {
+  const { account: slug } = await params;
+  const account = await getAccount(slug);
+
+  if (!account) {
+    notFound();
+  }
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">{account.name}</h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Stats stream in first */}
+        <Suspense fallback={<StatsSkeleton />}>
+          <AccountStats accountId={account.id} />
+        </Suspense>
+
+        {/* Tasks load independently */}
+        <Suspense fallback={<TasksSkeleton />}>
+          <RecentTasks accountId={account.id} />
+        </Suspense>
+      </div>
+
+      {/* Activity feed can load last */}
+      <Suspense fallback={<ActivitySkeleton />}>
+        <ActivityFeed accountId={account.id} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function AccountStats({ accountId }: { accountId: string }) {
+  const supabase = getSupabaseServerClient();
+  const { data } = await supabase.rpc('get_account_stats', {
+    p_account_id: accountId,
+  });
+
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      <StatCard title="Tasks" value={data.total_tasks} />
+      <StatCard title="Completed" value={data.completed_tasks} />
+      <StatCard title="Members" value={data.member_count} />
+    </div>
+  );
+}
+
+async function RecentTasks({ accountId }: { accountId: string }) {
+  const supabase = getSupabaseServerClient();
+  const { data: tasks } = await supabase
+    .from('tasks')
+    .select('id, title, completed, assignee:users(name)')
+    .eq('account_id', accountId)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  return (
+    <div className="border rounded-lg p-4">
+      <h2 className="font-semibold mb-4">Recent Tasks</h2>
+      <ul className="space-y-2">
+        {tasks?.map((task) => (
+          <li key={task.id} className="flex items-center gap-2">
+            <span className={task.completed ? 'line-through' : ''}>
+              {task.title}
+            </span>
+            {task.assignee && (
+              <span className="text-sm text-muted-foreground">
+                - {task.assignee.name}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+async function ActivityFeed({ accountId }: { accountId: string }) {
+  const supabase = getSupabaseServerClient();
+  const { data: activities } = await supabase
+    .from('activity_log')
+    .select('*, user:users(name)')
+    .eq('account_id', accountId)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  return (
+    <div className="border rounded-lg p-4">
+      <h2 className="font-semibold mb-4">Recent Activity</h2>
+      <ul className="space-y-2">
+        {activities?.map((activity) => (
+          <li key={activity.id} className="text-sm">
+            <span className="font-medium">{activity.user.name}</span>{' '}
+            {activity.action}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+## When to Use Client Components Instead
+
+Server Components are great for initial page loads, but some scenarios need client components:
+
+- **Real-time updates** - Use React Query with Supabase subscriptions
+- **User interactions** - Sorting, filtering, pagination with instant feedback
+- **Forms** - Complex forms with validation and state management
+- **Optimistic updates** - Update UI before server confirms
+
+For these cases, load initial data in Server Components and pass to client components:
+
+```tsx
+// Server Component - loads initial data
+export default async function TasksPage() {
+  const tasks = await loadTasks();
+  return <TasksManager initialTasks={tasks} />;
+}
+
+// Client Component - handles interactivity
+'use client';
+function TasksManager({ initialTasks }) {
+  const [tasks, setTasks] = useState(initialTasks);
+  // ... sorting, filtering, real-time updates
+}
+```
+
+## Next Steps
+
+- [Server Actions](server-actions) - Mutate data from Server Components
+- [React Query](react-query) - Client-side data management
+- [Route Handlers](route-handlers) - Build API endpoints

@@ -1,0 +1,487 @@
+---
+status: "published"
+label: 'Credits Based Billing'
+title: 'Implement Credit-Based Billing for AI SaaS Apps'
+order: 7
+description: 'Build a credit/token system for your AI SaaS. Learn how to add credits tables, consumption tracking, and automatic recharge on subscription renewal in Makerkit.'
+---
+
+Credit-based billing charges users based on tokens or credits consumed rather than time. This model is common in AI SaaS applications where users pay for API calls, generated content, or compute time.
+
+Makerkit doesn't include credit-based billing out of the box, but you can implement it using subscriptions plus custom database tables. This guide shows you how.
+
+## Architecture Overview
+
+```
+User subscribes → Credits allocated → User consumes credits → Invoice paid → Credits recharged
+```
+
+Components:
+1. **`plans` table**: Maps subscription variants to credit amounts
+2. **`credits` table**: Tracks available credits per account
+3. **Database functions**: Check and consume credits
+4. **Webhook handler**: Recharge credits on subscription renewal
+
+## Step 1: Create the Plans Table
+
+Store the credit allocation for each plan variant:
+
+```sql
+CREATE TABLE public.plans (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  variant_id TEXT NOT NULL UNIQUE,
+  tokens INTEGER NOT NULL
+);
+
+ALTER TABLE public.plans ENABLE ROW LEVEL SECURITY;
+
+-- Allow authenticated users to read plans
+CREATE POLICY read_plans ON public.plans
+  FOR SELECT TO authenticated
+  USING (true);
+
+-- Insert your plans
+INSERT INTO public.plans (name, variant_id, tokens) VALUES
+  ('Starter', 'price_starter_monthly', 1000),
+  ('Pro', 'price_pro_monthly', 10000),
+  ('Enterprise', 'price_enterprise_monthly', 100000);
+```
+
+The `variant_id` should match the line item ID in your billing schema (e.g., Stripe Price ID).
+
+## Step 2: Create the Credits Table
+
+Track available credits per account:
+
+```sql
+CREATE TABLE public.credits (
+  account_id UUID PRIMARY KEY REFERENCES public.accounts(id) ON DELETE CASCADE,
+  tokens INTEGER NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.credits ENABLE ROW LEVEL SECURITY;
+
+-- Users can read their own credits
+CREATE POLICY read_credits ON public.credits
+  FOR SELECT TO authenticated
+  USING (account_id = (SELECT auth.uid()));
+
+-- Only service role can modify credits
+-- No INSERT/UPDATE/DELETE policies for authenticated users
+```
+
+{% alert type="warning" title="Security: Restrict credit modifications" %}
+Users should only read their credits. All modifications should go through the service role (admin client) to prevent manipulation.
+{% /alert %}
+
+## Step 3: Create Helper Functions
+
+### Check if account has enough credits
+
+```sql
+CREATE OR REPLACE FUNCTION public.has_credits(
+  p_account_id UUID,
+  p_tokens INTEGER
+)
+RETURNS BOOLEAN
+SET search_path = ''
+AS $$
+BEGIN
+  RETURN (
+    SELECT tokens >= p_tokens
+    FROM public.credits
+    WHERE account_id = p_account_id
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.has_credits TO authenticated, service_role;
+```
+
+### Consume credits
+
+```sql
+CREATE OR REPLACE FUNCTION public.consume_credits(
+  p_account_id UUID,
+  p_tokens INTEGER
+)
+RETURNS BOOLEAN
+SET search_path = ''
+AS $$
+DECLARE
+  v_current_tokens INTEGER;
+BEGIN
+  -- Get current balance with row lock
+  SELECT tokens INTO v_current_tokens
+  FROM public.credits
+  WHERE account_id = p_account_id
+  FOR UPDATE;
+
+  -- Check if enough credits
+  IF v_current_tokens IS NULL OR v_current_tokens < p_tokens THEN
+    RETURN FALSE;
+  END IF;
+
+  -- Deduct credits
+  UPDATE public.credits
+  SET tokens = tokens - p_tokens,
+      updated_at = NOW()
+  WHERE account_id = p_account_id;
+
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.consume_credits TO service_role;
+```
+
+### Add credits (for recharges)
+
+```sql
+CREATE OR REPLACE FUNCTION public.add_credits(
+  p_account_id UUID,
+  p_tokens INTEGER
+)
+RETURNS VOID
+SET search_path = ''
+AS $$
+BEGIN
+  INSERT INTO public.credits (account_id, tokens)
+  VALUES (p_account_id, p_tokens)
+  ON CONFLICT (account_id)
+  DO UPDATE SET
+    tokens = public.credits.tokens + p_tokens,
+    updated_at = NOW();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.add_credits TO service_role;
+```
+
+### Reset credits (for subscription renewal)
+
+```sql
+CREATE OR REPLACE FUNCTION public.reset_credits(
+  p_account_id UUID,
+  p_tokens INTEGER
+)
+RETURNS VOID
+SET search_path = ''
+AS $$
+BEGIN
+  INSERT INTO public.credits (account_id, tokens)
+  VALUES (p_account_id, p_tokens)
+  ON CONFLICT (account_id)
+  DO UPDATE SET
+    tokens = p_tokens,
+    updated_at = NOW();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.reset_credits TO service_role;
+```
+
+## Step 4: Consume Credits in Your Application
+
+When a user performs an action that costs credits:
+
+```tsx
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+
+export async function consumeApiCredits(
+  accountId: string,
+  tokensRequired: number
+) {
+  const adminClient = getSupabaseServerAdminClient();
+
+  // Consume credits atomically
+  const { data: success, error } = await adminClient.rpc('consume_credits', {
+    p_account_id: accountId,
+    p_tokens: tokensRequired,
+  });
+
+  if (error) {
+    throw new Error(`Failed to consume credits: ${error.message}`);
+  }
+
+  if (!success) {
+    throw new Error('Insufficient credits');
+  }
+
+  return true;
+}
+```
+
+### Example: AI API Route
+
+```tsx
+// app/api/ai/generate/route.ts
+import { NextResponse } from 'next/server';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+
+const TOKENS_PER_REQUEST = 10;
+
+export async function POST(request: Request) {
+  const client = getSupabaseServerClient();
+  const adminClient = getSupabaseServerAdminClient();
+
+  // Get current user's account
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Check credits before processing
+  const { data: hasCredits } = await client.rpc('has_credits', {
+    p_account_id: user.id,
+    p_tokens: TOKENS_PER_REQUEST,
+  });
+
+  if (!hasCredits) {
+    return NextResponse.json(
+      { error: 'Insufficient credits', code: 'INSUFFICIENT_CREDITS' },
+      { status: 402 }
+    );
+  }
+
+  try {
+    // Call AI API
+    const { prompt } = await request.json();
+    const result = await callAIService(prompt);
+
+    // Consume credits after successful response
+    await adminClient.rpc('consume_credits', {
+      p_account_id: user.id,
+      p_tokens: TOKENS_PER_REQUEST,
+    });
+
+    return NextResponse.json({ result });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Generation failed' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+## Step 5: Display Credits in UI
+
+Create a component to show remaining credits:
+
+```tsx
+// components/credits-display.tsx
+'use client';
+
+import { useQuery } from '@tanstack/react-query';
+import { useSupabase } from '@kit/supabase/hooks/use-supabase';
+
+export function CreditsDisplay({ accountId }: { accountId: string }) {
+  const client = useSupabase();
+
+  const { data: credits, isLoading } = useQuery({
+    queryKey: ['credits', accountId],
+    queryFn: async () => {
+      const { data, error } = await client
+        .from('credits')
+        .select('tokens')
+        .eq('account_id', accountId)
+        .single();
+
+      if (error) throw error;
+      return data?.tokens ?? 0;
+    },
+  });
+
+  if (isLoading) return <span>Loading...</span>;
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm text-muted-foreground">Credits:</span>
+      <span className="font-medium">{credits?.toLocaleString()}</span>
+    </div>
+  );
+}
+```
+
+## Step 6: Recharge Credits on Subscription Renewal
+
+Extend the webhook handler to recharge credits when an invoice is paid:
+
+```tsx {% title="apps/web/app/api/billing/webhook/route.ts" %}
+import { getBillingEventHandlerService } from '@kit/billing-gateway';
+import { getPlanTypesMap } from '@kit/billing';
+import { enhanceRouteHandler } from '@kit/next/routes';
+import { getLogger } from '@kit/shared/logger';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+
+import billingConfig from '~/config/billing.config';
+
+export const POST = enhanceRouteHandler(
+  async ({ request }) => {
+    const provider = billingConfig.provider;
+    const logger = await getLogger();
+    const adminClient = getSupabaseServerAdminClient();
+
+    const service = await getBillingEventHandlerService(
+      () => adminClient,
+      provider,
+      getPlanTypesMap(billingConfig),
+    );
+
+    try {
+      await service.handleWebhookEvent(request, {
+        onInvoicePaid: async (data) => {
+          const accountId = data.target_account_id;
+          const variantId = data.line_items[0]?.variant_id;
+
+          if (!variantId) {
+            logger.warn({ accountId }, 'No variant ID in invoice');
+            return;
+          }
+
+          // Get token allocation for this plan
+          const { data: plan, error: planError } = await adminClient
+            .from('plans')
+            .select('tokens')
+            .eq('variant_id', variantId)
+            .single();
+
+          if (planError || !plan) {
+            logger.error({ variantId, planError }, 'Plan not found');
+            return;
+          }
+
+          // Reset credits to plan allocation
+          const { error: creditError } = await adminClient.rpc('reset_credits', {
+            p_account_id: accountId,
+            p_tokens: plan.tokens,
+          });
+
+          if (creditError) {
+            logger.error({ accountId, creditError }, 'Failed to reset credits');
+            throw creditError;
+          }
+
+          logger.info(
+            { accountId, tokens: plan.tokens },
+            'Credits recharged on invoice payment'
+          );
+        },
+
+        onCheckoutSessionCompleted: async (subscription) => {
+          // Also allocate credits on initial subscription
+          const accountId = subscription.target_account_id;
+          const variantId = subscription.line_items[0]?.variant_id;
+
+          if (!variantId) return;
+
+          const { data: plan } = await adminClient
+            .from('plans')
+            .select('tokens')
+            .eq('variant_id', variantId)
+            .single();
+
+          if (plan) {
+            await adminClient.rpc('reset_credits', {
+              p_account_id: accountId,
+              p_tokens: plan.tokens,
+            });
+
+            logger.info(
+              { accountId, tokens: plan.tokens },
+              'Initial credits allocated'
+            );
+          }
+        },
+      });
+
+      return new Response('OK', { status: 200 });
+    } catch (error) {
+      logger.error({ error }, 'Webhook failed');
+      return new Response('Failed', { status: 500 });
+    }
+  },
+  { auth: false }
+);
+```
+
+## Step 7: Use Credits in RLS Policies (Optional)
+
+Gate features based on credit balance:
+
+```sql
+-- Only allow creating tasks if user has credits
+CREATE POLICY tasks_insert_with_credits ON public.tasks
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    public.has_credits((SELECT auth.uid()), 1)
+  );
+
+-- Only allow API calls if user has credits
+CREATE POLICY api_calls_with_credits ON public.api_logs
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    public.has_credits(account_id, 1)
+  );
+```
+
+## Testing
+
+1. Create a subscription in test mode
+2. Verify initial credits are allocated
+3. Consume some credits via your API
+4. Trigger a subscription renewal (Stripe: `stripe trigger invoice.paid`)
+5. Verify credits are recharged
+
+## Common Patterns
+
+### Rollover Credits
+
+To allow unused credits to roll over:
+
+```sql
+-- In onInvoicePaid, add instead of reset:
+await adminClient.rpc('add_credits', {
+  p_account_id: accountId,
+  p_tokens: plan.tokens,
+});
+```
+
+### Credit Expiration
+
+Add an expiration date to credits:
+
+```sql
+ALTER TABLE public.credits ADD COLUMN expires_at TIMESTAMPTZ;
+
+-- Check expiration in has_credits function
+CREATE OR REPLACE FUNCTION public.has_credits(...)
+-- Add: AND (expires_at IS NULL OR expires_at > NOW())
+```
+
+### Usage Tracking
+
+Track credit consumption for analytics:
+
+```sql
+CREATE TABLE public.credit_transactions (
+  id SERIAL PRIMARY KEY,
+  account_id UUID REFERENCES accounts(id),
+  amount INTEGER NOT NULL,
+  type TEXT NOT NULL,  -- 'consume', 'recharge', 'bonus'
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+## Related Documentation
+
+- [Billing Overview](/docs/next-supabase-turbo/billing/overview) - Billing architecture
+- [Webhooks](/docs/next-supabase-turbo/billing/billing-webhooks) - Webhook event handling
+- [Metered Usage](/docs/next-supabase-turbo/billing/metered-usage) - Alternative usage-based billing
+- [Database Functions](/docs/next-supabase-turbo/development/database-functions) - Creating Postgres functions

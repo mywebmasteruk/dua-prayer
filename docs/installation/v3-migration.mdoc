@@ -1,0 +1,1383 @@
+---
+status: "published"
+title: "Migrate to Next.js Supabase v3"
+label: "Upgrading from v2 to v3"
+order: 9
+description: "A guide to updating this kit from v2 to v3 using git and AI Agents"
+---
+
+The source for this page is available at `docs/installation/v3-migration.mdoc`. You can reference this file to AI agents for automatic migrations.
+
+v3 is a major upgrade that modernizes the entire stack:
+
+- **Zod v4** — faster validation, smaller bundle, cleaner API
+- **Base UI** — headless primitives from the MUI team, replacing Radix
+- **next-intl** — first-class Next.js i18n with locale-prefixed routes
+- **next-safe-action** — type-safe server actions with built-in validation
+- **Teams-only mode** — ship team-based apps without personal accounts
+- **Async dialogs** — dialogs that won't close while operations are pending
+- **Oxc** — blazing-fast linting and formatting, replacing ESLint + Prettier
+- **PNPM catalogs** — one place to manage all dependency versions
+
+This guide covers every breaking change and what you need to update if
+you customized the codebase.
+
+## How long will it take?
+
+If you haven't customized much, the entire upgrade can be done in **under an hour** — most steps are just `git pull` + `pnpm install` with no conflicts.
+
+If you've heavily customized the codebase (custom UI components with Radix primitives, custom server actions, modified layouts), expect **3-6 hours** depending on how many areas you've touched. The AI-assisted prompts do most of the heavy lifting — you're mainly reviewing and approving.
+
+The migration is split into 10 steps for a reason — each step is self-contained and your app should build after each one. You don't have to do it all at once. Merge one step, verify it works, ship it to production if you want, then come back to the next step tomorrow or next week. There is no rush.
+
+## Should I just start from scratch?
+
+**No.** Starting from scratch means losing all your customizations, git history, and deployed infrastructure. The incremental upgrade preserves everything and lets you ship each step independently.
+
+The only scenario where starting fresh might make sense is if you've barely customized the kit or have only started using it in the past week or so.
+
+## Not Ready to Upgrade?
+
+That's okay! 
+
+The `v2` branch is available as a long-term support (LTS) release.
+It will receive important updates.
+
+If you're not ready to upgrade now, you can switch to the `v2` branch:
+
+```bash
+git checkout v2
+```
+
+From now on, pull updates exclusively from `v2`:
+
+```bash
+git pull upstream v2
+```
+
+We recommend upgrading to v3 when you can - but you should not feel under any rush to do so - your users don't care if you use Zod 3 or 4.
+
+## How the Upgrade Works
+
+v3 is delivered as **10 incremental PRs**, each merged in order. Every PR is
+a self-contained step — your app should build and run after each one.
+
+This means you can upgrade gradually: merge one PR, resolve any conflicts in
+your custom code, verify everything works, then move to the next. You don't
+have to do it all at once.
+
+If you haven't customized a particular area, `git pull` handles it
+automatically — only read the sections relevant to your changes.
+
+### Merge Order
+
+Merge these in exact order. Each step depends on the previous ones.
+Each step is tagged so you can merge incrementally:
+
+| # | Tag | What It Does |
+|---|-----|-------------|
+| 1 | `v3-step/zodv4` | Updates Zod from v3 to v4 across all packages |
+| 2 | `v3-step/baseui` | Swaps Radix → Base UI primitives, react-i18next → next-intl |
+| 3 | `v3-step/next-safe-action` | Replaces `enhanceAction` with `next-safe-action` |
+| 4 | `v3-step/locale-routes` | Wraps all routes in `[locale]` segment |
+| 5 | `v3-step/teams-only` | Adds feature flag for team-only apps |
+| 6 | `v3-step/workspace-dropdown` | Unifies account/team switching UI |
+| 7 | `v3-step/async-dialogs` | Prevents dialog dismissal during pending operations |
+| 8 | `v3-step/oxc` | Replaces ESLint + Prettier with Oxc |
+| 9 | `v3-step/remove-edge-csrf` | Drops CSRF middleware in favor of Server Actions |
+| 10 | `v3-step/final` | Centralizes dependency versions |
+
+After merging the last tag (`v3-step/final`), merge the latest `main` to pick up any fixes and improvements released after the migration tags:
+
+```bash
+git pull upstream main
+```
+
+### Before starting the migration
+
+Please make sure your `main` branch is up to date with the branch `v2`. Also,
+make sure that the `typecheck`, `lint`, and `format` commands run without errors.
+
+If you're behind `v2`, please update it:
+
+```bash
+git pull upstream v2
+```
+
+Now, make sure these commands run without errors:
+
+```bash
+pnpm typecheck
+pnpm lint
+pnpm format
+```
+
+If any of these return errors, please fix them before starting the migration.
+
+### Work on a separate branch
+
+We recommend performing the migration on a dedicated branch. This keeps
+your `main` branch stable and deployable while you upgrade, and gives you
+an easy escape hatch if anything goes wrong.
+
+You have two options:
+
+**Option A: One branch per step** — Create a branch for each step (e.g. `v3/zodv4`, `v3/baseui`), merge it into `main` after verifying, then start the next step from `main`. This lets you deploy each step independently and keeps your commits clean.
+
+**Option B: Single migration branch** — Create one `v3-migration` branch, merge all 10 steps into it, then merge the whole thing into `main` at the end.
+
+Either way works. Option A is safer for production apps since you can deploy
+and verify each step in isolation before moving on.
+
+### Step-by-Step Process
+
+For each step below, follow this process:
+
+**1. Create a branch and merge the tag:**
+
+```bash
+git checkout -b v3/<step-name>
+git pull upstream <TAG>
+pnpm install
+```
+
+Always run `pnpm install` after each `git pull` — every step changes dependencies.
+
+**2. Resolve conflicts and install packages:**
+
+If easy enough, perform an initial conflict resolution manually.
+
+**3. Run the AI-assisted review** using an AI coding agent (Claude Code, Cursor, etc.).
+
+Each step below includes a tailored prompt. Copy the prompt for the step you're on and paste it into your AI agent.
+
+**4. Validate** — check the "Validate Before Continuing" checklist for that step.
+
+**5. Commit and optionally merge** — commit your changes to your migration branch. If using one branch per step, merge into `main` and deploy before starting the next step.
+
+In general, always run `pnpm typecheck`. Make sure this
+command returns no errors prior to starting the migration.
+
+---
+
+## Table of Contents
+
+1. [Zod v4](#1-zod-v4)
+2. [Base UI + next-intl](#2-base-ui--next-intl)
+3. [next-safe-action](#3-next-safe-action)
+4. [Locale Route Prefix](#4-locale-route-prefix)
+5. [Teams-Only Mode](#5-teams-only-mode)
+6. [Workspace Dropdown](#6-workspace-dropdown)
+7. [Async Dialogs](#7-async-dialogs)
+8. [Oxc (ESLint/Prettier Replacement)](#8-oxc)
+9. [Remove Edge CSRF](#9-remove-edge-csrf)
+10. [Final](#10-final)
+11. [After Upgrading](#after-upgrading)
+
+---
+
+## 1. Zod v4
+
+Create a branch and pull in the changes:
+
+```bash
+git checkout -b v3/zodv4
+git pull upstream v3-step/zodv4
+```
+
+Then run the AI-assisted review with this prompt:
+
+```
+I'm upgrading Makerkit from v2 to v3. I just merged `v3-step/zodv4`.
+
+This step updates Zod from v3 to v4. In my custom code, find and fix:
+
+1. `required_error:` -> `error:` in Zod type constructors
+2. Remove `description` from Zod type constructors
+3. Remove `return true` from `.superRefine()` / refinement callbacks
+4. `z.record(valueSchema)` -> `z.record(keySchema, valueSchema)` (now requires 2 args)
+5. `z.string().url()` -> `z.url()` (new top-level validator)
+6. Remove `errorMap` from `z.enum()` calls
+7. Remove `z.ZodTypeDef` from any custom generic type parameters
+
+Optionally:
+
+1. `import { z } from 'zod'` -> `import * as z from 'zod'`
+2. `z.infer<typeof Schema>` -> `z.output<typeof Schema>`
+
+Run `git diff HEAD~1` to see upstream changes, then search my custom
+files (not in node_modules) for any remaining old Zod patterns.
+Fix them, then run `pnpm typecheck` to verify.
+
+Use migration guide: https://zod.dev/v4/changelog
+```
+
+Zod has been updated from v3 to v4.
+
+### Import Style
+
+To reduce bundle size, use namespace imports for Zod:
+
+```diff
+- import { z } from 'zod';
++ import * as z from 'zod';
+```
+
+This applies to every file that imports Zod.
+
+### Type Inference
+
+```diff
+- type MyType = z.infer<typeof MySchema>;
++ type MyType = z.output<typeof MySchema>;
+```
+
+### Error Messages
+
+```diff
+  z.string({
+-   required_error: 'Field is required',
+-   description: 'Some description',
++   error: 'Field is required',
+  })
+```
+
+- `required_error` → `error`
+- `description` in type constructors is removed
+
+### Refinement Functions
+
+```diff
+  function validatePassword(password: string, ctx: z.RefinementCtx) {
+    if (password.length < 8) {
+      ctx.addIssue({ code: 'custom', message: 'Too short' });
+    }
+-   return true;
+  }
+```
+
+Remove `return true` from refinement callbacks.
+
+### Record Schemas
+
+`z.record()` now requires two arguments (key schema + value schema):
+
+```diff
+- z.record(z.string())
++ z.record(z.string(), z.string())
+```
+
+### URL Validation
+
+```diff
+- z.string().url()
++ z.url()
+```
+
+### Enum Error Maps
+
+Custom `errorMap` on `z.enum()` is no longer supported:
+
+```diff
+- z.enum(['a', 'b'], { errorMap: () => ({ message: 'Invalid' }) })
++ z.enum(['a', 'b'])
+```
+
+### What to Do
+
+If you added custom Zod schemas:
+
+1. Replace `required_error` with `error` in type constructors
+2. Remove `description` from type constructors
+3. Remove `return true` from refinement functions
+4. Update `z.record(valueSchema)` to `z.record(keySchema, valueSchema)`
+5. Replace `z.string().url()` with `z.url()`
+6. Remove `errorMap` from `z.enum()` calls
+7. (Optional) Find/replace `import { z } from 'zod'` → `import * as z from 'zod'`
+8. (Optional) Find/replace `z.infer<` → `z.output<`
+
+### Validate Before Continuing
+
+```bash
+pnpm typecheck
+```
+
+- [ ] No Zod import errors
+- [ ] App builds and runs
+
+Once verified, commit your changes. You can merge to `main` and deploy before continuing.
+
+---
+
+## 2. Base UI + next-intl
+
+Create a branch and pull in the changes:
+
+```bash
+git checkout -b v3/baseui
+git pull upstream v3-step/baseui
+pnpm install
+```
+
+Then run the AI-assisted review with this prompt:
+
+```
+I'm upgrading Makerkit from v2 to v3. I just merged `v3-step/baseui`.
+
+This step swaps Radix UI -> Base UI and react-i18next -> next-intl.
+In my custom code, find and fix:
+
+**UI changes:**
+1. Replace `@radix-ui/react-icons` imports with `lucide-react` equivalents
+2. Replace any direct Radix primitive imports with `@base-ui/react/*`
+3. Replace `asChild` prop with `render` prop (except on Command components).
+   Example: `<Button asChild><Link href="/x">Go</Link></Button>` becomes
+   `<Button nativeButton={false} render={<Link href="/x">Go</Link>} />`
+4. Update data attributes: `data-[state=open]` -> `data-open`,
+   `data-[state=closed]` -> `data-closed`
+5. `<Button>` components require nativeButton={false} if they wrap other elements, such as links
+
+**i18n changes:**
+6. Replace all translation keys from colon to dot notation:
+   `i18nKey="namespace:key"` -> `i18nKey="namespace.key"`
+7. Update translation interpolation from double to single curly braces:
+   `"Hello {{name}}"` -> `"Hello {name}"` in all JSON translation files
+8. Replace `createI18nServerInstance` / `getTranslation` with
+   `import { getTranslations } from 'next-intl/server'`
+   Usage: `const t = await getTranslations('namespace')` then `t('key')`
+9. Remove `withI18n` HOC wrappers from page exports
+10. Move custom translation files to `apps/web/i18n/messages/{locale}/`
+
+**Config changes:**
+11. If you customized navigation configs, replace the `end` property
+    (boolean) with `highlightMatch` (regex string)
+12. If you imported from `@kit/ui/shadcn-sidebar`, change to `@kit/ui/sidebar`
+
+Search my custom files for any remaining `radix-ui`, `react-i18next`,
+`createI18nServerInstance`, `withI18n`, colon-notation i18n keys,
+or double-curly-brace interpolation `{{`.
+Fix them, then run `pnpm typecheck` to verify.
+```
+
+Two major library swaps in one step.
+
+### UI: Radix → Base UI
+
+The underlying primitives changed from Radix UI to Base UI (`@base-ui/react`).
+The `@kit/ui/*` component APIs mostly remain the same — **this only affects you if you
+built custom components using Radix primitives directly.**
+
+If you did:
+
+```diff
+- import { Dialog as DialogPrimitive } from 'radix-ui';
++ import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+```
+
+Data attributes changed:
+
+```diff
+- className="data-[state=open]:animate-in"
++ className="data-open:animate-in data-closed:animate-out"
+```
+
+### Icons: @radix-ui/react-icons → lucide-react
+
+```diff
+- import { Cross2Icon } from '@radix-ui/react-icons';
++ import { XIcon } from 'lucide-react';
+```
+
+Replace all `@radix-ui/react-icons` imports with the equivalent from `lucide-react`.
+
+### asChild -> render
+
+All `asChild` (with the exception of the `<Command>` components, which still use Radix) must be migrated to Base UI's `render` prop:
+
+```diff
+- <Button asChild>
+-   <Link href="/dashboard">Go</Link>
+- </Button>
++ <Button nativeButton={false} render={<Link href="/dashboard" />}>
++   Go
++ </Button>
+```
+
+When a component wraps a non-button element (like `Link`), add `nativeButton={false}`.
+
+### Primitive Sub-Component Renames
+
+If you used Radix primitives directly, these sub-components were renamed:
+
+| Radix | Base UI |
+|-------|---------|
+| `DialogPrimitive.Overlay` | `DialogPrimitive.Backdrop` |
+| `DialogPrimitive.Content` | `DialogPrimitive.Popup` |
+| `AccordionPrimitive.Content` | `AccordionPrimitive.Panel` |
+| `TabsPrimitive.Content` | `TabsPrimitive.Panel` |
+| `TabsPrimitive.Trigger` | `TabsPrimitive.Tab` |
+| `CollapsiblePrimitive.Content` | `CollapsiblePrimitive.Panel` |
+
+Base UI also introduces a **Positioner** wrapper for floating components (Popover, Tooltip, Select, DropdownMenu). Props like `align`, `side`, `sideOffset` move from `Content`/`Popup` to the `Positioner`.
+
+### AlertDialog inside Dropdowns
+
+Base UI does not support nesting an `AlertDialog` trigger around a `DropdownMenuItem`. If you have an `AlertDialogTrigger` wrapping a dropdown item, remove the trigger and instead control the dialog with state, placing it outside the dropdown:
+
+```diff
+- <AlertDialog>
+-   <AlertDialogTrigger asChild>
+-     <DropdownMenuItem>Delete</DropdownMenuItem>
+-   </AlertDialogTrigger>
+-   <AlertDialogContent>...</AlertDialogContent>
+- </AlertDialog>
++ const [isAlertOpen, setIsAlertOpen] = useState(false);
++
++ <DropdownMenuItem onClick={() => setIsAlertOpen(true)}>
++   Delete
++ </DropdownMenuItem>
++
++ <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
++   <AlertDialogContent>...</AlertDialogContent>
++ </AlertDialog>
+```
+
+Use `useState` to control `open` and `onOpenChange` on the `AlertDialog`, and trigger it from the dropdown item's `onClick` handler. Note: Base UI uses `onClick` instead of Radix's `onSelect` on menu items.
+
+### Sidebar Import Path Change
+
+The shadcn sidebar component moved:
+
+```diff
+- import { Sidebar } from '@kit/ui/shadcn-sidebar';
++ import { Sidebar } from '@kit/ui/sidebar';
+```
+
+The old makerkit sidebar is now at `@kit/ui/sidebar-navigation`.
+
+### i18n: react-i18next → next-intl
+
+The entire i18n system changed.
+
+**Translation key syntax:**
+
+```diff
+- <Trans i18nKey="namespace:key" />
++ <Trans i18nKey="namespace.key" />
+```
+
+Colon (`:`) becomes dot (`.`) in translation keys.
+
+**Server-side translations:**
+
+```diff
+- import { getTranslation } from '~/lib/i18n/i18n.server';
+- const { t } = await getTranslation(locale);
++ import { getTranslations } from 'next-intl/server';
++ const t = await getTranslations('namespace');
+```
+
+### Translation Interpolation
+
+The interpolation syntax changed from double to single curly braces:
+
+```diff
+  // In translation JSON files:
+- "greeting": "Hello {{name}}"
++ "greeting": "Hello {name}"
+```
+
+This applies to **every custom translation string** that uses variables.
+
+### i18next API Removal
+
+The entire `react-i18next` / `i18next` API surface is removed in v3. This includes:
+
+- **`withI18n` HOC** — no longer needed. If you wrapped Server Component page exports with it, remove the wrapper:
+
+```diff
+- export default withI18n(MyPage);
++ export default MyPage;
+```
+
+- **`useTranslation` hook** — replace with `useTranslations` from `next-intl`:
+
+```diff
+- import { useTranslation } from 'react-i18next';
+- const { t } = useTranslation('namespace');
++ import { useTranslations } from 'next-intl';
++ const t = useTranslations('namespace');
+```
+
+- **`createI18nServerInstance` / `getTranslation`** — replace with `getTranslations` from `next-intl/server` (see above).
+
+- **`Trans` component** — now imported from `@kit/ui/trans` (backed by `next-intl`), not from `react-i18next`. The API is the same but key syntax uses dots instead of colons.
+
+- **`i18next.init` / custom i18n configuration** — replaced by the `next-intl` config in `apps/web/i18n/request.ts`. Remove any custom i18next initialization code.
+
+- **Custom namespaces** — if you added custom translation namespaces, register them in `apps/web/i18n/request.ts` so `next-intl` can load them.
+
+- **Custom locales** — if you added custom locales, register them in `packages/i18n/src/locales.tsx`.
+
+### next.config.mjs
+
+Your `next.config.mjs` must be wrapped with `createNextIntlPlugin`:
+
+```typescript
+import createNextIntlPlugin from 'next-intl/plugin';
+const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
+
+// ... your config ...
+
+export default withNextIntl(config);
+```
+
+Without this wrapper, `next-intl` will not work.
+
+### Messages Files
+
+**Message files** moved from `apps/web/public/locales/{locale}/` to `apps/web/i18n/messages/{locale}/`.
+
+Migrate your custom translation files to the new location:
+
+```bash
+# Example: move English translations
+mv apps/web/public/locales/en/* apps/web/i18n/messages/en/
+```
+
+### Navigation Config
+
+The `end` property on route items changed from a boolean to a regex string
+called `highlightMatch`:
+
+```diff
+  {
+    path: '/home/settings',
+-   end: true,
++   highlightMatch: '^/home/settings$',
+  }
+```
+
+### CSS Theme
+
+Theme CSS variables migrated from HSL to **oklch** color format. If you
+customized theme colors in `theme.css`, update your values:
+
+```diff
+- --background: hsl(0 0% 100%);
++ --background: oklch(1 0 0);
+```
+
+The dark variant syntax also changed:
+
+```diff
+- @variant dark (&:where(.dark, .dark *));
++ @custom-variant dark (&:is(.dark *));
+```
+
+### recharts v3
+
+`recharts` was bumped from v2 to v3. If you built custom charts, check the
+[recharts v3 migration guide](https://recharts.org/en-US/guide/migration-to-v3)
+for API changes.
+
+### Removed Components
+
+These components were removed. If you used them, replace as noted:
+
+| Removed | Replacement |
+|---------|-------------|
+| `MultiStepForm` | Build with `Form` + conditional step rendering |
+| `MobileNavigationMenu` | Use `Sheet` from `@kit/ui/sheet` |
+| `AuthenticityToken` | Removed — not needed with Server Actions |
+
+### What to Do
+
+If you added custom UI components:
+
+1. Replace `@radix-ui/react-icons` imports with `lucide-react`
+2. Update any direct Radix primitive imports to Base UI
+3. Replace `asChild` with `render` prop (add `nativeButton={false}` for non-button elements)
+4. Update `data-[state=open]` → `data-open` in custom styles
+5. Update `@kit/ui/shadcn-sidebar` imports to `@kit/ui/sidebar`
+
+If you customized i18n or translations:
+
+6. Change all translation keys from colon to dot notation (`namespace:key` → `namespace.key`)
+7. Update interpolation in translation JSON files (`{{var}}` → `{var}`)
+8. Replace `react-i18next` hooks with `next-intl` equivalents
+9. Remove `withI18n` HOC wrappers from page exports
+10. Move translation files to `apps/web/i18n/messages/{locale}/`
+
+If you customized config or theme:
+
+11. Wrap `next.config.mjs` with `createNextIntlPlugin`
+12. Update navigation config `end` → `highlightMatch`
+13. Update custom theme CSS variables to oklch format
+
+### Validate Before Continuing
+
+```bash
+pnpm typecheck
+```
+
+- [ ] No `radix-ui` or `react-i18next` import errors
+- [ ] Translation keys use dot notation and single curly braces
+- [ ] `next.config.mjs` wrapped with `createNextIntlPlugin`
+- [ ] App builds and runs
+
+Once verified, commit your changes. You can merge to `main` and deploy before continuing.
+
+---
+
+## 3. next-safe-action
+
+Create a branch and pull in the changes:
+
+```bash
+git checkout -b v3/next-safe-action
+git pull upstream v3-step/next-safe-action
+```
+
+Then run the AI-assisted review with this prompt:
+
+```
+I'm upgrading Makerkit from v2 to v3. I just merged `v3-step/next-safe-action`.
+
+This step migrates the built-in server actions to `next-safe-action`.
+My custom actions using `enhanceAction` still work — no immediate
+migration needed. Just resolve any merge conflicts in files that
+upstream changed.
+
+1. Run `git diff HEAD~1` to see what upstream changed.
+2. If I modified any of the built-in server action files (billing,
+   team management, contact form, etc.), resolve merge conflicts
+   by adopting the new `next-safe-action` pattern from upstream.
+3. My own custom server actions using `enhanceAction` can stay as-is.
+
+Run `pnpm install && pnpm typecheck` to verify.
+```
+
+Server actions migrated from `enhanceAction` to `next-safe-action`.
+
+### Optional: Migrate Custom Actions
+
+When you're ready to migrate your custom actions, use this prompt:
+
+```
+Migrate my custom server actions from `enhanceAction` to `next-safe-action`.
+
+**Server action files ('use server'):**
+1. Replace `import { enhanceAction } from '@kit/next/actions'` with
+   `import { authActionClient } from '@kit/next/safe-action'`
+   (or `publicActionClient` for unauthenticated actions)
+2. Rewrite: `enhanceAction(async (data, user) => {...}, { schema })` becomes
+   `authActionClient.schema(Schema).action(async ({ parsedInput: data, ctx: { user } }) => {...})`
+3. For actions without a schema: `authActionClient.action(async () => {...})`
+4. For actions with `auth: false`: use `publicActionClient` instead
+
+**Client component files:**
+5. Replace `useTransition` + `startTransition(async () => await action(data))`
+   with `import { useAction } from 'next-safe-action/hooks'` and
+   `const { execute, isPending } = useAction(myAction, { onSuccess, onError })`
+6. Replace `<form action={myAction}>` with `<form onSubmit={...}>` using `execute()`
+7. Remove hidden input fields — pass objects to `execute()` directly
+8. Replace `pending` from `useTransition` with `isPending` from `useAction`
+
+Search my custom files for `enhanceAction`, `useFormStatus`, and
+`startTransition` patterns used with server actions.
+Fix them, then run `pnpm typecheck` to verify.
+```
+
+The `enhanceAction` function is still available so your existing Server Actions will keep working just fine. Migrate when you have time.
+
+### Server Action Definition
+
+```diff
+  'use server';
+
+- import { enhanceAction } from '@kit/next/actions';
++ import { authActionClient } from '@kit/next/safe-action';
+
+- export const myAction = enhanceAction(
+-   async (formData: FormData, user) => {
+-     const data = MySchema.parse(Object.fromEntries(formData));
+-     // ... logic
+-   },
+-   { schema: MySchema },
+- );
++ export const myAction = authActionClient
++   .schema(MySchema)
++   .action(async ({ parsedInput: data, ctx: { user } }) => {
++     // data is already validated, user is in ctx
++   });
+```
+
+### Available Clients
+
+| Client | Import | Use Case |
+|--------|--------|----------|
+| `publicActionClient` | `@kit/next/safe-action` | No auth required |
+| `authActionClient` | `@kit/next/safe-action` | Requires authenticated user |
+| `captchaActionClient` | `@kit/next/safe-action` | Requires CAPTCHA + auth |
+
+### Client Components
+
+```diff
+- import { useFormStatus } from 'react-dom';
++ import { useAction } from 'next-safe-action/hooks';
+
+  function MyForm() {
+-   return (
+-     <form action={myAction}>
+-       <input type="hidden" name="field" value={value} />
+-       <SubmitButton />
+-     </form>
+-   );
++   const { execute, isPending } = useAction(myAction, {
++     onSuccess: ({ data }) => { /* ... */ },
++     onError: ({ error }) => { /* ... */ },
++   });
++
++   return (
++     <form onSubmit={(e) => { e.preventDefault(); execute({ field: value }); }}>
++       <button disabled={isPending}>Submit</button>
++     </form>
++   );
+  }
+```
+
+Key differences:
+- Pass objects to `execute()`, not FormData
+- `isPending` replaces `useFormStatus`
+- No hidden input fields needed
+- Error/success callbacks on the hook
+
+### Error Handling
+
+Actions now throw errors instead of returning failure objects:
+
+```diff
+- return { success: false };
++ throw new Error('Something went wrong');
+```
+
+`next-safe-action` routes thrown errors to the `onError` callback on the client.
+
+### What to Do
+
+If you added custom server actions:
+
+1. Replace `enhanceAction` import with `authActionClient` (or `publicActionClient`)
+2. Rewrite action using `.schema().action()` chain
+3. Access user via `ctx.user` instead of second parameter
+4. Replace `return { success: false }` with `throw new Error(...)`
+5. Update client components to use `useAction` hook
+6. Remove hidden input fields and FormData patterns
+
+### Validate Before Continuing
+
+```bash
+pnpm install && pnpm typecheck
+```
+
+- [ ] No `enhanceAction` import errors (if you migrated custom actions)
+- [ ] Client components using `useAction` compile correctly
+- [ ] App builds and runs
+
+Once verified, commit your changes. You can merge to `main` and deploy before continuing.
+
+---
+
+## 4. Locale Route Prefix
+
+Create a branch and pull in the changes:
+
+```bash
+git checkout -b v3/locale-routes
+git pull upstream v3-step/locale-routes
+```
+
+Then run the AI-assisted review with this prompt:
+
+```
+I'm upgrading Makerkit from v2 to v3. I just merged `v3-step/locale-routes`.
+
+This step moves all routes under `app/[locale]/`. In my custom code:
+
+1. Check if I have any custom route folders still under `apps/web/app/`
+   that should now be under `apps/web/app/[locale]/`. Move them.
+2. If I customized `apps/web/app/layout.tsx`, move those customizations
+   to `apps/web/app/[locale]/layout.tsx`. The root layout is now minimal
+   (just `return children` with a CSS import).
+3. If I customized `apps/web/proxy.ts` (middleware), the i18n middleware
+   is now integrated. Check for conflicts — `handleI18nRouting` runs first,
+   then secure headers and other middleware run on its response.
+4. Verify `tsconfig.json` paths — `~/*` should resolve to
+   `["./app/[locale]/*", "./app/*"]`.
+5. If I have any API routes, they should stay under `apps/web/app/api/`
+   (NOT inside `[locale]`).
+
+Search for any `~/` imports that might break with the new path resolution.
+Fix them, then run `pnpm typecheck` to verify.
+```
+
+All routes now live under a `[locale]` dynamic segment.
+
+### Directory Structure
+
+```diff
+  apps/web/app/
++ ├── [locale]/
++ │   ├── (marketing)/
++ │   ├── admin/
++ │   ├── auth/
++ │   ├── home/
++ │   ├── layout.tsx      ← i18n-aware layout (moved here)
++ │   └── not-found.tsx
+  ├── layout.tsx           ← minimal (just renders children)
+```
+
+### Root Layout Simplified
+
+```typescript
+// apps/web/app/layout.tsx — now just:
+import '../styles/globals.css';
+
+export default function RootLayout({ children }: React.PropsWithChildren) {
+  return children;
+}
+```
+
+All providers, theme, and i18n setup moved to `apps/web/app/[locale]/layout.tsx`.
+
+### Middleware
+
+The `proxy.ts` middleware now integrates `next-intl` routing:
+
+```typescript
+import createNextIntlMiddleware from 'next-intl/middleware';
+import { routing } from '@kit/i18n/routing';
+
+const handleI18nRouting = createNextIntlMiddleware(routing);
+
+export default async function proxy(request: NextRequest) {
+  const response = handleI18nRouting(request);
+  // ... rest of middleware
+}
+```
+
+### TypeScript Paths
+
+```diff
+  // apps/web/tsconfig.json
+  "paths": {
+-   "~/*": ["./app/*"]
++   "~/*": ["./app/[locale]/*", "./app/*"]
+  }
+```
+
+### What to Do
+
+If you added custom routes:
+
+1. Move your route folders into `apps/web/app/[locale]/`
+2. If you customized the root layout, move your changes to `[locale]/layout.tsx`
+
+### Validate Before Continuing
+
+```bash
+pnpm typecheck
+```
+
+- [ ] Custom routes are inside `app/[locale]/`
+- [ ] `~/*` path aliases resolve correctly
+- [ ] App builds and runs, routes work with `/en/` prefix
+
+Once verified, commit your changes. You can merge to `main` and deploy before continuing.
+
+---
+
+## 5. Teams-Only Mode
+
+Create a branch and pull in the changes:
+
+```bash
+git checkout -b v3/teams-only
+git pull upstream v3-step/teams-only
+```
+
+Then run the AI-assisted review with this prompt:
+
+```
+I'm upgrading Makerkit from v2 to v3. I just merged `v3-step/teams-only`.
+
+This step adds a teams-only feature flag. It also changes the
+AccountSelector to support `showPersonalAccount` and stores the
+last selected team in a cookie.
+
+1. If I customized the personal account layout
+   (`app/[locale]/home/(user)/layout.tsx`), check that the new
+   `redirectIfTeamsOnly()` function doesn't conflict with my changes.
+2. If I customized the AccountSelector or team switching logic, check
+   for conflicts with the new `last-selected-team` cookie and the
+   `showPersonalAccount` prop.
+3. If I added custom routes under `home/(user)/`, verify they still
+   work with the teams-only redirect logic.
+
+Run `pnpm typecheck` to verify. No action needed unless I plan
+to enable `NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_ONLY=true`.
+```
+
+New feature flag for apps that only use team accounts (no personal accounts).
+
+### New Config
+
+```typescript
+// apps/web/config/feature-flags.config.ts
+enableTeamsOnly: import.meta.env.NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_ONLY === 'true',
+```
+
+### New Env Variable
+
+```
+NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_ONLY=false
+```
+
+Set to `true` if your app should skip personal accounts entirely.
+
+### What to Do
+
+No action required unless you want to enable teams-only mode. Add the env
+variable and set it to `true`.
+
+### Validate Before Continuing
+
+```bash
+pnpm typecheck
+```
+
+- [ ] App builds and runs
+
+Once verified, commit your changes. You can merge to `main` and deploy before continuing.
+
+---
+
+## 6. Workspace Dropdown
+
+Create a branch and pull in the changes:
+
+```bash
+git checkout -b v3/workspace-dropdown
+git pull upstream v3-step/workspace-dropdown
+```
+
+Then run the AI-assisted review with this prompt:
+
+```
+I'm upgrading Makerkit from v2 to v3. I just merged `v3-step/workspace-dropdown`.
+
+This step replaces the sidebar account selector and profile dropdown
+with a unified `WorkspaceDropdown` component. It also refactors
+page layouts (billing, members, settings) to move `PageBody` wrapping.
+
+1. If I customized the sidebar (`home-sidebar.tsx` or
+   `team-account-layout-sidebar.tsx`), the `SidebarFooter` with
+   `ProfileAccountDropdownContainer` is removed. The new
+   `WorkspaceDropdown` is in the `SidebarHeader` instead.
+2. If I customized page layouts for billing, members, or settings,
+   check that `PageBody` is now in the right place — it moved from
+   inside the page to the layout in some cases. `PageHeader` should be moved as a child of `PageBody`, rather than as a sibling, across the whole repository. Find all instances of `PageHeader` and ensure it appears within `PageBody`
+3. If I customized `personal-account-dropdown-container.tsx`, review
+   changes — it now accepts an `accountSlug` prop.
+4. If I added custom content to the sidebar footer, move it elsewhere
+   since the footer section was removed.
+
+Run `pnpm typecheck` to verify.
+```
+
+Account/team switching moved from sidebar navigation to a unified dropdown
+component.
+
+### What Changed
+
+- New `WorkspaceDropdown` component handles both personal and team switching
+- Billing and member management page layouts refactored
+- Notifications popover integrated
+
+### What to Do
+
+If you customized the sidebar account selector, migrate to the new
+`WorkspaceDropdown` component. If you only used the default navigation,
+no changes needed.
+
+### Validate Before Continuing
+
+```bash
+pnpm typecheck
+```
+
+- [ ] Workspace switching works (personal + team accounts)
+- [ ] App builds and runs
+
+Once verified, commit your changes. You can merge to `main` and deploy before continuing.
+
+---
+
+## 7. Async Dialogs
+
+Create a branch and pull in the changes:
+
+```bash
+git checkout -b v3/async-dialogs
+git pull upstream v3-step/async-dialogs
+```
+
+Then run the AI-assisted review with this prompt:
+
+```
+I'm upgrading Makerkit from v2 to v3. I just merged `v3-step/async-dialogs`.
+
+This step adds `useAsyncDialog` to all built-in dialogs. My custom
+dialogs don't need to change — only resolve merge conflicts if I
+modified any of the built-in dialogs (admin dialogs, team dialogs,
+invitation dialogs, MFA setup).
+
+1. Run `git diff HEAD~1` to see what upstream changed.
+2. If I modified any built-in dialog files, resolve merge conflicts
+   by adopting the upstream `useAsyncDialog` pattern.
+3. My custom dialogs still work fine without `useAsyncDialog`.
+
+Run `pnpm typecheck` to verify.
+```
+
+New `useAsyncDialog` hook prevents dialogs from closing during pending
+operations (form submissions, API calls).
+
+### Optional: Adopt useAsyncDialog in Custom Dialogs
+
+When you're ready, you can adopt `useAsyncDialog` in your own dialogs
+to prevent accidental closure during submissions:
+
+#### Usage
+
+```typescript
+import { useAsyncDialog } from '@kit/ui/hooks/use-async-dialog';
+
+function MyDialog({ open, onOpenChange }) {
+  const { dialogProps, isPending, setIsPending } = useAsyncDialog({
+    open,
+    onOpenChange,
+  });
+
+  const { execute } = useAction(myAction, {
+    onExecute: () => setIsPending(true),
+    onSettled: () => setIsPending(false),
+  });
+
+  return (
+    <Dialog {...dialogProps}>
+      {/* Dialog blocks ESC/backdrop click while isPending */}
+      <Button disabled={isPending}>Submit</Button>
+    </Dialog>
+  );
+}
+```
+
+### What to Do
+
+If you built custom dialogs with forms, adopt `useAsyncDialog` to prevent
+accidental closure during submissions. Existing dialogs still work without it —
+this is an improvement, not a requirement.
+
+### Validate Before Continuing
+
+```bash
+pnpm typecheck
+```
+
+- [ ] App builds and runs
+
+Once verified, commit your changes. You can merge to `main` and deploy before continuing.
+
+---
+
+## 8. Oxc
+
+Create a branch and pull in the changes:
+
+```bash
+git checkout -b v3/oxc
+git pull upstream v3-step/oxc
+pnpm install
+```
+
+Then run the AI-assisted review with this prompt:
+
+```
+I'm upgrading Makerkit from v2 to v3. I just merged `v3-step/oxc`.
+
+This step replaces ESLint + Prettier with Oxc (oxlint + oxfmt).
+
+1. If I added custom `eslint.config.mjs` files in any package, delete
+   them and translate any custom rules to `.oxlintrc.json` format.
+2. If I added `.prettierrc` or `.prettierignore` files, delete them.
+   Formatting config is now in `.oxfmtrc.jsonc` at the root.
+3. If I have CI/CD pipelines that run `pnpm lint` or `pnpm format`,
+   update them to `pnpm lint:fix` and `pnpm format:fix`.
+4. If I added custom ESLint plugins, check if oxlint has equivalent
+   built-in rules (it covers most common cases).
+
+After resolving conflicts, run:
+`pnpm install && pnpm lint:fix && pnpm format:fix && pnpm typecheck`
+```
+
+ESLint + Prettier replaced with Oxc (`oxlint` + `oxfmt`).
+
+### Commands
+
+```diff
+- pnpm lint        # ESLint
+- pnpm format      # Prettier
++ pnpm lint:fix    # oxlint
++ pnpm format:fix  # oxfmt
+```
+
+### Config Files
+
+```diff
+- eslint.config.mjs     (removed from all packages)
+- .prettierignore        (removed)
+- .prettierrc            (removed)
++ .oxlintrc.json         (root)
++ .oxfmtrc.jsonc         (root)
+```
+
+### What to Do
+
+If you added custom ESLint rules:
+
+1. Translate them to `.oxlintrc.json` format
+2. Delete any `eslint.config.mjs` files you added
+3. Delete Prettier config files
+4. Run `pnpm lint:fix && pnpm format:fix` to reformat
+
+### Validate Before Continuing
+
+```bash
+pnpm install && pnpm typecheck && pnpm lint:fix && pnpm format:fix
+```
+
+- [ ] No ESLint/Prettier config files remain
+- [ ] `pnpm lint:fix` runs without errors
+- [ ] App builds and runs
+
+Once verified, commit your changes. You can merge to `main` and deploy before continuing.
+
+---
+
+## 9. Remove Edge CSRF
+
+Create a branch and pull in the changes:
+
+```bash
+git checkout -b v3/remove-edge-csrf
+git pull upstream v3-step/remove-edge-csrf
+```
+
+Then run the AI-assisted review with this prompt:
+
+```
+I'm upgrading Makerkit from v2 to v3. I just merged `v3-step/remove-edge-csrf`.
+
+This step removes `@edge-csrf/nextjs` and the `useCsrfToken` hook.
+Server Actions handle CSRF protection natively in Next.js.
+
+1. Search my custom files for `useCsrfToken` — remove those imports
+   and any CSRF token passing logic.
+2. If I customized `proxy.ts` (middleware), the CSRF middleware
+   (`createCsrfProtect`, `CsrfError`) is removed. Resolve any
+   conflicts in my middleware customizations.
+3. If I added custom Route Handlers (not Server Actions) that relied
+   on CSRF tokens, those no longer have CSRF protection — consider
+   migrating them to Server Actions.
+
+Run `pnpm install && pnpm typecheck` to verify.
+```
+
+The `@edge-csrf/nextjs` package and `useCsrfToken` hook are removed.
+Next.js + Server Actions handle CSRF protection natively.
+
+### What Changed
+
+```diff
+- import { useCsrfToken } from '@kit/shared/hooks/use-csrf-token';
+  // Removed — no replacement needed
+```
+
+CSRF middleware removed from `proxy.ts`. Server Actions are inherently
+protected by Next.js.
+
+### What to Do
+
+If you used `useCsrfToken()` in custom components, remove those calls.
+No replacement is needed — Server Actions handle CSRF automatically.
+
+### Validate Before Continuing
+
+```bash
+pnpm install && pnpm typecheck
+```
+
+- [ ] No `useCsrfToken` or `@edge-csrf` import errors
+- [ ] App builds and runs
+
+Once verified, commit your changes. You can merge to `main` and deploy before continuing.
+
+---
+
+## 10. Final
+
+Create a branch and pull in the changes:
+
+```bash
+git checkout -b v3/final
+git pull upstream v3-step/final
+```
+
+Then run the AI-assisted review with this prompt:
+
+```
+I'm upgrading Makerkit from v2 to v3. I just merged `v3-step/final`.
+
+This step centralizes all dependency versions in `pnpm-workspace.yaml`
+using PNPM catalogs.
+
+1. If I added custom dependencies to any `package.json` in the monorepo,
+   check if those deps are now in the catalog. If so, change the version
+   to `"catalog:"` in my package.json.
+2. If I added a new package to the monorepo, make sure its shared deps
+   (react, next, zod, typescript, etc.) use `"catalog:"` references.
+3. Resolve any merge conflicts in `pnpm-workspace.yaml` — keep the
+   upstream catalog entries and add my custom ones alongside.
+
+Run `pnpm install && pnpm typecheck` to verify all catalog
+references resolve correctly.
+```
+
+Dependency versions are now centralized in `pnpm-workspace.yaml` using
+PNPM catalogs.
+
+### PNPM Version
+
+This step requires **pnpm 10.30.3** or later. Update your pnpm version:
+
+```bash
+corepack prepare pnpm@10.30.3 --activate
+```
+
+### enhanceAction Deprecated
+
+As introduced in [Step 3](#3-next-safe-action), `enhanceAction` is now
+officially marked as `@deprecated`. It still works but you should migrate
+custom actions to `authActionClient` / `publicActionClient` from
+`@kit/next/safe-action` when you have time.
+
+### How It Works
+
+```yaml
+# pnpm-workspace.yaml
+catalog:
+  react: 19.2.4
+  next: 16.2.0
+  zod: 4.3.6
+  # ... all shared versions here
+```
+
+```json
+// Individual package.json files now reference the catalog:
+{
+  "dependencies": {
+    "react": "catalog:",
+    "next": "catalog:"
+  }
+}
+```
+
+This tag also adds inline documentation to the repository for use with AI coding agents.
+
+### What to Do
+
+If you added custom dependencies to individual packages:
+
+- **Shared deps** (used by multiple packages): Add to `catalog:` in
+`pnpm-workspace.yaml`, then reference as `"catalog:"` in package.json
+- **Package-specific deps**: Can still use direct version strings
+
+You can use the PNPM catalog codemod to automatically migrate your custom
+dependencies to catalog references:
+
+```bash
+npx codemod@latest pnpm/catalog
+```
+
+This scans all `package.json` files and moves eligible versions into the
+catalog, reducing merge conflicts in future updates.
+
+### Validate Before Continuing
+
+```bash
+pnpm install && pnpm typecheck
+```
+
+- [ ] `pnpm install` resolves all catalog references
+- [ ] App builds and runs
+
+Once verified, commit your changes. You can merge to `main` and deploy before continuing.
+
+---
+
+## After Upgrading
+
+### Run all quality checks
+
+```bash
+pnpm install
+pnpm typecheck
+pnpm lint:fix
+pnpm format:fix
+```
+
+### Test core flows manually
+
+Start the dev server and verify these flows work:
+
+- [ ] Sign up / sign in
+- [ ] Team creation and switching
+- [ ] Inviting team members
+- [ ] Billing portal access
+- [ ] Account settings and profile updates
+
+### Update CI/CD
+
+If you have CI/CD pipelines, update the lint and format commands:
+
+```diff
+- pnpm lint
+- pnpm format
++ pnpm lint:fix
++ pnpm format:fix
+```
+
+### Switch to main for future updates
+
+After completing the migration, pull future updates from `main` instead of `v2`:
+
+```bash
+git pull upstream main
+```
+
+### Recommendations
+
+- **Commit the migration**: Once everything works, commit your changes and tag the result so you can easily roll back if needed.
+- **Migrate enhanceAction**: When you have time, migrate remaining custom actions from `enhanceAction` to `authActionClient` / `publicActionClient` (see [Step 3](#3-next-safe-action)).

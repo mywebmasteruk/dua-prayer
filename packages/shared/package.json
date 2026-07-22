@@ -1,0 +1,31 @@
+{
+  "name": "@kit/shared",
+  "version": "0.1.0",
+  "private": true,
+  "typesVersions": {
+    "*": {
+      "*": [
+        "src/*"
+      ]
+    }
+  },
+  "exports": {
+    "./logger": "./src/logger/index.ts",
+    "./utils": "./src/utils.ts",
+    "./events": "./src/events/index.tsx",
+    "./registry": "./src/registry/index.ts",
+    "./env": "./src/env/index.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .turbo node_modules",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next-runtime-env": "catalog:",
+    "pino": "catalog:"
+  },
+  "devDependencies": {
+    "@kit/tsconfig": "workspace:*",
+    "@types/react": "catalog:"
+  }
+}

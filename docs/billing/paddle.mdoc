@@ -1,0 +1,475 @@
+---
+status: "published"
+label: 'Paddle'
+title: 'Configuring Paddle Billing | Next.js Supabase SaaS Kit Turbo'
+order: 4
+description: 'Complete guide to integrating Paddle billing with your Next.js Supabase SaaS application. Learn how to set up payment processing, webhooks, and subscription management with Paddle as your Merchant of Record.'
+---
+
+Paddle is a comprehensive billing solution that acts as a Merchant of Record (MoR), handling all payment processing, tax calculations, compliance, and regulatory requirements for your SaaS business. 
+
+This integration eliminates the complexity of managing global tax compliance, PCI requirements, and payment processing infrastructure.
+
+## Overview
+
+This guide will walk you through:
+- Setting up Paddle for development and production
+- Configuring webhooks for real-time billing events
+- Creating and managing subscription products
+- Testing the complete billing flow
+- Deploying to production
+
+## Limitations
+
+Paddle currently supports flat and per-seat plans. Metered subscriptions are not supported with Paddle.
+
+## Prerequisites
+
+Before starting, ensure you have:
+- A Paddle account (sandbox for development, live for production)
+- Access to your application's environment configuration
+- A method to expose your local development server (ngrok, LocalTunnel, Localcan, etc.)
+
+## Step 0: Fetch the Paddle package from the plugins repository
+
+The Paddle package is released as a plugin in the Plugins repository. You can fetch it by running the following command:
+
+```bash
+npx @makerkit/cli@latest plugins install
+```
+
+Please choose the Paddle plugin from the list of available plugins.
+
+## Step 1: Registering Paddle
+
+Now we need to register the services from the Paddle plugin.
+
+### Install the Paddle package
+
+Run the following command to add the Paddle package to our billing package:
+
+```bash
+pnpm --filter @kit/billing-gateway add "@kit/paddle@workspace:*"
+```
+
+### Registering the Checkout component
+
+Update the function `loadCheckoutComponent` to include the `paddle` block,
+which will dynamically import the Paddle checkout component:
+
+```tsx {% title="packages/billing/gateway/src/components/embedded-checkout.tsx" %}
+import { Suspense, lazy } from 'react';
+
+import { Enums } from '@kit/supabase/database';
+import { LoadingOverlay } from '@kit/ui/loading-overlay';
+
+type BillingProvider = Enums<'billing_provider'>;
+
+// Create lazy components at module level (not during render)
+const StripeCheckoutLazy = lazy(async () => {
+  const { StripeCheckout } = await import('@kit/stripe/components');
+  return { default: StripeCheckout };
+});
+
+const LemonSqueezyCheckoutLazy = lazy(async () => {
+  const { LemonSqueezyEmbeddedCheckout } =
+    await import('@kit/lemon-squeezy/components');
+  return { default: LemonSqueezyEmbeddedCheckout };
+});
+
+const PaddleCheckoutLazy = lazy(async () => {
+  const { PaddleCheckout } = await import(
+    '@kit/paddle/components'
+    );
+  return { default: PaddleCheckout };
+});
+
+
+type CheckoutProps = {
+  onClose: (() => unknown) | undefined;
+  checkoutToken: string;
+};
+
+export function EmbeddedCheckout(
+  props: React.PropsWithChildren<{
+    checkoutToken: string;
+    provider: BillingProvider;
+    onClose?: () => void;
+  }>,
+) {
+  return (
+    <>
+      <Suspense fallback={<LoadingOverlay fullPage={false} />}>
+        <CheckoutSelector
+          provider={props.provider}
+          onClose={props.onClose}
+          checkoutToken={props.checkoutToken}
+        />
+      </Suspense>
+
+      <BlurryBackdrop />
+    </>
+  );
+}
+
+function CheckoutSelector(
+  props: CheckoutProps & { provider: BillingProvider },
+) {
+  switch (props.provider) {
+    case 'stripe':
+      return (
+        <StripeCheckoutLazy
+          onClose={props.onClose}
+          checkoutToken={props.checkoutToken}
+        />
+      );
+
+    case 'lemon-squeezy':
+      return (
+        <LemonSqueezyCheckoutLazy
+          onClose={props.onClose}
+          checkoutToken={props.checkoutToken}
+        />
+      );
+
+    case 'paddle':
+      return (
+        <PaddleCheckoutLazy
+          onClose={props.onClose}
+          checkoutToken={props.checkoutToken}
+        />
+      )
+
+    default:
+      throw new Error(`Unsupported provider: ${props.provider as string}`);
+  }
+}
+
+function BlurryBackdrop() {
+  return (
+    <div
+      className={
+        'bg-background/30 fixed top-0 left-0 w-full backdrop-blur-sm' +
+        ' !m-0 h-full'
+      }
+    />
+  );
+}
+```
+
+### Registering the Webhook handler
+
+At `packages/billing/gateway/src/server/services/billing-event-handler
+/billing-event-handler-factory.service.ts`, add the snippet below at the
+bottom of the file:
+
+```tsx {% title="packages/billing/gateway/src/server/services/billing-event-handler/billing-event-handler-factory.service.ts" %}
+ // Register Paddle webhook handler
+billingWebhookHandlerRegistry.register('paddle', async () => {
+  const { PaddleWebhookHandlerService } = await import('@kit/paddle');
+
+  return new PaddleWebhookHandlerService(planTypesMap);
+});
+```
+
+### Registering the Billing service
+
+Finally, at `packages/billing/gateway/src/server/services/billing-event-handler
+/billing-gateway-registry.ts`, add the snippet below at the
+bottom of the file:
+
+```tsx {% title="packages/billing/gateway/src/server/services/billing-gateway/billing-gateway-registry.ts" %}
+// Register Paddle billing strategy
+billingStrategyRegistry.register('paddle', async () => {
+  const { PaddleBillingStrategyService } = await import('@kit/paddle');
+
+  return new PaddleBillingStrategyService();
+});
+```
+
+## Step 2: Create Paddle Account
+
+### Development Account (Sandbox)
+1. Visit [Paddle Developer Console](https://sandbox-vendors.paddle.com/signup)
+2. Complete the registration process
+3. Verify your email address
+4. Navigate to your sandbox dashboard
+
+### Important Notes
+- The sandbox environment allows unlimited testing without processing real payments
+- All transactions in sandbox mode use test card numbers
+- Webhooks and API calls work identically to production
+- The Paddle payment provider currently only supports flat and per-seat plans (metered subscriptions are not supported)
+
+## Step 3: Configure Billing Provider
+
+### Database Configuration
+
+Set Paddle as your billing provider in the database:
+
+```sql
+-- Update the billing provider in your configuration table
+UPDATE public.config
+set billing_provider = 'paddle';
+```
+
+### Environment Configuration
+
+Add the following to your `.env.local` file:
+
+```bash
+# Set Paddle as the active billing provider
+NEXT_PUBLIC_BILLING_PROVIDER=paddle
+```
+
+This environment variable tells your application to use Paddle-specific components and API endpoints for billing operations.
+
+## Step 4: API Key Configuration
+
+Paddle requires two types of API keys for complete integration:
+
+### Server-Side API Key (Required)
+
+1. In your Paddle dashboard, navigate to **Developer Tools** → **Authentication**
+2. Click **Generate New API Key**
+3. Give it a descriptive name (e.g., "Production API Key" or "Development API Key")
+4. **Configure the required permissions** for your API key:
+   - **Write Customer Portal Sessions** - For managing customer billing portals
+   - **Read Customers** - For retrieving customer information
+   - **Read Prices** - For displaying pricing information
+   - **Read Products** - For product catalog access
+   - **Read/Write Subscriptions** - For subscription management
+   - **Read Transactions** - For payment and transaction tracking
+5. Copy the generated key immediately (it won't be shown again)
+6. Add to your `.env.local`:
+
+```bash
+PADDLE_API_KEY=your_server_api_key_here
+```
+
+**Security Note**: This key has access to the specified Paddle account permissions and should never be exposed to the client-side code. Only grant the minimum permissions required for your integration.
+
+### Client-Side Token (Required)
+
+1. In the same **Authentication** section, look for **Client-side tokens**
+2. Click **New Client-Side Token**
+3. Copy the client token
+4. Add to your `.env.local`:
+
+```bash
+NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=your_client_token_here
+```
+
+**Important**: This token is safe to expose in client-side code but should be restricted to your specific domains.
+
+## Step 5: Webhook Configuration
+
+Webhooks enable real-time synchronization between Paddle and your application for events like successful payments, subscription changes, and cancellations.
+
+### Set Up Local Development Tunnel
+
+First, expose your local development server to the internet:
+
+#### Using ngrok (Recommended)
+```bash
+# Install ngrok if not already installed
+npm install -g ngrok
+
+# Expose port 3000 (default Next.js port)
+ngrok http 3000
+```
+
+#### Using LocalTunnel
+```bash
+# Install localtunnel
+npm install -g localtunnel
+
+# Expose port 3000
+lt --port 3000
+```
+
+### Configure Webhook Destination
+
+1. In Paddle dashboard, go to **Developer Tools** → **Notifications**
+2. Click **New Destination**
+3. Configure the destination:
+   - **Destination URL**: `https://your-tunnel-url.ngrok.io/api/billing/webhook`
+   - **Description**: "Local Development Webhook"
+   - **Active**: ✅ Checked
+
+### Select Webhook Events
+
+Enable these essential events for proper billing integration:
+
+### Retrieve Webhook Secret
+
+1. After creating the destination, click on it to view details
+2. Copy the **Endpoint Secret** (used to verify webhook authenticity)
+3. Add to your `.env.local`:
+
+```bash
+PADDLE_WEBHOOK_SECRET_KEY=your_webhook_secret_here
+```
+
+### Test Webhook Connection
+
+You can test the webhook endpoint by making a GET request to verify it's accessible:
+
+```bash
+curl https://your-tunnel-url.ngrok.io/api/billing/webhook
+```
+
+Expected response: `200 OK` with a message indicating the webhook endpoint is active.
+
+## Step 6: Product and Pricing Configuration
+
+### Create Products in Paddle
+
+1. Navigate to **Catalog** → **Products** in your Paddle dashboard
+2. Click **Create Product**
+3. Configure your product:
+
+**Basic Information:**
+- **Product Name**: "Starter Plan", "Pro Plan", etc.
+- **Description**: Detailed description of the plan features
+- **Tax Category**: Select appropriate category (usually "Software")
+
+**Pricing Configuration:**
+- **Billing Interval**: Monthly, Yearly, or Custom
+- **Price**: Set in your primary currency
+- **Trial Period**: Optional free trial duration
+
+### Configure Billing Settings
+
+Update your billing configuration file with the Paddle product IDs:
+
+```typescript
+// apps/web/config/billing.config.ts
+export const billingConfig = {
+  provider: 'paddle',
+  products: [
+    {
+      id: 'starter',
+      name: 'Starter Plan',
+      description: 'Perfect for individuals and small teams',
+      badge: 'Most Popular',
+      features: [
+        'Up to 5 projects',
+        'Basic support',
+        '1GB storage'
+      ],
+      plans: [
+        {
+          name: 'Starter Monthly',
+          id: 'starter-monthly',
+          paymentType: 'recurring',
+          interval: 'month',
+          lineItems: [
+            {
+              id: 'pri_starter_monthly_001', // Paddle Price ID
+              name: 'Starter',
+              cost: 9.99,
+              type: 'flat' as const,
+            },
+          ],
+        }
+      ]
+    }
+    // Add more products...
+  ]
+};
+```
+
+## Step 7: Checkout Configuration
+
+### Default Payment Link Configuration
+
+1. Go to **Checkout** → **Checkout Settings** in Paddle dashboard
+2. Configure **Default Payment Link**: use`http://localhost:3000` - but when deploying to production, you should use your production domain.
+3. Save the configuration
+
+## Step 8: Testing the Integration
+
+### Development Testing Checklist
+
+**Environment Verification:**
+- [ ] All environment variables are set correctly
+- [ ] Webhook tunnel is active and accessible
+- [ ] Destination was defined using the correct URL
+- [ ] Database billing provider is set to 'paddle' in both DB and ENV
+
+**Subscription Flow Testing:**
+1. Navigate to your billing/pricing page (`/home/billing` or equivalent)
+2. Click on a subscription plan
+3. Complete the checkout flow using Paddle test cards
+4. Verify successful redirect to success page
+5. Check that subscription appears in user dashboard
+6. Verify webhook events are received in your application logs
+
+You can also test cancellation flows:
+- cancel the subscription from the billing portal
+- delete the account and verify the subscription is cancelled as well
+
+### Test Card Numbers
+
+[Follow this link to get the test card numbers](https://developer.paddle.com/concepts/payment-methods/credit-debit-card#test-payment-method)
+
+### Webhook Testing
+
+Monitor webhook delivery in your application logs:
+
+```bash
+# Watch your development logs
+pnpm dev
+
+# In another terminal, monitor webhook requests
+tail -f logs/webhook.log
+```
+
+## Step 9: Production Deployment
+
+### Apply for Live Paddle Account
+
+1. In your Paddle dashboard, click **Go Live**
+2. Complete the application process:
+   - Business information and verification
+   - Tax information and documentation
+   - Banking details for payouts
+   - Identity verification for key personnel
+
+**Timeline**: Live account approval typically takes 1-3 business days.
+
+### Production Environment Setup
+
+Create production-specific configuration:
+
+```bash
+# Production environment variables
+NEXT_PUBLIC_BILLING_PROVIDER=paddle
+PADDLE_API_KEY=your_production_api_key
+NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=your_production_client_token
+PADDLE_WEBHOOK_SECRET_KEY=your_production_webhook_secret
+```
+
+### Production Webhook Configuration
+
+1. Create a new webhook destination for production
+2. Set the destination URL to your production domain:
+   ```
+   https://yourdomain.com/api/billing/webhook
+   ```
+3. Enable the same events as configured for development
+4. Update your production environment with the new webhook secret
+
+### Production Products and Pricing
+
+1. Create production versions of your products in the live environment
+2. Update your production billing configuration with live Price IDs
+3. Test the complete flow on production with small-amount transactions
+
+### Support Resources
+
+Refer to the [Paddle Documentation](https://developer.paddle.com) for more information:
+
+- **Paddle Documentation**: [https://developer.paddle.com](https://developer.paddle.com)
+- **Status Page**: [https://status.paddle.com](https://status.paddle.com)

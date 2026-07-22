@@ -1,0 +1,321 @@
+---
+status: "published"
+title: "Keystatic CMS Setup for the Next.js Supabase SaaS Kit"
+label: "Keystatic"
+description: "Configure Keystatic as your CMS with local file storage for development or GitHub integration for production and team collaboration."
+order: 2
+---
+
+Keystatic is a file-based CMS that stores content as Markdown/Markdoc files. It's the default CMS in Makerkit because it requires zero setup for local development and integrates with Git for version-controlled content.
+
+## Storage Modes
+
+Keystatic supports three storage modes:
+
+| Mode | Storage | Best For | Edge Compatible |
+|------|---------|----------|-----------------|
+| `local` | Local filesystem | Development, solo projects | No |
+| `github` | GitHub repository | Production, team collaboration | Yes |
+| `cloud` | Keystatic Cloud | Managed hosting | Yes |
+
+Local mode reads files directly from disk. GitHub mode fetches content via the GitHub API, making it compatible with edge runtimes like Cloudflare Workers.
+
+## Local Storage (Default)
+
+Local mode works out of the box. Content lives in your repository's `content/` directory:
+
+```bash
+# .env (optional - these are the defaults)
+CMS_CLIENT=keystatic
+NEXT_PUBLIC_KEYSTATIC_STORAGE_KIND=local
+KEYSTATIC_PATH_PREFIX=apps/web
+NEXT_PUBLIC_KEYSTATIC_CONTENT_PATH=./content
+```
+
+Content structure:
+
+```
+apps/web/content/
+├── posts/           # Blog posts
+├── documentation/   # Docs (supports nesting)
+└── changelog/       # Release notes
+```
+
+**Limitations**: Local mode doesn't work with edge runtimes (Cloudflare Workers, Vercel Edge) because it requires filesystem access. Use GitHub mode for edge deployments.
+
+## GitHub Storage
+
+GitHub mode fetches content from your repository via the GitHub API. This enables edge deployment and team collaboration through Git.
+
+### 1. Set Environment Variables
+
+```bash
+# .env
+CMS_CLIENT=keystatic
+NEXT_PUBLIC_KEYSTATIC_STORAGE_KIND=github
+NEXT_PUBLIC_KEYSTATIC_STORAGE_REPO=your-org/your-repo
+KEYSTATIC_GITHUB_TOKEN=github_pat_xxxxxxxxxxxx
+KEYSTATIC_PATH_PREFIX=apps/web
+NEXT_PUBLIC_KEYSTATIC_CONTENT_PATH=./content
+```
+
+### 2. Create a GitHub Token
+
+1. Go to GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
+2. Create a new token with:
+   - **Repository access**: Select your content repository
+   - **Permissions**: Contents (Read-only for production, Read and write for admin UI)
+3. Copy the token to `KEYSTATIC_GITHUB_TOKEN`
+
+For read-only access (recommended for production):
+
+```bash
+KEYSTATIC_GITHUB_TOKEN=github_pat_xxxxxxxxxxxx
+```
+
+### 3. Configure Path Prefix
+
+If your content isn't at the repository root, set the path prefix:
+
+```bash
+# For monorepos where content is in apps/web/content/
+KEYSTATIC_PATH_PREFIX=apps/web
+NEXT_PUBLIC_KEYSTATIC_CONTENT_PATH=./content
+```
+
+## Keystatic Cloud
+
+Keystatic Cloud is a managed service that handles GitHub authentication and provides a hosted admin UI.
+
+```bash
+# .env
+CMS_CLIENT=keystatic
+NEXT_PUBLIC_KEYSTATIC_STORAGE_KIND=cloud
+KEYSTATIC_STORAGE_PROJECT=your-project-id
+```
+
+Get your project ID from the [Keystatic Cloud dashboard](https://keystatic.cloud).
+
+## Adding the Admin UI
+
+Keystatic includes a visual editor for managing content. To add it:
+
+```bash
+turbo gen keystatic
+```
+
+This creates a route at `/keystatic` where you can create and edit content.
+
+{% alert type="warning" title="Protect the admin in production" %}
+By default, the Keystatic admin is only available in development. For production, add authentication:
+
+```tsx {% title="app/keystatic/layout.tsx" %}
+import { redirect } from 'next/navigation';
+import { isSuperAdmin } from '@kit/admin';
+
+export default async function KeystaticLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const isAdmin = await isSuperAdmin();
+
+  if (!isAdmin) {
+    redirect('/');
+  }
+
+  return children;
+}
+```
+{% /alert %}
+
+### GitHub Mode Admin Setup
+
+GitHub mode requires a GitHub App for the admin UI to authenticate and commit changes.
+
+1. Install the Keystatic GitHub App on your repository
+2. Follow the [Keystatic GitHub mode documentation](https://keystatic.com/docs/github-mode) for setup
+
+The admin UI commits content changes directly to your repository, triggering your CI/CD pipeline.
+
+## Default Collections
+
+Makerkit configures three collections in `packages/cms/keystatic/src/keystatic.config.ts`:
+
+### Posts
+
+Blog posts with frontmatter:
+
+```yaml
+---
+title: "Getting Started with Makerkit"
+description: "A guide to building your SaaS"
+publishedAt: 2025-01-15
+status: published
+categories:
+  - tutorials
+tags:
+  - getting-started
+image: /images/posts/getting-started.webp
+---
+
+Content here...
+```
+
+### Documentation
+
+Hierarchical docs with ordering and collapsible sections:
+
+```yaml
+---
+title: "Authentication"
+label: "Auth"  # Short label for navigation
+description: "How authentication works"
+order: 1
+status: published
+collapsible: true
+collapsed: false
+---
+
+Content here...
+```
+
+Documentation supports nested directories. A file at `documentation/auth/sessions/sessions.mdoc` automatically becomes a child of `documentation/auth/auth.mdoc`.
+
+### Changelog
+
+Release notes:
+
+```yaml
+---
+title: "v2.0.0 Release"
+description: "Major update with new features"
+publishedAt: 2025-01-10
+status: published
+---
+
+Content here...
+```
+
+## Adding Custom Collections
+
+Edit `packages/cms/keystatic/src/keystatic.config.ts` to add collections:
+
+```tsx {% title="packages/cms/keystatic/src/keystatic.config.ts" %}
+// In getKeystaticCollections()
+return {
+  // ... existing collections
+
+  pages: collection({
+    label: 'Pages',
+    slugField: 'title',
+    path: `${path}pages/*`,
+    format: { contentField: 'content' },
+    schema: {
+      title: fields.slug({ name: { label: 'Title' } }),
+      description: fields.text({ label: 'Description' }),
+      content: getContentField(),
+      status: fields.select({
+        defaultValue: 'draft',
+        label: 'Status',
+        options: statusOptions,
+      }),
+    },
+  }),
+};
+```
+
+## Content Format
+
+Keystatic uses [Markdoc](https://markdoc.dev), a Markdown superset with custom components.
+
+### Basic Markdown
+
+Standard Markdown syntax works:
+
+```markdown
+# Heading
+
+Paragraph with **bold** and *italic*.
+
+- List item
+- Another item
+
+```code
+Code block
+```
+```
+
+### Images
+
+Images are stored in `public/site/images/` and referenced with the public path:
+
+```markdown
+![Alt text](/site/images/screenshot.webp)
+```
+
+### Custom Components
+
+Makerkit extends Markdoc with custom nodes. Check `packages/cms/keystatic/src/markdoc-nodes.ts` for available components.
+
+## Cloudflare Workers Compatibility
+
+Cloudflare Workers don't send the `User-Agent` header, which the GitHub API requires. Add this workaround to `packages/cms/keystatic/src/keystatic-client.ts`:
+
+```tsx {% title="packages/cms/keystatic/src/keystatic-client.ts" %}
+// Add at the top of the file
+const self = global || globalThis || this;
+const originalFetch = self.fetch;
+
+self.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+  const requestInit: RequestInit = {
+    ...(init ?? {}),
+    headers: {
+      ...(init?.headers ?? {}),
+      'User-Agent': 'Cloudflare-Workers',
+    }
+  };
+
+  return originalFetch(input, requestInit);
+};
+```
+
+## Environment Variables Reference
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `CMS_CLIENT` | No | `keystatic` | CMS provider |
+| `NEXT_PUBLIC_KEYSTATIC_STORAGE_KIND` | No | `local` | Storage mode: `local`, `github`, `cloud` |
+| `NEXT_PUBLIC_KEYSTATIC_STORAGE_REPO` | GitHub only | - | Repository in `owner/repo` format |
+| `KEYSTATIC_GITHUB_TOKEN` | GitHub only | - | GitHub personal access token |
+| `KEYSTATIC_STORAGE_PROJECT` | Cloud only | - | Keystatic Cloud project ID |
+| `KEYSTATIC_PATH_PREFIX` | No | - | Path to content in monorepos |
+| `NEXT_PUBLIC_KEYSTATIC_CONTENT_PATH` | No | `./content` | Content directory path |
+| `KEYSTATIC_STORAGE_BRANCH_PREFIX` | No | - | Branch prefix for GitHub mode |
+
+## Troubleshooting
+
+### Content not loading in production
+
+Verify GitHub mode is configured:
+- `NEXT_PUBLIC_KEYSTATIC_STORAGE_KIND=github`
+- `KEYSTATIC_GITHUB_TOKEN` has read access to the repository
+- `NEXT_PUBLIC_KEYSTATIC_STORAGE_REPO` matches your repository
+
+### Admin UI shows authentication error
+
+For GitHub mode, ensure:
+- The Keystatic GitHub App is installed on your repository
+- Your GitHub token has write permissions (for the admin)
+
+### Edge runtime errors
+
+Local mode doesn't work on edge. Switch to GitHub or Cloud mode:
+- Set `NEXT_PUBLIC_KEYSTATIC_STORAGE_KIND=github`
+- Configure GitHub token with read access
+
+## Next Steps
+
+- [CMS API Reference](/docs/next-supabase-turbo/content/cms-api): Learn the full API for fetching content
+- [CMS Overview](/docs/next-supabase-turbo/content/cms): Compare CMS providers
+- [Keystatic Documentation](https://keystatic.com/docs): Official Keystatic docs

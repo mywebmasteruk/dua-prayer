@@ -1,0 +1,399 @@
+---
+status: "published"
+label: "Metered Usage"
+title: "Implement Metered Usage Billing for APIs and SaaS"
+order: 5
+description: "Charge customers based on actual usage with metered billing. Learn how to configure usage-based pricing and report usage to Stripe or Lemon Squeezy in your Next.js SaaS."
+---
+
+Metered usage billing charges customers based on consumption (API calls, storage, compute time, etc.). You report usage throughout the billing period, and the provider calculates charges at invoice time.
+
+## How It Works
+
+1. Customer subscribes to a metered plan
+2. Your application tracks usage and reports it to the billing provider
+3. At the end of each billing period, the provider invoices based on total usage
+4. Makerkit stores usage data in `subscription_items` for reference
+
+## Schema Configuration
+
+Define a metered line item in your billing schema:
+
+```tsx {% title="apps/web/config/billing.config.ts" %}
+{
+  id: 'api-plan',
+  name: 'API Plan',
+  description: 'Pay only for what you use',
+  currency: 'USD',
+  plans: [
+    {
+      id: 'api-monthly',
+      name: 'API Monthly',
+      paymentType: 'recurring',
+      interval: 'month',
+      lineItems: [
+        {
+          id: 'price_api_requests',  // Provider Price ID
+          name: 'API Requests',
+          cost: 0,
+          type: 'metered',
+          unit: 'requests',
+          tiers: [
+            { upTo: 1000, cost: 0 },         // First 1000 free
+            { upTo: 10000, cost: 0.001 },    // $0.001/request
+            { upTo: 'unlimited', cost: 0.0005 }, // Volume discount
+          ],
+        },
+      ],
+    },
+  ],
+}
+```
+
+The `tiers` define progressive pricing. The last tier should always have `upTo: 'unlimited'`.
+
+## Provider Differences
+
+Stripe and Lemon Squeezy handle metered billing differently:
+
+| Feature | Stripe | Lemon Squeezy |
+|---------|--------|---------------|
+| Report to | Customer ID + meter name | Subscription item ID |
+| Usage action | Implicit increment | Explicit `increment` or `set` |
+| Multiple meters | Yes (per customer) | No (per subscription) |
+| Real-time usage | Yes (Billing Meter) | Limited |
+
+## Stripe Implementation
+
+Stripe uses [Billing Meters](https://docs.stripe.com/billing/subscriptions/usage-based/implementation-guide) for metered billing.
+
+### 1. Create a Meter in Stripe
+
+1. Go to Stripe Dashboard → Billing → Meters
+2. Click **Create meter**
+3. Configure:
+   - **Event name**: `api_requests` (you'll use this in your code)
+   - **Aggregation**: Sum (most common)
+   - **Value key**: `value` (default)
+
+### 2. Create a Metered Price
+
+1. Go to Products → Your Product
+2. Add a price with **Usage-based** pricing
+3. Select your meter
+4. Configure tier pricing
+
+### 3. Report Usage
+
+```tsx
+import { createBillingGatewayService } from '@kit/billing-gateway';
+import { createAccountsApi } from '@kit/accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export async function reportApiUsage(accountId: string, requestCount: number) {
+  const supabase = getSupabaseServerClient();
+  const api = createAccountsApi(supabase);
+
+  // Get customer ID for this account
+  const customerId = await api.getCustomerId(accountId);
+
+  if (!customerId) {
+    throw new Error('No billing customer found');
+  }
+
+  const service = createBillingGatewayService('stripe');
+
+  await service.reportUsage({
+    id: customerId,
+    eventName: 'api_requests',  // Matches your Stripe meter
+    usage: {
+      quantity: requestCount,
+    },
+  });
+}
+```
+
+### 4. Integrate with Your API
+
+```tsx
+// app/api/data/route.ts
+import { NextResponse } from 'next/server';
+import { reportApiUsage } from '~/lib/billing';
+
+export async function GET(request: Request) {
+  const accountId = getAccountIdFromRequest(request);
+
+  // Process the request
+  const data = await fetchData();
+
+  // Report usage (fire and forget or await)
+  reportApiUsage(accountId, 1).catch(console.error);
+
+  return NextResponse.json(data);
+}
+```
+
+For high-volume APIs, batch usage reports:
+
+```tsx
+// lib/usage-buffer.ts
+const usageBuffer = new Map<string, number>();
+
+export function bufferUsage(accountId: string, quantity: number) {
+  const current = usageBuffer.get(accountId) ?? 0;
+  usageBuffer.set(accountId, current + quantity);
+}
+
+// Flush every minute
+setInterval(async () => {
+  for (const [accountId, quantity] of usageBuffer.entries()) {
+    if (quantity > 0) {
+      await reportApiUsage(accountId, quantity);
+      usageBuffer.set(accountId, 0);
+    }
+  }
+}, 60000);
+```
+
+## Lemon Squeezy Implementation
+
+Lemon Squeezy requires reporting to a subscription item ID.
+
+### 1. Create a Usage-Based Product
+
+1. Go to Products → New Product
+2. Select **Usage-based** pricing
+3. Configure your pricing tiers
+
+### 2. Get the Subscription Item ID
+
+After a customer subscribes, find their subscription item:
+
+```tsx
+const { data: subscriptionItem } = await supabase
+  .from('subscription_items')
+  .select('id')
+  .eq('subscription_id', subscriptionId)
+  .eq('type', 'metered')
+  .single();
+```
+
+### 3. Report Usage
+
+```tsx
+import { createBillingGatewayService } from '@kit/billing-gateway';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export async function reportUsageLS(
+  accountId: string,
+  quantity: number
+) {
+  const supabase = getSupabaseServerClient();
+
+  // Get subscription and item
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('status', 'active')
+    .single();
+
+  if (!subscription) {
+    throw new Error('No active subscription');
+  }
+
+  const { data: item } = await supabase
+    .from('subscription_items')
+    .select('id')
+    .eq('subscription_id', subscription.id)
+    .eq('type', 'metered')
+    .single();
+
+  if (!item) {
+    throw new Error('No metered item found');
+  }
+
+  const service = createBillingGatewayService('lemon-squeezy');
+
+  await service.reportUsage({
+    id: item.id,
+    usage: {
+      quantity,
+      action: 'increment',  // or 'set' to replace
+    },
+  });
+}
+```
+
+### Lemon Squeezy Usage Actions
+
+- **`increment`**: Add to existing usage (default)
+- **`set`**: Replace the current usage value
+
+```tsx
+// Increment by 100
+await service.reportUsage({
+  id: itemId,
+  usage: { quantity: 100, action: 'increment' },
+});
+
+// Set total to 500 (overwrites previous)
+await service.reportUsage({
+  id: itemId,
+  usage: { quantity: 500, action: 'set' },
+});
+```
+
+## Querying Usage
+
+### Stripe
+
+```tsx
+const usage = await service.queryUsage({
+  id: 'meter_xxx',  // Stripe Meter ID
+  customerId: 'cus_xxx',
+  filter: {
+    startTime: Math.floor(Date.now() / 1000) - 86400 * 30,
+    endTime: Math.floor(Date.now() / 1000),
+  },
+});
+
+console.log(`Total usage: ${usage.value}`);
+```
+
+### Lemon Squeezy
+
+```tsx
+const usage = await service.queryUsage({
+  id: 'sub_item_xxx',
+  customerId: 'cus_xxx',
+  filter: {
+    page: 1,
+    size: 100,
+  },
+});
+```
+
+## Combining Metered + Flat Pricing (Stripe Only)
+
+Charge a base fee plus usage:
+
+```tsx
+lineItems: [
+  {
+    id: 'price_base',
+    name: 'Platform Access',
+    cost: 29,
+    type: 'flat',
+  },
+  {
+    id: 'price_api',
+    name: 'API Calls',
+    cost: 0,
+    type: 'metered',
+    unit: 'calls',
+    tiers: [
+      { upTo: 10000, cost: 0 },  // Included in base
+      { upTo: 'unlimited', cost: 0.001 },
+    ],
+  },
+]
+```
+
+## Setup Fee with Metered Usage (Lemon Squeezy)
+
+Lemon Squeezy supports a one-time setup fee:
+
+```tsx
+{
+  id: '123456',
+  name: 'API Access',
+  cost: 0,
+  type: 'metered',
+  unit: 'requests',
+  setupFee: 49,  // One-time charge on subscription creation
+  tiers: [
+    { upTo: 1000, cost: 0 },
+    { upTo: 'unlimited', cost: 0.001 },
+  ],
+}
+```
+
+## Displaying Usage to Users
+
+Show customers their current usage:
+
+```tsx
+'use client';
+
+import { useQuery } from '@tanstack/react-query';
+
+export function UsageDisplay({ accountId }: { accountId: string }) {
+  const { data: usage, isLoading } = useQuery({
+    queryKey: ['usage', accountId],
+    queryFn: () => fetch(`/api/usage/${accountId}`).then(r => r.json()),
+    refetchInterval: 60000,  // Update every minute
+  });
+
+  if (isLoading) return <span>Loading usage...</span>;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between">
+        <span>API Requests</span>
+        <span>{usage?.requests?.toLocaleString() ?? 0}</span>
+      </div>
+      <div className="h-2 bg-muted rounded">
+        <div
+          className="h-full bg-primary rounded"
+          style={{ width: `${Math.min(100, (usage?.requests / 10000) * 100)}%` }}
+        />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {usage?.requests > 10000
+          ? `${((usage.requests - 10000) * 0.001).toFixed(2)} overage`
+          : `${10000 - usage?.requests} free requests remaining`}
+      </p>
+    </div>
+  );
+}
+```
+
+## Testing Metered Billing
+
+1. **Create a metered subscription**
+2. **Report some usage:**
+   ```bash
+   # Stripe CLI
+   stripe billing_meters create_event \
+     --event-name api_requests \
+     --payload customer=cus_xxx,value=100
+   ```
+3. **Check usage in dashboard**
+4. **Create an invoice to see charges:**
+   ```bash
+   stripe invoices create --customer cus_xxx
+   stripe invoices finalize inv_xxx
+   ```
+
+## Common Issues
+
+### Usage not appearing
+
+1. Verify the meter event name matches
+2. Check that customer ID is correct
+3. Look for errors in your application logs
+4. Check Stripe Dashboard → Billing → Meters → Events
+
+### Incorrect charges
+
+1. Verify your tier configuration in Stripe matches your schema
+2. Check if using graduated vs. volume pricing
+3. Review the invoice line items in Stripe Dashboard
+
+## Related Documentation
+
+- [Billing Schema](/docs/next-supabase-turbo/billing/billing-schema) - Configure pricing
+- [Billing API](/docs/next-supabase-turbo/billing/billing-api) - Full API reference
+- [Credit-Based Billing](/docs/next-supabase-turbo/billing/credit-based-billing) - Alternative usage model
+- [Stripe Setup](/docs/next-supabase-turbo/billing/stripe) - Provider configuration

@@ -1,0 +1,448 @@
+---
+status: "published"
+label: "Account API"
+order: 0
+title: "Account API | Next.js Supabase SaaS Kit"
+description: "Complete reference for the Account API in MakerKit. Manage personal accounts, subscriptions, billing customer IDs, and workspace data with type-safe methods."
+---
+
+The Account API is MakerKit's server-side service for managing personal user accounts. It provides methods to fetch subscription data, billing customer IDs, and account switcher information. Use it when building billing portals, feature gates, or account selection UIs. All methods are type-safe and respect Supabase RLS policies.
+
+{% callout title="When to use Account API" %}
+Use the Account API for: checking subscription status for feature gating, loading data for account switchers, accessing billing customer IDs for direct provider API calls. Use the Team Account API instead for team-based operations.
+{% /callout %}
+
+{% sequence title="Account API Reference" description="Learn how to use the Account API in MakerKit" %}
+
+[Setup and initialization](#setup-and-initialization)
+
+[getAccountWorkspace](#getaccountworkspace)
+
+[loadUserAccounts](#loaduseraccounts)
+
+[getSubscription](#getsubscription)
+
+[getCustomerId](#getcustomerid)
+
+[getOrder](#getorder)
+
+[Real-world examples](#real-world-examples)
+
+{% /sequence %}
+
+## Setup and initialization
+
+Import `createAccountsApi` from `@kit/accounts/api` and pass a Supabase server client. The client handles authentication automatically through RLS.
+
+```tsx
+import { createAccountsApi } from '@kit/accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+async function ServerComponent() {
+  const client = getSupabaseServerClient();
+  const api = createAccountsApi(client);
+
+  // Use API methods
+}
+```
+
+In Server Actions:
+
+```tsx
+'use server';
+
+import { createAccountsApi } from '@kit/accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export async function myServerAction() {
+  const client = getSupabaseServerClient();
+  const api = createAccountsApi(client);
+
+  // Use API methods
+}
+```
+
+{% callout title="Request-scoped clients" %}
+Always create the Supabase client and API instance inside your request handler, not at module scope. The client is tied to the current user's session.
+{% /callout %}
+
+## API Methods
+
+### getAccountWorkspace
+
+Returns the personal workspace data for the authenticated user. This includes account details, subscription status, and profile information.
+
+```tsx
+const workspace = await api.getAccountWorkspace();
+```
+
+**Returns:**
+
+```tsx
+{
+  id: string | null;
+  name: string | null;
+  picture_url: string | null;
+  public_data: Json | null;
+  subscription_status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'paused' | null;
+}
+```
+
+**Usage notes:**
+
+- Called automatically in the `/home/(user)` layout
+- Cached per-request, so multiple calls are deduplicated
+- Returns `null` values if the user has no personal account
+
+---
+
+### loadUserAccounts
+
+Loads all accounts the user belongs to, formatted for account switcher components.
+
+```tsx
+const accounts = await api.loadUserAccounts();
+```
+
+**Returns:**
+
+```tsx
+Array<{
+  label: string;   // Account display name
+  value: string;   // Account ID or slug
+  image: string | null;  // Account picture URL
+}>
+```
+
+**Example: Build an account switcher**
+
+```tsx
+import { createAccountsApi } from '@kit/accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+async function AccountSwitcher() {
+  const client = getSupabaseServerClient();
+  const api = createAccountsApi(client);
+  const accounts = await api.loadUserAccounts();
+
+  return (
+    <select>
+      {accounts.map((account) => (
+        <option key={account.value} value={account.value}>
+          {account.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+```
+
+---
+
+### getSubscription
+
+Returns the subscription data for a given account, including all subscription items (line items).
+
+```tsx
+const subscription = await api.getSubscription(accountId);
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `accountId` | `string` | The account UUID |
+
+**Returns:**
+
+```tsx
+{
+  id: string;
+  account_id: string;
+  billing_provider: 'stripe' | 'lemon-squeezy' | 'paddle';
+  status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'paused';
+  currency: string;
+  cancel_at_period_end: boolean;
+  period_starts_at: string;
+  period_ends_at: string;
+  trial_starts_at: string | null;
+  trial_ends_at: string | null;
+  items: Array<{
+    id: string;
+    subscription_id: string;
+    product_id: string;
+    variant_id: string;
+    type: 'flat' | 'per_seat' | 'metered';
+    quantity: number;
+    price_amount: number;
+    interval: 'month' | 'year';
+    interval_count: number;
+  }>;
+} | null
+```
+
+**Example: Check subscription access**
+
+```tsx
+import { createAccountsApi } from '@kit/accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+async function checkPlanAccess(accountId: string, requiredPlan: string) {
+  const client = getSupabaseServerClient();
+  const api = createAccountsApi(client);
+  const subscription = await api.getSubscription(accountId);
+
+  if (!subscription) {
+    return { hasAccess: false, reason: 'no_subscription' };
+  }
+
+  if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+    return { hasAccess: false, reason: 'inactive_subscription' };
+  }
+
+  const hasRequiredPlan = subscription.items.some(
+    (item) => item.product_id === requiredPlan
+  );
+
+  if (!hasRequiredPlan) {
+    return { hasAccess: false, reason: 'wrong_plan' };
+  }
+
+  return { hasAccess: true };
+}
+```
+
+---
+
+### getCustomerId
+
+Returns the billing provider customer ID for an account. Use this when integrating with Stripe, Paddle, or Lemon Squeezy APIs directly.
+
+```tsx
+const customerId = await api.getCustomerId(accountId);
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `accountId` | `string` | The account UUID |
+
+**Returns:** `string | null`
+
+**Example: Redirect to billing portal**
+
+```tsx
+import { createAccountsApi } from '@kit/accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+async function createBillingPortalSession(accountId: string) {
+  const client = getSupabaseServerClient();
+  const api = createAccountsApi(client);
+  const customerId = await api.getCustomerId(accountId);
+
+  if (!customerId) {
+    throw new Error('No billing customer found');
+  }
+
+  const session = await stripe.billingPortal.sessions.create({
+    customer: customerId,
+    return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/settings/billing`,
+  });
+
+  return session.url;
+}
+```
+
+---
+
+### getOrder
+
+Returns one-time purchase order data for accounts using lifetime deals or credit-based billing.
+
+```tsx
+const order = await api.getOrder(accountId);
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `accountId` | `string` | The account UUID |
+
+**Returns:**
+
+```tsx
+{
+  id: string;
+  account_id: string;
+  billing_provider: 'stripe' | 'lemon-squeezy' | 'paddle';
+  status: 'pending' | 'completed' | 'refunded';
+  currency: string;
+  total_amount: number;
+  items: Array<{
+    product_id: string;
+    variant_id: string;
+    quantity: number;
+    price_amount: number;
+  }>;
+} | null
+```
+
+---
+
+## Real-world examples
+
+### Feature gating based on subscription
+
+```tsx
+import { createAccountsApi } from '@kit/accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+type FeatureAccess = {
+  allowed: boolean;
+  reason?: string;
+  upgradeUrl?: string;
+};
+
+export async function canAccessFeature(
+  accountId: string,
+  feature: 'ai_assistant' | 'export' | 'api_access'
+): Promise<FeatureAccess> {
+  const client = getSupabaseServerClient();
+  const api = createAccountsApi(client);
+  const subscription = await api.getSubscription(accountId);
+
+  // No subscription means free tier
+  if (!subscription) {
+    const freeFeatures = ['export'];
+    if (freeFeatures.includes(feature)) {
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      reason: 'This feature requires a paid plan',
+      upgradeUrl: '/pricing',
+    };
+  }
+
+  // Check if subscription is active
+  const activeStatuses = ['active', 'trialing'];
+  if (!activeStatuses.includes(subscription.status)) {
+    return {
+      allowed: false,
+      reason: 'Your subscription is not active',
+      upgradeUrl: '/settings/billing',
+    };
+  }
+
+  // Map features to required product IDs
+  const featureRequirements: Record<string, string[]> = {
+    ai_assistant: ['pro', 'enterprise'],
+    export: ['starter', 'pro', 'enterprise'],
+    api_access: ['enterprise'],
+  };
+
+  const requiredProducts = featureRequirements[feature] || [];
+  const userProducts = subscription.items.map((item) => item.product_id);
+  const hasAccess = requiredProducts.some((p) => userProducts.includes(p));
+
+  if (!hasAccess) {
+    return {
+      allowed: false,
+      reason: 'This feature requires a higher plan',
+      upgradeUrl: '/pricing',
+    };
+  }
+
+  return { allowed: true };
+}
+```
+
+### Server Action with subscription check
+
+```tsx
+'use server';
+
+import * as z from 'zod';
+import { authActionClient } from '@kit/next/safe-action';
+import { createAccountsApi } from '@kit/accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+const GenerateReportSchema = z.object({
+  accountId: z.string().uuid(),
+  reportType: z.enum(['summary', 'detailed', 'export']),
+});
+
+export const generateReport = authActionClient
+  .inputSchema(GenerateReportSchema)
+  .action(async ({ parsedInput: data, ctx: { user } }) => {
+    const client = getSupabaseServerClient();
+    const api = createAccountsApi(client);
+
+    // Check subscription before expensive operation
+    const subscription = await api.getSubscription(data.accountId);
+    const isProUser = subscription?.items.some(
+      (item) => item.product_id === 'pro' || item.product_id === 'enterprise'
+    );
+
+    if (data.reportType === 'detailed' && !isProUser) {
+      return {
+        success: false,
+        error: 'Detailed reports require a Pro subscription',
+      };
+    }
+
+    // Generate report...
+    return { success: true, reportUrl: '/reports/123' };
+  });
+```
+
+## Common pitfalls
+
+### Creating client at module scope
+
+```tsx
+// WRONG: Client created at module scope
+const client = getSupabaseServerClient();
+const api = createAccountsApi(client);
+
+export async function handler() {
+  const subscription = await api.getSubscription(accountId); // Won't work
+}
+
+// RIGHT: Client created in request context
+export async function handler() {
+  const client = getSupabaseServerClient();
+  const api = createAccountsApi(client);
+  const subscription = await api.getSubscription(accountId);
+}
+```
+
+### Forgetting to handle null subscriptions
+
+```tsx
+// WRONG: Assumes subscription exists
+const subscription = await api.getSubscription(accountId);
+const plan = subscription.items[0].product_id; // Crashes if null
+
+// RIGHT: Handle null case
+const subscription = await api.getSubscription(accountId);
+if (!subscription) {
+  return { plan: 'free' };
+}
+const plan = subscription.items[0]?.product_id ?? 'free';
+```
+
+### Confusing account ID with user ID
+
+The Account API expects account UUIDs, not user UUIDs. For personal accounts, the account ID is the same as the user ID, but for team accounts they differ.
+
+## Related documentation
+
+- [Team Account API](/docs/next-supabase-turbo/api/team-account-api) - Team account management
+- [User Workspace API](/docs/next-supabase-turbo/api/user-workspace-api) - Workspace context for layouts
+- [Billing Configuration](/docs/next-supabase-turbo/billing/overview) - Stripe and payment setup

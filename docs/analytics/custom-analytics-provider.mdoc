@@ -1,0 +1,360 @@
+---
+status: "published"
+title: 'Creating a Custom Analytics Provider in MakerKit'
+label: 'Custom Analytics Provider'
+description: 'Build a custom analytics provider to integrate Mixpanel, Amplitude, Segment, or any analytics service with MakerKit unified analytics API.'
+order: 5
+---
+
+MakerKit's analytics system is provider-agnostic. If your preferred analytics service is not included (Google Analytics, PostHog, Umami), you can create a custom provider that integrates with the unified analytics API. Events dispatched through `analytics.trackEvent()` or App Events will automatically route to your custom provider alongside any other registered providers.
+
+## The AnalyticsService Interface
+
+Every analytics provider must implement the `AnalyticsService` interface:
+
+```typescript
+interface AnalyticsService {
+  initialize(): Promise<unknown>;
+  identify(userId: string, traits?: Record<string, string>): Promise<unknown>;
+  trackPageView(path: string): Promise<unknown>;
+  trackEvent(
+    eventName: string,
+    eventProperties?: Record<string, string | string[]>
+  ): Promise<unknown>;
+}
+```
+
+| Method | Purpose |
+|--------|---------|
+| `initialize()` | Load scripts, set up the SDK |
+| `identify()` | Associate a user ID with subsequent events |
+| `trackPageView()` | Record a page view |
+| `trackEvent()` | Record a custom event with properties |
+
+All methods return Promises. Use `void` when calling from non-async contexts.
+
+## Example: Mixpanel Provider
+
+Here is a complete implementation for Mixpanel:
+
+```typescript {% title="packages/analytics/src/mixpanel-service.ts" %}
+import { NullAnalyticsService } from './null-analytics-service';
+import type { AnalyticsService } from './types';
+
+class MixpanelService implements AnalyticsService {
+  private mixpanel: typeof import('mixpanel-browser') | null = null;
+  private token: string;
+
+  constructor(token: string) {
+    this.token = token;
+  }
+
+  async initialize(): Promise<void> {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const mixpanel = await import('mixpanel-browser');
+    mixpanel.init(this.token, {
+      track_pageview: false, // We handle this manually
+      persistence: 'localStorage',
+    });
+
+    this.mixpanel = mixpanel;
+  }
+
+  async identify(userId: string, traits?: Record<string, string>): Promise<void> {
+    if (!this.mixpanel) return;
+
+    this.mixpanel.identify(userId);
+
+    if (traits) {
+      this.mixpanel.people.set(traits);
+    }
+  }
+
+  async trackPageView(path: string): Promise<void> {
+    if (!this.mixpanel) return;
+
+    this.mixpanel.track('Page Viewed', { path });
+  }
+
+  async trackEvent(
+    eventName: string,
+    eventProperties?: Record<string, string | string[]>
+  ): Promise<void> {
+    if (!this.mixpanel) return;
+
+    this.mixpanel.track(eventName, eventProperties);
+  }
+}
+
+export function createMixpanelService(): AnalyticsService {
+  const token = process.env.NEXT_PUBLIC_MIXPANEL_TOKEN;
+
+  if (!token) {
+    console.warn('Mixpanel token not configured');
+    return new NullAnalyticsService();
+  }
+
+  return new MixpanelService(token);
+}
+```
+
+Install the Mixpanel SDK:
+
+```bash
+pnpm add mixpanel-browser --filter "@kit/analytics"
+```
+
+## Registering Your Provider
+
+Add your custom provider to the analytics manager:
+
+```typescript {% title="packages/analytics/src/index.ts" %}
+import { createAnalyticsManager } from './analytics-manager';
+import { createMixpanelService } from './mixpanel-service';
+import type { AnalyticsManager } from './types';
+
+export const analytics: AnalyticsManager = createAnalyticsManager({
+  providers: {
+    mixpanel: createMixpanelService,
+  },
+});
+```
+
+Add environment variables:
+
+```bash {% title=".env.local" %}
+NEXT_PUBLIC_MIXPANEL_TOKEN=your_mixpanel_token
+```
+
+## Using Multiple Providers
+
+Register multiple providers to dispatch events to all of them:
+
+```typescript {% title="packages/analytics/src/index.ts" %}
+import { createAnalyticsManager } from './analytics-manager';
+import { createMixpanelService } from './mixpanel-service';
+import { createPostHogAnalyticsService } from '@kit/posthog/client';
+
+export const analytics = createAnalyticsManager({
+  providers: {
+    mixpanel: createMixpanelService,
+    posthog: createPostHogAnalyticsService,
+  },
+});
+```
+
+When you call `analytics.trackEvent()`, both Mixpanel and PostHog receive the event.
+
+## Example: Amplitude Provider
+
+Here is a skeleton for Amplitude:
+
+```typescript {% title="packages/analytics/src/amplitude-service.ts" %}
+import type { AnalyticsService } from './types';
+
+class AmplitudeService implements AnalyticsService {
+  private amplitude: typeof import('@amplitude/analytics-browser') | null = null;
+
+  async initialize(): Promise<void> {
+    if (typeof window === 'undefined') return;
+
+    const amplitude = await import('@amplitude/analytics-browser');
+    const apiKey = process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY;
+
+    if (apiKey) {
+      amplitude.init(apiKey);
+      this.amplitude = amplitude;
+    }
+  }
+
+  async identify(userId: string, traits?: Record<string, string>): Promise<void> {
+    if (!this.amplitude) return;
+
+    this.amplitude.setUserId(userId);
+
+    if (traits) {
+      const identifyEvent = new this.amplitude.Identify();
+      Object.entries(traits).forEach(([key, value]) => {
+        identifyEvent.set(key, value);
+      });
+      this.amplitude.identify(identifyEvent);
+    }
+  }
+
+  async trackPageView(path: string): Promise<void> {
+    if (!this.amplitude) return;
+    this.amplitude.track('Page Viewed', { path });
+  }
+
+  async trackEvent(
+    eventName: string,
+    eventProperties?: Record<string, string | string[]>
+  ): Promise<void> {
+    if (!this.amplitude) return;
+    this.amplitude.track(eventName, eventProperties);
+  }
+}
+
+export function createAmplitudeService(): AnalyticsService {
+  return new AmplitudeService();
+}
+```
+
+## Example: Segment Provider
+
+Segment acts as a data router to multiple destinations:
+
+```typescript {% title="packages/analytics/src/segment-service.ts" %}
+import type { AnalyticsService } from './types';
+
+declare global {
+  interface Window {
+    analytics: {
+      identify: (userId: string, traits?: object) => void;
+      page: (name?: string, properties?: object) => void;
+      track: (event: string, properties?: object) => void;
+    };
+  }
+}
+
+class SegmentService implements AnalyticsService {
+  async initialize(): Promise<void> {
+    // Segment snippet is typically added via <Script> in layout
+    // This method can verify it's loaded
+    if (typeof window === 'undefined' || !window.analytics) {
+      console.warn('Segment analytics not loaded');
+    }
+  }
+
+  async identify(userId: string, traits?: Record<string, string>): Promise<void> {
+    window.analytics?.identify(userId, traits);
+  }
+
+  async trackPageView(path: string): Promise<void> {
+    window.analytics?.page(undefined, { path });
+  }
+
+  async trackEvent(
+    eventName: string,
+    eventProperties?: Record<string, string | string[]>
+  ): Promise<void> {
+    window.analytics?.track(eventName, eventProperties);
+  }
+}
+
+export function createSegmentService(): AnalyticsService {
+  return new SegmentService();
+}
+```
+
+## Server-Side Providers
+
+For server-side analytics, create a separate service file:
+
+```typescript {% title="packages/analytics/src/mixpanel-server.ts" %}
+import Mixpanel from 'mixpanel';
+import type { AnalyticsService } from './types';
+
+class MixpanelServerService implements AnalyticsService {
+  private mixpanel: Mixpanel.Mixpanel | null = null;
+
+  async initialize(): Promise<void> {
+    const token = process.env.MIXPANEL_TOKEN; // Note: no NEXT_PUBLIC_ prefix
+    if (token) {
+      this.mixpanel = Mixpanel.init(token);
+    }
+  }
+
+  async identify(userId: string, traits?: Record<string, string>): Promise<void> {
+    if (!this.mixpanel || !traits) return;
+    this.mixpanel.people.set(userId, traits);
+  }
+
+  async trackPageView(path: string): Promise<void> {
+    // Server-side page views are uncommon
+  }
+
+  async trackEvent(
+    eventName: string,
+    eventProperties?: Record<string, string | string[]>
+  ): Promise<void> {
+    if (!this.mixpanel) return;
+    this.mixpanel.track(eventName, eventProperties);
+  }
+}
+```
+
+Register in `packages/analytics/src/server.ts`:
+
+```typescript {% title="packages/analytics/src/server.ts" %}
+import 'server-only';
+
+import { createAnalyticsManager } from './analytics-manager';
+import { createMixpanelServerService } from './mixpanel-server';
+
+export const analytics = createAnalyticsManager({
+  providers: {
+    mixpanel: createMixpanelServerService,
+  },
+});
+```
+
+## The NullAnalyticsService
+
+When no providers are configured, MakerKit uses a null service that silently ignores all calls:
+
+```typescript
+const NullAnalyticsService: AnalyticsService = {
+  initialize: () => Promise.resolve(),
+  identify: () => Promise.resolve(),
+  trackPageView: () => Promise.resolve(),
+  trackEvent: () => Promise.resolve(),
+};
+```
+
+Your provider factory can return this when misconfigured to avoid errors.
+
+## Best Practices
+
+1. **Dynamic imports**: Load SDKs dynamically to reduce bundle size
+2. **Environment checks**: Always check `typeof window` before accessing browser APIs
+3. **Graceful degradation**: Return early if the SDK fails to load
+4. **Typed properties**: Define TypeScript interfaces for your event properties
+5. **Consistent naming**: Use the same event names across all providers
+
+## Troubleshooting
+
+### Provider not receiving events
+
+- Verify the provider is registered in `createAnalyticsManager`
+- Check that `initialize()` completes without errors
+- Confirm environment variables are set
+
+### TypeScript errors
+
+- Ensure your class implements all methods in `AnalyticsService`
+- Check that return types are `Promise<unknown>` or more specific
+
+### Events delayed or missing
+
+- Some providers batch events. Check provider-specific settings
+- Verify the provider SDK is loaded before events are sent
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Can I use the same provider for client and server?", "answer": "It depends on the SDK. Some analytics SDKs (like PostHog) offer both client and server versions. Others (like Mixpanel) have separate packages. Create separate service files for each environment."},
+     {"question": "How do I test my custom provider?", "answer": "Add console.log statements in each method during development. Most analytics dashboards also have a debug or live events view."},
+     {"question": "Can I conditionally load providers?", "answer": "Yes. Your factory function can check environment variables or feature flags and return NullAnalyticsService when the provider should be disabled."},
+     {"question": "How do I handle errors in providers?", "answer": "Wrap SDK calls in try-catch blocks. Log errors but do not throw them, as this would affect other providers in the chain."}
+   ]
+/%}
+
+## Next Steps
+
+- [Learn about Analytics and Events](analytics-and-events) for event patterns
+- [See Google Analytics](google-analytics-provider) as a reference implementation
+- [Try PostHog](posthog-analytics-provider) for a full-featured option

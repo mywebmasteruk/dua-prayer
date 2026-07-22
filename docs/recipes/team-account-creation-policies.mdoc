@@ -1,0 +1,355 @@
+---
+label: "Team Account Creation Policies"
+title: "Guarding Team Account Creation with Policies"
+description: "Learn how to restrict and validate team account creation using the policy system."
+order: 8
+---
+
+The Team Account Creation Policies system allows you to define custom business rules that guard when users can create new team accounts using the [Policies API](../api/policies-api). 
+
+Common use cases include:
+
+- Requiring an active subscription to create team accounts
+- Requiring a specific subscription plan (e.g., Pro or Enterprise)
+- Limiting the number of team accounts per user
+
+{% sequence title="Implementation Steps" description="How to implement team account creation policies" %}
+
+[Understanding Policies](#understanding-policies)
+
+[Registering Policies](#registering-policies)
+
+[Common Policy Examples](#common-policy-examples)
+
+[Evaluating Policies](#evaluating-policies)
+
+{% /sequence %}
+
+## Understanding Policies
+
+Policies are defined using the `definePolicy` function and registered in the `createAccountPolicyRegistry`. Each policy:
+
+1. Has a unique ID
+2. Specifies which stages it runs at (`preliminary` or `submission`)
+3. Returns `allow()` or `deny()` with an error message
+
+```typescript
+import { allow, definePolicy, deny } from '@kit/policies';
+import type { FeaturePolicyCreateAccountContext } from '@kit/team-accounts/server';
+
+const myPolicy = definePolicy<FeaturePolicyCreateAccountContext>({
+  id: 'my-policy-id',
+  stages: ['preliminary', 'submission'],
+
+  async evaluate(context) {
+    // Return allow() to permit the action
+    // Return deny({ code, message, remediation }) to block it
+  },
+});
+```
+
+### Policy Stages
+
+- **preliminary**: Runs before showing the create account form. Use to check if the user can attempt to create an account.
+- **submission**: Runs when the form is submitted. Use to validate the account name and final checks.
+
+## Registering Policies
+
+Create a setup file and import it in your layout to register policies at app startup.
+
+### Step 1: Create the Registration File
+
+```typescript
+// apps/web/lib/policies/setup-create-account-policies.ts
+import 'server-only';
+
+import { createAccountPolicyRegistry } from '@kit/team-accounts/server';
+
+import { subscriptionRequiredPolicy } from './create-account-policies';
+
+createAccountPolicyRegistry.registerPolicy(subscriptionRequiredPolicy);
+```
+
+### Step 2: Import in Layout
+
+```typescript
+// apps/web/app/home/layout.tsx
+import '~/lib/policies/setup-create-account-policies';
+
+export default function HomeLayout({ children }) {
+  return <>{children}</>;
+}
+```
+
+{% callout type="default" title="Default Behavior" %}
+By default, no policies are registered and all users can create team accounts. You must register policies to enforce restrictions.
+{% /callout %}
+
+## Common Policy Examples
+
+### Require Active Subscription
+
+Block team account creation unless the user has an active subscription on their personal account:
+
+```typescript
+// apps/web/lib/policies/create-account-policies.ts
+import 'server-only';
+
+import { allow, definePolicy, deny } from '@kit/policies';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+import type { FeaturePolicyCreateAccountContext } from '@kit/team-accounts/server';
+
+export const subscriptionRequiredPolicy =
+  definePolicy<FeaturePolicyCreateAccountContext>({
+    id: 'subscription-required',
+    stages: ['preliminary', 'submission'],
+
+    async evaluate(context) {
+      const client = getSupabaseServerClient();
+
+      const { data: subscription, error } = await client
+        .from('subscriptions')
+        .select('id, status, active')
+        .eq('account_id', context.userId)
+        .eq('active', true)
+        .maybeSingle();
+
+      if (error) {
+        return deny({
+          code: 'SUBSCRIPTION_CHECK_FAILED',
+          message: 'Failed to verify subscription status',
+        });
+      }
+
+      if (!subscription) {
+        return deny({
+          code: 'SUBSCRIPTION_REQUIRED',
+          message: 'An active subscription is required to create team accounts',
+          remediation: 'Please upgrade your plan to create team accounts',
+        });
+      }
+
+      return allow();
+    },
+  });
+```
+
+### Require Specific Plan (Price ID)
+
+Only allow users with a specific subscription plan to create team accounts:
+
+```typescript
+export const proPlanRequiredPolicy = definePolicy<
+  FeaturePolicyCreateAccountContext,
+  { allowedPriceIds: string[] }
+>({
+  id: 'pro-plan-required',
+  stages: ['preliminary', 'submission'],
+
+  async evaluate(context, config) {
+    const allowedPriceIds = config?.allowedPriceIds ?? [
+      'price_pro_monthly',
+      'price_pro_yearly',
+      'price_enterprise_monthly',
+      'price_enterprise_yearly',
+    ];
+
+    const client = getSupabaseServerClient();
+
+    const { data: subscription, error } = await client
+      .from('subscriptions')
+      .select('id, active, subscription_items(price_id)')
+      .eq('account_id', context.userId)
+      .eq('active', true)
+      .maybeSingle();
+
+    if (error) {
+      return deny({
+        code: 'SUBSCRIPTION_CHECK_FAILED',
+        message: 'Failed to verify subscription status',
+      });
+    }
+
+    if (!subscription) {
+      return deny({
+        code: 'SUBSCRIPTION_REQUIRED',
+        message: 'A subscription is required to create team accounts',
+        remediation: 'Please subscribe to a plan to create team accounts',
+      });
+    }
+
+    const priceIds =
+      subscription.subscription_items?.map((item) => item.price_id) ?? [];
+
+    const hasAllowedPlan = priceIds.some((priceId) =>
+      allowedPriceIds.includes(priceId ?? '')
+    );
+
+    if (!hasAllowedPlan) {
+      return deny({
+        code: 'PLAN_NOT_ALLOWED',
+        message: 'Your current plan does not include team account creation',
+        remediation: 'Please upgrade to a Pro or Enterprise plan',
+      });
+    }
+
+    return allow();
+  },
+});
+```
+
+### Maximum Accounts Per User
+
+Limit how many team accounts a user can own:
+
+```typescript
+export const maxAccountsPolicy = definePolicy<
+  FeaturePolicyCreateAccountContext,
+  { maxAccounts: number }
+>({
+  id: 'max-accounts-per-user',
+  stages: ['preliminary', 'submission'],
+
+  async evaluate(context, config) {
+    const maxAccounts = config?.maxAccounts ?? 3;
+
+    const client = getSupabaseServerClient();
+
+    const { count, error } = await client
+      .from('accounts')
+      .select('*', { count: 'exact', head: true })
+      .eq('primary_owner_user_id', context.userId)
+      .eq('is_personal_account', false);
+
+    if (error) {
+      return deny({
+        code: 'MAX_ACCOUNTS_CHECK_FAILED',
+        message: 'Failed to check account count',
+      });
+    }
+
+    const currentCount = count ?? 0;
+
+    if (currentCount >= maxAccounts) {
+      return deny({
+        code: 'MAX_ACCOUNTS_REACHED',
+        message: `You have reached the maximum of ${maxAccounts} team accounts`,
+        remediation: 'Delete an existing team account to create a new one',
+      });
+    }
+
+    return allow();
+  },
+});
+```
+
+### Rate Limiting Account Creation
+
+Prevent users from creating too many accounts in a short period:
+
+```typescript
+export const rateLimitPolicy = definePolicy<
+  FeaturePolicyCreateAccountContext,
+  { maxAccountsPerDay: number }
+>({
+  id: 'account-creation-rate-limit',
+  stages: ['submission'],
+
+  async evaluate(context, config) {
+    const maxAccountsPerDay = config?.maxAccountsPerDay ?? 5;
+
+    const client = getSupabaseServerClient();
+
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+    const { count, error } = await client
+      .from('accounts')
+      .select('*', { count: 'exact', head: true })
+      .eq('primary_owner_user_id', context.userId)
+      .eq('is_personal_account', false)
+      .gte('created_at', oneDayAgo.toISOString());
+
+    if (error) {
+      return deny({
+        code: 'RATE_LIMIT_CHECK_FAILED',
+        message: 'Failed to check rate limit',
+      });
+    }
+
+    if ((count ?? 0) >= maxAccountsPerDay) {
+      return deny({
+        code: 'RATE_LIMIT_EXCEEDED',
+        message: `You can only create ${maxAccountsPerDay} accounts per day`,
+        remediation: 'Please wait 24 hours before creating another account',
+      });
+    }
+
+    return allow();
+  },
+});
+```
+
+### Combining Multiple Policies
+
+Register multiple policies to enforce several rules:
+
+```typescript
+// apps/web/lib/policies/setup-create-account-policies.ts
+import 'server-only';
+
+import { createAccountPolicyRegistry } from '@kit/team-accounts/server';
+
+import {
+  maxAccountsPolicy,
+  proPlanRequiredPolicy,
+  rateLimitPolicy,
+} from './create-account-policies';
+
+createAccountPolicyRegistry
+  .registerPolicy(proPlanRequiredPolicy)
+  .registerPolicy(maxAccountsPolicy)
+  .registerPolicy(rateLimitPolicy);
+```
+
+## Evaluating Policies
+
+Use `createAccountCreationPolicyEvaluator` to check policies in your server actions:
+
+```typescript
+import { createAccountCreationPolicyEvaluator } from '@kit/team-accounts/server';
+
+async function checkCanCreateAccount(userId: string) {
+  const evaluator = createAccountCreationPolicyEvaluator();
+
+  const result = await evaluator.canCreateAccount(
+    {
+      userId,
+      accountName: '',
+      timestamp: new Date().toISOString(),
+    },
+    'preliminary'
+  );
+
+  return {
+    allowed: result.allowed,
+    reason: result.reasons[0] ?? null,
+  };
+}
+```
+
+### Checking if Policies Exist
+
+Before running evaluations, you can check if any policies are registered:
+
+```typescript
+const evaluator = createAccountCreationPolicyEvaluator();
+
+const hasPolicies = await evaluator.hasPoliciesForStage('preliminary');
+
+if (hasPolicies) {
+  const result = await evaluator.canCreateAccount(context, 'preliminary');
+  // Handle result...
+}
+```

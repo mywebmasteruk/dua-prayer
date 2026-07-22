@@ -1,0 +1,278 @@
+---
+status: "published"
+label: "Updating Fonts"
+title: "Customize Application Fonts | Next.js Supabase SaaS Kit"
+order: 3
+description: "Configure custom fonts using Google Fonts, local fonts, or system fonts in your Makerkit application with Next.js font optimization."
+---
+
+Customize your application's typography by editing `apps/web/lib/fonts.ts`. This file defines the font families used throughout your app, with Next.js automatically handling font optimization, subsetting, and self-hosting for privacy and performance.
+
+By default, Makerkit uses Apple's system font on Apple devices (San Francisco) and falls back to Inter on other platforms.
+
+## Quick Font Change
+
+Replace the default Inter font with any Google Font:
+
+```tsx title="apps/web/lib/fonts.ts"
+import { Poppins as SansFont } from 'next/font/google';
+import { cn } from '@kit/ui/utils';
+
+const sans = SansFont({
+  subsets: ['latin'],
+  variable: '--font-sans-fallback',
+  fallback: ['system-ui', 'Helvetica Neue', 'Helvetica', 'Arial'],
+  preload: true,
+  weight: ['300', '400', '500', '600', '700'],
+});
+
+const heading = sans;
+
+export { sans, heading };
+
+export function getFontsClassName(theme?: string) {
+  const dark = theme === 'dark';
+  const light = !dark;
+
+  const font = [sans.variable, heading.variable].reduce<string[]>(
+    (acc, curr) => {
+      if (acc.includes(curr)) return acc;
+      return [...acc, curr];
+    },
+    [],
+  );
+
+  return cn(...font, { dark, light });
+}
+```
+
+## Using Different Fonts for Headings and Body
+
+Create visual hierarchy by using different fonts for headings and body text:
+
+```tsx title="apps/web/lib/fonts.ts"
+import { Inter as SansFont, Playfair_Display as HeadingFont } from 'next/font/google';
+import { cn } from '@kit/ui/utils';
+
+const sans = SansFont({
+  subsets: ['latin'],
+  variable: '--font-sans-fallback',
+  fallback: ['system-ui', 'Helvetica Neue', 'Helvetica', 'Arial'],
+  preload: true,
+  weight: ['300', '400', '500', '600', '700'],
+});
+
+const heading = HeadingFont({
+  subsets: ['latin'],
+  variable: '--font-heading',
+  fallback: ['Georgia', 'Times New Roman', 'serif'],
+  preload: true,
+  weight: ['400', '500', '600', '700'],
+});
+
+export { sans, heading };
+
+export function getFontsClassName(theme?: string) {
+  const dark = theme === 'dark';
+  const light = !dark;
+
+  const font = [sans.variable, heading.variable].reduce<string[]>(
+    (acc, curr) => {
+      if (acc.includes(curr)) return acc;
+      return [...acc, curr];
+    },
+    [],
+  );
+
+  return cn(...font, { dark, light });
+}
+```
+
+Then update `apps/web/styles/shadcn-ui.css` to use the heading font in the `@theme inline` block:
+
+```css title="apps/web/styles/shadcn-ui.css"
+@theme inline {
+  --font-sans: -apple-system, BlinkMacSystemFont, var(--font-sans-fallback);
+  --font-heading: var(--font-heading), Georgia, serif;
+}
+```
+
+## Using Local Fonts
+
+For fonts not available on Google Fonts, or for complete control over font files:
+
+```tsx title="apps/web/lib/fonts.ts"
+import localFont from 'next/font/local';
+import { cn } from '@kit/ui/utils';
+
+const sans = localFont({
+  src: [
+    {
+      path: '../fonts/CustomFont-Regular.woff2',
+      weight: '400',
+      style: 'normal',
+    },
+    {
+      path: '../fonts/CustomFont-Medium.woff2',
+      weight: '500',
+      style: 'normal',
+    },
+    {
+      path: '../fonts/CustomFont-Bold.woff2',
+      weight: '700',
+      style: 'normal',
+    },
+  ],
+  variable: '--font-sans-fallback',
+  fallback: ['system-ui', 'Helvetica Neue', 'Helvetica', 'Arial'],
+  preload: true,
+});
+
+const heading = sans;
+
+export { sans, heading };
+```
+
+Place font files in `apps/web/fonts/` directory. Supported formats: `.woff2` (recommended), `.woff`, `.ttf`, `.otf`.
+
+## Removing Apple System Font Default
+
+By default, Makerkit prioritizes Apple's system font on macOS and iOS for a native feel. To use your chosen font consistently across all platforms:
+
+Edit the `@theme inline` block in `apps/web/styles/shadcn-ui.css`:
+
+```css title="apps/web/styles/shadcn-ui.css"
+@theme inline {
+  /* Remove -apple-system and BlinkMacSystemFont to use your font everywhere */
+  --font-sans: var(--font-sans-fallback);
+  --font-heading: var(--font-sans);
+}
+```
+
+This ensures your Google Font or local font displays on Apple devices instead of San Francisco.
+
+## Popular Font Combinations
+
+### Modern SaaS (Clean and Professional)
+```tsx
+import { Inter as SansFont } from 'next/font/google';
+// Headings and body: Inter
+```
+
+### Editorial (Content-Heavy Apps)
+```tsx
+import { Source_Sans_3 as SansFont, Source_Serif_4 as HeadingFont } from 'next/font/google';
+// Body: Source Sans 3
+// Headings: Source Serif 4
+```
+
+### Startup (Friendly and Approachable)
+```tsx
+import { DM_Sans as SansFont } from 'next/font/google';
+// Headings and body: DM Sans
+```
+
+### Technical (Developer Tools)
+```tsx
+import { IBM_Plex_Sans as SansFont, IBM_Plex_Mono as MonoFont } from 'next/font/google';
+// Body: IBM Plex Sans
+// Code: IBM Plex Mono
+```
+
+### Premium (Luxury/Finance)
+```tsx
+import { Outfit as SansFont } from 'next/font/google';
+// Headings and body: Outfit
+```
+
+## Font Variable Reference
+
+The font system uses CSS variables defined in two places:
+
+| Variable | Defined In | Purpose |
+|----------|------------|---------|
+| `--font-sans-fallback` | `fonts.ts` | Next.js optimized font |
+| `--font-heading` | `fonts.ts` | Heading font (if different) |
+| `--font-sans` | `shadcn-ui.css` | Final font stack with system fallbacks |
+
+Tailwind uses these through `theme.css`:
+
+```css title="apps/web/styles/shadcn-ui.css"
+@theme inline {
+  --font-sans: -apple-system, BlinkMacSystemFont, var(--font-sans-fallback);
+  --font-heading: var(--font-sans);
+}
+```
+
+## Optimizing Font Loading
+
+### Preload Critical Fonts
+```tsx
+const sans = SansFont({
+  // ...
+  preload: true,        // Preload for faster initial render
+  display: 'swap',      // Show fallback immediately, swap when loaded
+});
+```
+
+### Subset for Faster Loading
+```tsx
+const sans = SansFont({
+  // ...
+  subsets: ['latin'],   // Only load Latin characters
+  // Or load multiple subsets if needed:
+  // subsets: ['latin', 'latin-ext', 'cyrillic'],
+});
+```
+
+### Specify Only Needed Weights
+```tsx
+const sans = SansFont({
+  // ...
+  weight: ['400', '500', '700'], // Only weights you actually use
+  // Avoid: weight: ['100', '200', '300', '400', '500', '600', '700', '800', '900']
+});
+```
+
+## Common Mistakes
+
+**Loading too many font weights**: Each weight adds to bundle size. Only include weights you actually use (typically 400, 500, 600, 700).
+
+**Forgetting to update CSS variables**: After changing fonts in `fonts.ts`, you may need to update `shadcn-ui.css` if you want to remove the Apple system font priority or configure the heading font.
+
+**Using display: 'block'**: This causes invisible text until fonts load (FOIT). Use `display: 'swap'` for better perceived performance.
+
+**Not testing on Windows**: Apple system fonts don't exist on Windows. Always test your fallback fonts on non-Apple devices.
+
+## Verification
+
+After updating fonts:
+
+1. Check the Network tab in DevTools for font files loading
+2. Verify fonts render on both Mac and Windows
+3. Test with slow network throttling to see fallback behavior
+4. Run Lighthouse to check for font-related performance issues
+
+```bash
+# Quick check for font loading
+pnpm dev
+# Open DevTools > Network > Filter: Font
+# Verify your custom font files are loading
+```
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Why does my custom font not appear on Mac?", "answer": "By default, Makerkit prioritizes Apple system fonts. Edit shadcn-ui.css and remove -apple-system and BlinkMacSystemFont from the --font-sans variable to use your custom font on Apple devices."},
+     {"question": "How do I add a monospace font for code blocks?", "answer": "Import a monospace font in fonts.ts, export it, and add a --font-mono CSS variable. Then configure it in theme.css. Consider IBM Plex Mono, JetBrains Mono, or Fira Code."},
+     {"question": "Can I use variable fonts?", "answer": "Yes. Next.js supports variable fonts. Specify weight as a range: weight: '100 900'. This loads a single file that supports all weights, often smaller than multiple static font files."},
+     {"question": "How do I improve font loading performance?", "answer": "Limit font weights to those you use, enable preload: true, use display: 'swap', and only load needed subsets. Variable fonts can also reduce total download size."}
+   ]
+/%}
+
+## Next Steps
+
+- Back to [Customization Overview](/docs/next-supabase-turbo/customization)
+- Configure your [theme colors](/docs/next-supabase-turbo/customization/theme) to complement your typography
+- Set up your [layout style](/docs/next-supabase-turbo/customization/layout-style) for navigation
+- Update your [application logo](/docs/next-supabase-turbo/customization/logo)

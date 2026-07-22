@@ -1,0 +1,47 @@
+{
+  "name": "dev-tool",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "clean": "git clean -xdf .next .turbo node_modules",
+    "dev": "next dev --port=3010 | pino-pretty -c"
+  },
+  "dependencies": {
+    "@faker-js/faker": "catalog:",
+    "@hookform/resolvers": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "lucide-react": "catalog:",
+    "next": "catalog:",
+    "next-intl": "catalog:",
+    "nodemailer": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "rxjs": "catalog:"
+  },
+  "devDependencies": {
+    "@kit/email-templates": "workspace:*",
+    "@kit/i18n": "workspace:*",
+    "@kit/mcp-server": "workspace:*",
+    "@kit/next": "workspace:*",
+    "@kit/shared": "workspace:*",
+    "@kit/tsconfig": "workspace:*",
+    "@kit/ui": "workspace:*",
+    "@tailwindcss/postcss": "catalog:",
+    "@types/nodemailer": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "babel-plugin-react-compiler": "catalog:",
+    "pino-pretty": "catalog:",
+    "react-hook-form": "catalog:",
+    "recharts": "catalog:",
+    "tailwindcss": "catalog:",
+    "tw-animate-css": "catalog:",
+    "typescript": "catalog:",
+    "zod": "catalog:"
+  },
+  "browserslist": [
+    "last 1 versions",
+    "> 0.7%",
+    "not dead"
+  ]
+}

@@ -1,0 +1,217 @@
+---
+status: "published"
+title: "Clone the Next.js Supabase SaaS Kit Repository"
+label: "Clone the Repository"
+order: 4
+description: "Set up your development environment and clone the Next.js Supabase SaaS Kit Turbo repository."
+---
+
+{% sequence title="Setup Steps" description="Get your development environment ready and clone the repository." %}
+
+[Install prerequisites](#prerequisites)
+
+[Clone the repository](#cloning-the-repository)
+
+[Install dependencies](#install-dependencies)
+
+[Configure Git remotes](#configure-git-remotes)
+
+{% /sequence %}
+
+## Prerequisites
+
+Before cloning, install these tools:
+
+| Tool | Required Version | Installation |
+|------|-----------------|--------------|
+| Node.js | **20.10.0+** | [nodejs.org](https://nodejs.org) or use nvm |
+| pnpm | **10.19.0+** | `npm i -g pnpm` |
+| Docker | Latest | [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
+| Git | Latest | [git-scm.com](https://git-scm.com) |
+
+{% alert type="error" title="Node.js Version" %}
+The kit requires Node.js 20.10.0 or later. Earlier versions will fail during installation due to engine requirements in package.json.
+{% /alert %}
+
+### Verify Your Setup
+
+```bash
+node -v    # Should output v20.10.0 or higher
+pnpm -v    # Should output 10.19.0 or higher
+docker -v  # Should output Docker version
+```
+
+### Why Docker?
+
+Supabase runs locally using Docker containers. You don't need to understand Docker internals; just have it running when you start the development server.
+
+**macOS alternatives**: [OrbStack](https://orbstack.dev/) is faster than Docker Desktop and works as a drop-in replacement.
+
+## Cloning the Repository
+
+### Using SSH (recommended)
+
+```bash
+git clone git@github.com:makerkit/next-supabase-saas-kit-turbo my-saas
+cd my-saas
+```
+
+### Using HTTPS
+
+```bash
+git clone https://github.com/makerkit/next-supabase-saas-kit-turbo my-saas
+cd my-saas
+```
+
+If you haven't configured SSH keys, see [GitHub's SSH setup guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh).
+
+### Windows Users
+
+Place the repository near your drive root (e.g., `C:\projects\my-saas`) to avoid path length issues with Node.js modules.
+
+**Avoid**: OneDrive folders, deeply nested paths, or paths with spaces.
+
+## Install Dependencies
+
+```bash
+pnpm i
+```
+
+This installs all workspace dependencies across the monorepo. The first install takes a few minutes.
+
+### Warnings in the terminal
+
+You may see the following warnings in the terminal:
+
+```
+WARN  Failed to create bin at /vercel/path0/node_modules/.pnpm/node_modules/.bin/supabase. ENOENT: no such file or directory
+```
+
+This is just a warning [caused by PNPM and Supabase](https://github.com/supabase/cli/issues/3489) and can be safely ignored.
+
+Another warning you may see is:
+
+```
+Ignored build scripts: core-js-pure, sharp, unrs-resolver.
+Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.
+```
+
+This is by design! We don't want to run scripts from dependencies that are not needed for the project to run properly. This is a security precaution.
+
+## Configure Git Remotes
+
+### Automatic Setup (recommended)
+
+Run the setup generator to configure remotes and create your own repository:
+
+```bash
+pnpm turbo gen setup
+```
+
+This interactive script:
+1. Removes the original `origin` remote
+2. Adds `upstream` pointing to the MakerKit repository
+3. Prompts you to create and connect your own repository
+
+### Manual Setup
+
+If the automatic setup fails or you prefer manual control:
+
+**1. Remove the original origin:**
+
+```bash
+git remote rm origin
+```
+
+**2. Add upstream for updates:**
+
+```bash
+git remote add upstream git@github.com:makerkit/next-supabase-saas-kit-turbo
+```
+
+**3. Create your repository on GitHub, then add it as origin:**
+
+```bash
+git remote add origin git@github.com:your-username/your-repo.git
+git push -u origin main
+```
+
+**4. Verify remotes:**
+
+```bash
+git remote -v
+# origin    git@github.com:your-username/your-repo.git (fetch)
+# origin    git@github.com:your-username/your-repo.git (push)
+# upstream  git@github.com:makerkit/next-supabase-saas-kit-turbo (fetch)
+# upstream  git@github.com:makerkit/next-supabase-saas-kit-turbo (push)
+```
+
+## Pulling Updates
+
+To get the latest changes from MakerKit:
+
+```bash
+git pull upstream main
+```
+
+Run this regularly to stay current with bug fixes and new features.
+
+### Automate Post-Merge Dependency Install
+
+Create a Git hook to automatically run `pnpm i` after pulling:
+
+```bash
+cat > .git/hooks/post-merge << 'EOF'
+#!/bin/bash
+pnpm i
+EOF
+chmod +x .git/hooks/post-merge
+```
+
+This prevents the common issue of missing dependencies after pulling updates.
+
+## Common Pitfalls
+
+Avoid these issues that trip up most users:
+
+1. **Wrong Node.js version**: The kit requires Node.js 20.10.0+. Using Node 18 or earlier causes silent failures and missing features.
+2. **Docker not running**: Supabase commands hang indefinitely if Docker isn't started. Always open Docker Desktop before running `supabase:web:start`.
+3. **Windows long paths**: Node.js modules create deeply nested folders. Place your project near the drive root (e.g., `C:\projects\my-saas`).
+4. **OneDrive sync conflicts**: OneDrive can corrupt `node_modules`. Keep your project outside OneDrive-synced folders.
+5. **Forgetting to set upstream**: Without the `upstream` remote, you can't pull MakerKit updates. Run `git remote -v` to verify both `origin` and `upstream` exist.
+6. **Skipping `pnpm i` after updates**: Pulling changes often adds new dependencies. Always run `pnpm i` after `git pull upstream main`.
+
+## Troubleshooting
+
+### "Permission denied" when cloning
+
+Your SSH key isn't configured. Either:
+- Set up SSH keys following [GitHub's guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh)
+- Use HTTPS instead: `git clone https://github.com/makerkit/next-supabase-saas-kit-turbo`
+
+### "Engine requirements not met"
+
+Your Node.js version is too old. Install Node.js 20.10.0+ using nvm:
+
+```bash
+nvm install 20
+nvm use 20
+```
+
+### Git username mismatch
+
+If you encounter permission issues, verify your Git username matches your GitHub account:
+
+```bash
+git config user.username
+```
+
+Set it if needed:
+
+```bash
+git config --global user.username "your-github-username"
+```
+
+## Next Steps
+
+With the repository cloned, proceed to [running the project](/docs/next-supabase-turbo/installation/running-project) to start development.

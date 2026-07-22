@@ -1,0 +1,423 @@
+---
+status: "published"
+title: "Supabase CMS Plugin for the Next.js Supabase SaaS Kit"
+label: "Supabase"
+description: "Store content in your Supabase database with optional Supamode integration for a visual admin interface."
+order: 4
+---
+
+The Supabase CMS plugin stores content directly in your Supabase database. This gives you full control over your content schema, row-level security policies, and the ability to query content alongside your application data.
+
+This approach works well when you want content in the same database as your app, need RLS policies on content, or want to use [Supamode](/supabase-cms) as your admin interface.
+
+## Installation
+
+### 1. Install the Plugin
+
+Run the Makerkit CLI from your app directory:
+
+```bash
+npx @makerkit/cli plugins install
+```
+
+Select **Supabase CMS** when prompted.
+
+### 2. Add the Package Dependency
+
+Add the plugin to your CMS package:
+
+```bash
+pnpm --filter "@kit/cms" add "@kit/supabase-cms@workspace:*"
+```
+
+### 3. Register the CMS Type
+
+Update the CMS type definition to include Supabase:
+
+```tsx {% title="packages/cms/types/src/cms.type.ts" %}
+export type CmsType = 'wordpress' | 'keystatic' | 'supabase';
+```
+
+### 4. Register the Client
+
+Add the Supabase client to the CMS registry:
+
+```tsx {% title="packages/cms/core/src/create-cms-client.ts" %}
+import { CmsClient, CmsType } from '@kit/cms-types';
+import { createRegistry } from '@kit/shared/registry';
+
+const CMS_CLIENT = process.env.CMS_CLIENT as CmsType;
+const cmsRegistry = createRegistry<CmsClient, CmsType>();
+
+// Existing registrations...
+cmsRegistry.register('wordpress', async () => {
+  const { createWordpressClient } = await import('@kit/wordpress');
+  return createWordpressClient();
+});
+
+cmsRegistry.register('keystatic', async () => {
+  const { createKeystaticClient } = await import('@kit/keystatic');
+  return createKeystaticClient();
+});
+
+// Add Supabase registration
+cmsRegistry.register('supabase', async () => {
+  const { createSupabaseCmsClient } = await import('@kit/supabase-cms');
+  return createSupabaseCmsClient();
+});
+
+export async function createCmsClient(type: CmsType = CMS_CLIENT) {
+  return cmsRegistry.get(type);
+}
+```
+
+### 5. Register the Content Renderer
+
+Add the Supabase content renderer:
+
+```tsx {% title="packages/cms/core/src/content-renderer.tsx" %}
+cmsContentRendererRegistry.register('supabase', async () => {
+  return function SupabaseContentRenderer({ content }: { content: unknown }) {
+    return content as React.ReactNode;
+  };
+});
+```
+
+The default renderer returns content as-is. If you store HTML, it renders as HTML. For Markdown, add a Markdown renderer.
+
+### 6. Run the Migration
+
+Create a new migration file:
+
+```bash
+pnpm --filter web supabase migration new cms
+```
+
+Copy the contents of `packages/plugins/supabase-cms/migration.sql` to the new migration file, then apply it:
+
+```bash
+pnpm --filter web supabase migration up
+```
+
+### 7. Generate Types
+
+Regenerate TypeScript types to include the new tables:
+
+```bash
+pnpm run supabase:web:typegen
+```
+
+### 8. Set the Environment Variable
+
+Switch to the Supabase CMS:
+
+```bash
+# apps/web/.env
+CMS_CLIENT=supabase
+```
+
+## Database Schema
+
+The plugin creates three tables:
+
+### content_items
+
+Stores all content (posts, pages, docs):
+
+```sql
+create table public.content_items (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  slug text not null unique,
+  description text,
+  content text,
+  image text,
+  status text not null default 'draft',
+  collection text not null default 'posts',
+  published_at timestamp with time zone,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now(),
+  parent_id uuid references public.content_items(id),
+  "order" integer default 0,
+  language text,
+  metadata jsonb default '{}'::jsonb
+);
+```
+
+### categories
+
+Content categories:
+
+```sql
+create table public.categories (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  created_at timestamp with time zone default now()
+);
+```
+
+### tags
+
+Content tags:
+
+```sql
+create table public.tags (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  created_at timestamp with time zone default now()
+);
+```
+
+### Junction Tables
+
+Many-to-many relationships:
+
+```sql
+create table public.content_items_categories (
+  content_item_id uuid references public.content_items(id) on delete cascade,
+  category_id uuid references public.categories(id) on delete cascade,
+  primary key (content_item_id, category_id)
+);
+
+create table public.content_items_tags (
+  content_item_id uuid references public.content_items(id) on delete cascade,
+  tag_id uuid references public.tags(id) on delete cascade,
+  primary key (content_item_id, tag_id)
+);
+```
+
+## Using Supamode as Admin
+
+{% img src="/assets/images/supamode-cms-plugin-posts.webp" width="2970" height="2028" alt="Supamode CMS Posts Interface" /%}
+
+[Supamode](/supabase-cms) provides a visual interface for managing content in Supabase tables. It's built specifically for Supabase and integrates with RLS policies.
+
+{% alert type="default" title="Supamode is optional" %}
+Supamode is a separate product. You can use any Postgres admin tool, build your own admin, or manage content via SQL.
+{% /alert %}
+
+### Setting Up Supamode
+
+1. Install Supamode following the [installation guide](/docs/supamode/installation)
+2. Sync the CMS tables to Supamode:
+    - Run the following SQL commands in Supabase Studio's SQL Editor:
+      ```sql
+      -- Run in Supabase Studio's SQL Editor
+      select supamode.sync_managed_tables('public', 'content_items');
+      select supamode.sync_managed_tables('public', 'categories');
+      select supamode.sync_managed_tables('public', 'tags');
+      ```
+3. Configure table views in the Supamode UI under **Resources**
+
+### Content Editing
+
+With Supamode, you can:
+- Create and edit content with a form-based UI
+- Upload images to Supabase Storage
+- Manage categories and tags
+- Preview content before publishing
+- Filter and search content
+
+## Querying Content
+
+The Supabase CMS client implements the standard CMS interface:
+
+```tsx
+import { createCmsClient } from '@kit/cms';
+
+const client = await createCmsClient();
+
+// Get all published posts
+const { items, total } = await client.getContentItems({
+  collection: 'posts',
+  status: 'published',
+  limit: 10,
+  sortBy: 'publishedAt',
+  sortDirection: 'desc',
+});
+
+// Get a specific post
+const post = await client.getContentItemBySlug({
+  slug: 'getting-started',
+  collection: 'posts',
+});
+```
+
+### Direct Supabase Queries
+
+For complex queries, use the Supabase client directly:
+
+```tsx
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+async function getPostsWithCustomQuery() {
+  const client = getSupabaseServerClient();
+
+  const { data, error } = await client
+    .from('content_items')
+    .select(`
+      *,
+      categories:content_items_categories(
+        category:categories(*)
+      ),
+      tags:content_items_tags(
+        tag:tags(*)
+      )
+    `)
+    .eq('collection', 'posts')
+    .eq('status', 'published')
+    .order('published_at', { ascending: false })
+    .limit(10);
+
+  return data;
+}
+```
+
+## Row-Level Security
+
+Add RLS policies to control content access:
+
+```sql
+-- Allow public read access to published content
+create policy "Public can read published content"
+  on public.content_items
+  for select
+  using (status = 'published');
+
+-- Allow authenticated users to read all content
+create policy "Authenticated users can read all content"
+  on public.content_items
+  for select
+  to authenticated
+  using (true);
+
+-- Allow admins to manage content
+create policy "Admins can manage content"
+  on public.content_items
+  for all
+  to authenticated
+  using (
+    exists (
+      select 1 from public.accounts
+      where accounts.id = auth.uid()
+      and accounts.is_admin = true
+    )
+  );
+```
+
+## Content Format
+
+The `content` field stores text. Common formats:
+
+### HTML
+
+Store rendered HTML directly:
+
+```tsx
+const post = {
+  title: 'Hello World',
+  content: '<p>This is <strong>HTML</strong> content.</p>',
+};
+```
+
+Render with `dangerouslySetInnerHTML` or a sanitizing library.
+
+### Markdown
+
+Store Markdown and render at runtime:
+
+```tsx
+import { marked } from 'marked';
+import type { Cms } from '@kit/cms-types';
+
+function renderContent(markdown: string) {
+  return { __html: marked(markdown) };
+}
+
+function Post({ post }: { post: Cms.ContentItem }) {
+  return (
+    <article>
+      <h1>{post.title}</h1>
+      <div dangerouslySetInnerHTML={renderContent(post.content as string)} />
+    </article>
+  );
+}
+```
+
+### JSON
+
+Store structured content as JSON in the `metadata` field:
+
+```tsx
+const post = {
+  title: 'Product Comparison',
+  content: '', // Optional summary
+  metadata: {
+    products: [
+      { name: 'Basic', price: 9 },
+      { name: 'Pro', price: 29 },
+    ],
+  },
+};
+```
+
+## Customizing the Schema
+
+Extend the schema by modifying the migration:
+
+```sql
+-- Add custom fields
+alter table public.content_items
+  add column author_id uuid references auth.users(id),
+  add column reading_time integer,
+  add column featured boolean default false;
+
+-- Add indexes
+create index content_items_featured_idx
+  on public.content_items(featured)
+  where status = 'published';
+```
+
+Update the Supabase client to handle custom fields.
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CMS_CLIENT` | Yes | Set to `supabase` |
+
+The plugin uses your existing Supabase connection (no additional configuration needed).
+
+## Troubleshooting
+
+### Migration fails
+
+Check that you have the latest Supabase CLI and your local database is running:
+
+```bash
+pnpm --filter web supabase start
+pnpm --filter web supabase migration up
+```
+
+### TypeScript errors after migration
+
+Regenerate types:
+
+```bash
+pnpm run supabase:web:typegen
+```
+
+### Content not appearing
+
+Verify:
+- The `status` field is set to `published`
+- The `collection` field matches your query
+- RLS policies allow access
+
+## Next Steps
+
+- [CMS API Reference](/docs/next-supabase-turbo/content/cms-api): Full API documentation
+- [Supamode Documentation](/docs/supamode/installation): Set up the admin interface
+- [CMS Overview](/docs/next-supabase-turbo/content/cms): Compare CMS providers

@@ -1,0 +1,713 @@
+---
+status: "published"
+title: "Client-Side Data Fetching with React Query"
+label: "React Query"
+description: "Use React Query (TanStack Query) for client-side data fetching in MakerKit. Covers queries, mutations, caching, optimistic updates, and combining with Server Components."
+order: 5
+---
+
+React Query (TanStack Query v5) manages client-side data fetching with automatic caching, background refetching, and optimistic updates. MakerKit includes it pre-configured. Use React Query when you need real-time dashboards, infinite scroll, optimistic UI updates, or data shared across multiple components. For initial page loads, prefer Server Components. Tested with TanStack Query v5 (uses `gcTime` instead of `cacheTime`).
+
+### When to use React Query and Server Components?
+
+**Use React Query** for real-time updates, optimistic mutations, pagination, and shared client-side state. 
+
+**Use Server Components** for initial page loads and SEO content. Combine both: load data server-side, then hydrate React Query for client interactivity.
+
+## When to Use React Query
+
+**Use React Query for:**
+- Real-time dashboards that need background refresh
+- Infinite scroll and pagination
+- Data that multiple components share
+- Optimistic updates for instant feedback
+- Client-side filtering and sorting with server data
+
+**Use Server Components instead for:**
+- Initial page loads
+- SEO-critical content
+- Data that doesn't need real-time updates
+
+## Basic Query
+
+Fetch data with `useQuery`. The query automatically caches results and handles loading/error states:
+
+```tsx
+'use client';
+
+import { useQuery } from '@tanstack/react-query';
+import { useSupabase } from '@kit/supabase/hooks/use-supabase';
+
+export function TasksList({ accountId }: { accountId: string }) {
+  const supabase = useSupabase();
+
+  const { data: tasks, isLoading, error } = useQuery({
+    queryKey: ['tasks', accountId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('account_id', accountId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  if (isLoading) {
+    return <div>Loading tasks...</div>;
+  }
+
+  if (error) {
+    return <div>Failed to load tasks</div>;
+  }
+
+  return (
+    <ul>
+      {tasks?.map((task) => (
+        <li key={task.id}>{task.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Query Keys
+
+Query keys identify cached data. Structure them hierarchically for easy invalidation:
+
+```tsx
+// Specific task
+queryKey: ['tasks', taskId]
+
+// All tasks for an account
+queryKey: ['tasks', { accountId }]
+
+// All tasks for an account with filters
+queryKey: ['tasks', { accountId, status: 'pending', page: 1 }]
+
+// Invalidate all task queries
+queryClient.invalidateQueries({ queryKey: ['tasks'] });
+
+// Invalidate tasks for specific account
+queryClient.invalidateQueries({ queryKey: ['tasks', { accountId }] });
+```
+
+### Query Key Factory
+
+For larger apps, create a query key factory:
+
+```tsx
+// lib/query-keys.ts
+export const queryKeys = {
+  tasks: {
+    all: ['tasks'] as const,
+    list: (accountId: string) => ['tasks', { accountId }] as const,
+    detail: (taskId: string) => ['tasks', taskId] as const,
+    filtered: (accountId: string, filters: TaskFilters) =>
+      ['tasks', { accountId, ...filters }] as const,
+  },
+  members: {
+    all: ['members'] as const,
+    list: (accountId: string) => ['members', { accountId }] as const,
+  },
+};
+
+// Usage
+const { data } = useQuery({
+  queryKey: queryKeys.tasks.list(accountId),
+  queryFn: () => fetchTasks(accountId),
+});
+
+// Invalidate all tasks
+queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+```
+
+## Mutations
+
+Use `useMutation` for create, update, and delete operations:
+
+```tsx
+'use client';
+
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSupabase } from '@kit/supabase/hooks/use-supabase';
+
+export function CreateTaskForm({ accountId }: { accountId: string }) {
+  const supabase = useSupabase();
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async (newTask: { title: string }) => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert({
+          title: newTask.title,
+          account_id: accountId,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      // Invalidate and refetch tasks list
+      queryClient.invalidateQueries({ queryKey: ['tasks', { accountId }] });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    mutation.mutate({ title: formData.get('title') as string });
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input name="title" placeholder="Task title" required />
+      <button type="submit" disabled={mutation.isPending}>
+        {mutation.isPending ? 'Creating...' : 'Create Task'}
+      </button>
+      {mutation.error && (
+        <p className="text-destructive">Failed to create task</p>
+      )}
+    </form>
+  );
+}
+```
+
+## Optimistic Updates
+
+Update the UI immediately before the server responds for a snappier feel:
+
+```tsx
+'use client';
+
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSupabase } from '@kit/supabase/hooks/use-supabase';
+
+export function useUpdateTask(accountId: string) {
+  const supabase = useSupabase();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (task: { id: string; completed: boolean }) => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .update({ completed: task.completed })
+        .eq('id', task.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+
+    // Optimistically update the cache
+    onMutate: async (updatedTask) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: ['tasks', { accountId }],
+      });
+
+      // Snapshot previous value
+      const previousTasks = queryClient.getQueryData<Task[]>([
+        'tasks',
+        { accountId },
+      ]);
+
+      // Optimistically update
+      queryClient.setQueryData<Task[]>(
+        ['tasks', { accountId }],
+        (old) =>
+          old?.map((task) =>
+            task.id === updatedTask.id
+              ? { ...task, completed: updatedTask.completed }
+              : task
+          )
+      );
+
+      // Return context with snapshot
+      return { previousTasks };
+    },
+
+    // Rollback on error
+    onError: (err, updatedTask, context) => {
+      queryClient.setQueryData(
+        ['tasks', { accountId }],
+        context?.previousTasks
+      );
+    },
+
+    // Always refetch after error or success
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['tasks', { accountId }],
+      });
+    },
+  });
+}
+```
+
+Usage:
+
+```tsx
+function TaskItem({ task, accountId }: { task: Task; accountId: string }) {
+  const updateTask = useUpdateTask(accountId);
+
+  return (
+    <label className="flex items-center gap-2">
+      <input
+        type="checkbox"
+        checked={task.completed}
+        onChange={(e) =>
+          updateTask.mutate({ id: task.id, completed: e.target.checked })
+        }
+      />
+      <span className={task.completed ? 'line-through' : ''}>
+        {task.title}
+      </span>
+    </label>
+  );
+}
+```
+
+## Combining with Server Components
+
+Load initial data in Server Components, then hydrate React Query for client-side updates:
+
+```tsx
+// app/tasks/page.tsx (Server Component)
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import { TasksManager } from './tasks-manager';
+
+export default async function TasksPage({
+  params,
+}: {
+  params: Promise<{ account: string }>;
+}) {
+  const { account } = await params;
+  const supabase = getSupabaseServerClient();
+
+  const { data: tasks } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('account_slug', account)
+    .order('created_at', { ascending: false });
+
+  return (
+    <TasksManager
+      accountSlug={account}
+      initialTasks={tasks ?? []}
+    />
+  );
+}
+```
+
+```tsx
+// tasks-manager.tsx (Client Component)
+'use client';
+
+import { useQuery } from '@tanstack/react-query';
+import { useSupabase } from '@kit/supabase/hooks/use-supabase';
+
+interface Props {
+  accountSlug: string;
+  initialTasks: Task[];
+}
+
+export function TasksManager({ accountSlug, initialTasks }: Props) {
+  const supabase = useSupabase();
+
+  const { data: tasks } = useQuery({
+    queryKey: ['tasks', { accountSlug }],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('account_slug', accountSlug)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+    // Use server data as initial value
+    initialData: initialTasks,
+    // Consider fresh for 30 seconds (skip immediate refetch)
+    staleTime: 30_000,
+  });
+
+  return (
+    <div>
+      {/* tasks is initialTasks on first render, then live data */}
+      {tasks.map((task) => (
+        <TaskItem key={task.id} task={task} />
+      ))}
+    </div>
+  );
+}
+```
+
+## Caching Configuration
+
+Control how long data stays fresh and when to refetch:
+
+```tsx
+const { data } = useQuery({
+  queryKey: ['tasks', accountId],
+  queryFn: fetchTasks,
+
+  // Data considered fresh for 5 minutes
+  staleTime: 5 * 60 * 1000,
+
+  // Keep unused data in cache for 30 minutes
+  gcTime: 30 * 60 * 1000,
+
+  // Refetch when window regains focus
+  refetchOnWindowFocus: true,
+
+  // Refetch every 60 seconds
+  refetchInterval: 60_000,
+
+  // Only refetch interval when tab is visible
+  refetchIntervalInBackground: false,
+});
+```
+
+### Global Defaults
+
+Set defaults for all queries in your QueryClient:
+
+```tsx
+// lib/query-client.ts
+import { QueryClient } from '@tanstack/react-query';
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000, // 1 minute
+      gcTime: 5 * 60 * 1000, // 5 minutes
+      refetchOnWindowFocus: true,
+      retry: 1,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
+```
+
+## Pagination
+
+Implement paginated queries:
+
+```tsx
+'use client';
+
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useSupabase } from '@kit/supabase/hooks/use-supabase';
+
+const PAGE_SIZE = 10;
+
+export function PaginatedTasks({ accountId }: { accountId: string }) {
+  const [page, setPage] = useState(0);
+  const supabase = useSupabase();
+
+  const { data, isLoading, isPlaceholderData } = useQuery({
+    queryKey: ['tasks', { accountId, page }],
+    queryFn: async () => {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error, count } = await supabase
+        .from('tasks')
+        .select('*', { count: 'exact' })
+        .eq('account_id', accountId)
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+      return { tasks: data, total: count ?? 0 };
+    },
+    // Keep previous data while fetching next page
+    placeholderData: keepPreviousData,
+  });
+
+  const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE);
+
+  return (
+    <div>
+      <ul className={isPlaceholderData ? 'opacity-50' : ''}>
+        {data?.tasks.map((task) => (
+          <li key={task.id}>{task.title}</li>
+        ))}
+      </ul>
+
+      <div className="flex gap-2 mt-4">
+        <button
+          onClick={() => setPage((p) => Math.max(0, p - 1))}
+          disabled={page === 0}
+        >
+          Previous
+        </button>
+        <span>
+          Page {page + 1} of {totalPages}
+        </span>
+        <button
+          onClick={() => setPage((p) => p + 1)}
+          disabled={page >= totalPages - 1}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+## Infinite Scroll
+
+For infinite scrolling lists:
+
+```tsx
+'use client';
+
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { useSupabase } from '@kit/supabase/hooks/use-supabase';
+
+const PAGE_SIZE = 20;
+
+export function InfiniteTasksList({ accountId }: { accountId: string }) {
+  const supabase = useSupabase();
+
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['tasks', { accountId, infinite: true }],
+    queryFn: async ({ pageParam }) => {
+      const from = pageParam * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('account_id', accountId)
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+      return data;
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      // Return undefined when no more pages
+      return lastPage.length === PAGE_SIZE ? allPages.length : undefined;
+    },
+  });
+
+  const tasks = data?.pages.flatMap((page) => page) ?? [];
+
+  return (
+    <div>
+      <ul>
+        {tasks.map((task) => (
+          <li key={task.id}>{task.title}</li>
+        ))}
+      </ul>
+
+      {hasNextPage && (
+        <button
+          onClick={() => fetchNextPage()}
+          disabled={isFetchingNextPage}
+        >
+          {isFetchingNextPage ? 'Loading...' : 'Load More'}
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
+## Real-Time with Supabase Subscriptions
+
+Combine React Query with Supabase real-time for live updates:
+
+```tsx
+'use client';
+
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSupabase } from '@kit/supabase/hooks/use-supabase';
+
+export function LiveTasks({ accountId }: { accountId: string }) {
+  const supabase = useSupabase();
+  const queryClient = useQueryClient();
+
+  const { data: tasks } = useQuery({
+    queryKey: ['tasks', { accountId }],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('account_id', accountId);
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Subscribe to real-time changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('tasks-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+          filter: `account_id=eq.${accountId}`,
+        },
+        () => {
+          // Invalidate and refetch on any change
+          queryClient.invalidateQueries({
+            queryKey: ['tasks', { accountId }],
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, queryClient, accountId]);
+
+  return (
+    <ul>
+      {tasks?.map((task) => (
+        <li key={task.id}>{task.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Using Server Actions with React Query
+
+Combine Server Actions with React Query mutations:
+
+```tsx
+'use client';
+
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { createTask } from './actions'; // Server Action
+
+export function useCreateTask(accountId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createTask, // Server Action as mutation function
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['tasks', { accountId }],
+      });
+    },
+  });
+}
+
+// Usage
+function CreateTaskForm({ accountId }: { accountId: string }) {
+  const createTask = useCreateTask(accountId);
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        createTask.mutate({
+          title: formData.get('title') as string,
+          accountId,
+        });
+      }}
+    >
+      <input name="title" required />
+      <button disabled={createTask.isPending}>
+        {createTask.isPending ? 'Creating...' : 'Create'}
+      </button>
+    </form>
+  );
+}
+```
+
+## Common Mistakes
+
+### Forgetting 'use client'
+
+```tsx
+// WRONG: React Query hooks require client components
+export function Tasks() {
+  const { data } = useQuery({ ... }); // Error: hooks can't run on server
+}
+
+// RIGHT: Mark as client component
+'use client';
+export function Tasks() {
+  const { data } = useQuery({ ... });
+}
+```
+
+### Unstable Query Keys
+
+```tsx
+// WRONG: New object reference on every render causes infinite refetches
+const { data } = useQuery({
+  queryKey: ['tasks', { accountId, filters: { status: 'pending' } }],
+  queryFn: fetchTasks,
+});
+
+// RIGHT: Use stable references
+const filters = useMemo(() => ({ status: 'pending' }), []);
+const { data } = useQuery({
+  queryKey: ['tasks', { accountId, ...filters }],
+  queryFn: fetchTasks,
+});
+
+// OR: Spread primitive values directly
+const { data } = useQuery({
+  queryKey: ['tasks', accountId, 'pending'],
+  queryFn: fetchTasks,
+});
+```
+
+### Not Handling Loading States
+
+```tsx
+// WRONG: Assuming data exists
+function Tasks() {
+  const { data } = useQuery({ ... });
+  return <ul>{data.map(...)}</ul>; // data might be undefined
+}
+
+// RIGHT: Handle all states
+function Tasks() {
+  const { data, isLoading, error } = useQuery({ ... });
+
+  if (isLoading) return <Skeleton />;
+  if (error) return <Error />;
+  if (!data?.length) return <Empty />;
+
+  return <ul>{data.map(...)}</ul>;
+}
+```
+
+## Next Steps
+
+- [Server Components](server-components) - Initial data loading
+- [Server Actions](server-actions) - Mutations with Server Actions
+- [Supabase Clients](supabase-clients) - Browser vs server clients

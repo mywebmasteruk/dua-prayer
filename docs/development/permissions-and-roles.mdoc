@@ -1,0 +1,526 @@
+---
+status: "published"
+label: 'RBAC: Roles and Permissions'
+title: 'Role-Based Access Control (RBAC) in Next.js Supabase'
+description: 'Implement granular permissions with roles, hierarchy levels, and the app_permissions enum. Use has_permission in RLS policies and application code.'
+order: 6
+---
+
+Makerkit implements RBAC through three components: the `roles` table (defines role names and hierarchy), the `role_permissions` table (maps roles to permissions), and the `app_permissions` enum (lists all available permissions). Use the `has_permission` function in RLS policies and application code for granular access control.
+
+{% sequence title="RBAC Implementation" description="Set up and use roles and permissions" %}
+
+[Understand the data model](#rbac-data-model)
+
+[Add custom permissions](#adding-custom-permissions)
+
+[Enforce in RLS policies](#using-permissions-in-rls)
+
+[Check permissions in code](#checking-permissions-in-application-code)
+
+[Show/hide UI elements](#client-side-permission-checks)
+
+{% /sequence %}
+
+## RBAC Data Model
+
+### The roles Table
+
+Defines available roles and their hierarchy:
+
+```sql
+create table public.roles (
+  name varchar(50) primary key,
+  hierarchy_level integer not null default 0
+);
+
+-- Default roles
+insert into public.roles (name, hierarchy_level) values
+  ('owner', 1),
+  ('member', 2);
+```
+
+**Hierarchy levels** determine which roles can manage others. Lower numbers indicate higher privilege. Owners (level 1) can manage members (level 2), but members cannot manage owners.
+
+### The role_permissions Table
+
+Maps roles to their permissions:
+
+```sql
+create table public.role_permissions (
+  id serial primary key,
+  role varchar(50) references public.roles(name) on delete cascade,
+  permission app_permissions not null,
+  unique (role, permission)
+);
+```
+
+### The app_permissions Enum
+
+Lists all available permissions:
+
+```sql
+create type public.app_permissions as enum(
+  'roles.manage',
+  'billing.manage',
+  'settings.manage',
+  'members.manage',
+  'invites.manage'
+);
+```
+
+### Default Permission Assignments
+
+| Role | Permissions |
+|------|-------------|
+| `owner` | All permissions |
+| `member` | `settings.manage`, `invites.manage` |
+
+## Adding Custom Permissions
+
+### Step 1: Add to the Enum
+
+Create a migration to add new permissions:
+
+```sql {% title="apps/web/supabase/migrations/add_task_permissions.sql" %}
+-- Add new permissions to the enum
+alter type public.app_permissions add value 'tasks.read';
+alter type public.app_permissions add value 'tasks.write';
+alter type public.app_permissions add value 'tasks.delete';
+commit;
+```
+
+{% alert type="warning" title="Enum Values Cannot Be Removed" %}
+PostgreSQL enum values cannot be removed once added. Plan your permission names carefully. Use a consistent naming pattern like `resource.action`.
+{% /alert %}
+
+### Step 2: Assign to Roles
+
+```sql
+-- Owners get all task permissions
+insert into public.role_permissions (role, permission) values
+  ('owner', 'tasks.read'),
+  ('owner', 'tasks.write'),
+  ('owner', 'tasks.delete');
+
+-- Members can read and write but not delete
+insert into public.role_permissions (role, permission) values
+  ('member', 'tasks.read'),
+  ('member', 'tasks.write');
+```
+
+### Step 3: Add Custom Roles (Optional)
+
+```sql
+-- Add a new role
+insert into public.roles (name, hierarchy_level) values
+  ('admin', 1);  -- Between owner (0) and member (2)
+
+-- Assign permissions to the new role
+insert into public.role_permissions (role, permission) values
+  ('admin', 'tasks.read'),
+  ('admin', 'tasks.write'),
+  ('admin', 'tasks.delete'),
+  ('admin', 'members.manage'),
+  ('admin', 'invites.manage');
+```
+
+## Using Permissions in RLS
+
+The `has_permission` function checks if a user has a specific permission on an account.
+
+### Function Signature
+
+```sql
+public.has_permission(
+  user_id uuid,
+  account_id uuid,
+  permission_name app_permissions
+) returns boolean
+```
+
+### Read Access Policy
+
+```sql
+create policy "Users with tasks.read can view tasks"
+  on public.tasks
+  for select
+  to authenticated
+  using (
+    public.has_permission(auth.uid(), account_id, 'tasks.read'::app_permissions)
+  );
+```
+
+### Write Access Policy
+
+```sql
+create policy "Users with tasks.write can create tasks"
+  on public.tasks
+  for insert
+  to authenticated
+  with check (
+    public.has_permission(auth.uid(), account_id, 'tasks.write'::app_permissions)
+  );
+```
+
+### Update Policy
+
+```sql
+create policy "Users with tasks.write can update tasks"
+  on public.tasks
+  for update
+  to authenticated
+  using (
+    public.has_permission(auth.uid(), account_id, 'tasks.write'::app_permissions)
+  )
+  with check (
+    public.has_permission(auth.uid(), account_id, 'tasks.write'::app_permissions)
+  );
+```
+
+### Delete Policy
+
+```sql
+create policy "Users with tasks.delete can delete tasks"
+  on public.tasks
+  for delete
+  to authenticated
+  using (
+    public.has_permission(auth.uid(), account_id, 'tasks.delete'::app_permissions)
+  );
+```
+
+### Complete Example
+
+Here's a full schema with RLS:
+
+```sql {% title="apps/web/supabase/schemas/20-tasks.sql" %}
+-- Tasks table
+create table if not exists public.tasks (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  title text not null,
+  description text,
+  status text not null default 'pending',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Enable RLS
+alter table public.tasks enable row level security;
+
+-- RLS policies
+create policy "tasks_select" on public.tasks
+  for select to authenticated
+  using (public.has_permission(auth.uid(), account_id, 'tasks.read'::app_permissions));
+
+create policy "tasks_insert" on public.tasks
+  for insert to authenticated
+  with check (public.has_permission(auth.uid(), account_id, 'tasks.write'::app_permissions));
+
+create policy "tasks_update" on public.tasks
+  for update to authenticated
+  using (public.has_permission(auth.uid(), account_id, 'tasks.write'::app_permissions))
+  with check (public.has_permission(auth.uid(), account_id, 'tasks.write'::app_permissions));
+
+create policy "tasks_delete" on public.tasks
+  for delete to authenticated
+  using (public.has_permission(auth.uid(), account_id, 'tasks.delete'::app_permissions));
+```
+
+## Checking Permissions in Application Code
+
+### Server-Side Check (Server Actions)
+
+```tsx {% title="apps/web/lib/server/tasks/create-task.action.ts" %}
+'use server';
+
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import * as z from 'zod';
+
+const schema = z.object({
+  accountId: z.string().uuid(),
+  title: z.string().min(1),
+});
+
+export async function createTask(data: z.infer<typeof schema>) {
+  const supabase = getSupabaseServerClient();
+
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error('Not authenticated');
+  }
+
+  // Check permission via RPC
+  const { data: hasPermission } = await supabase.rpc('has_permission', {
+    user_id: user.id,
+    account_id: data.accountId,
+    permission: 'tasks.write',
+  });
+
+  if (!hasPermission) {
+    throw new Error('You do not have permission to create tasks');
+  }
+
+  // Create the task (RLS will also enforce this)
+  const { data: task, error } = await supabase
+    .from('tasks')
+    .insert({
+      account_id: data.accountId,
+      title: data.title,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return task;
+}
+```
+
+### Permission Check Helper
+
+Create a reusable helper:
+
+```tsx {% title="apps/web/lib/server/permissions.ts" %}
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export async function checkPermission(
+  accountId: string,
+  permission: string,
+): Promise<boolean> {
+  const supabase = getSupabaseServerClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return false;
+  }
+
+  const { data: hasPermission } = await supabase.rpc('has_permission', {
+    user_id: user.id,
+    account_id: accountId,
+    permission,
+  });
+
+  return hasPermission ?? false;
+}
+
+export async function requirePermission(
+  accountId: string,
+  permission: string,
+): Promise<void> {
+  const hasPermission = await checkPermission(accountId, permission);
+
+  if (!hasPermission) {
+    throw new Error(`Permission denied: ${permission}`);
+  }
+}
+```
+
+Usage:
+
+```tsx
+import { requirePermission } from '~/lib/server/permissions';
+
+export async function deleteTask(taskId: string, accountId: string) {
+  await requirePermission(accountId, 'tasks.delete');
+
+  // Proceed with deletion
+}
+```
+
+## Client-Side Permission Checks
+
+The Team Account Workspace loader provides permissions for UI rendering.
+
+### Loading Permissions
+
+```tsx {% title="apps/web/app/[locale]/home/[account]/tasks/page.tsx" %}
+import { loadTeamWorkspace } from '~/home/[account]/_lib/server/team-account-workspace.loader';
+
+interface Props {
+  params: Promise<{ account: string }>;
+}
+
+export default async function TasksPage({ params }: Props) {
+  const { account } = await params;
+  const workspace = await loadTeamWorkspace(account);
+  const permissions = workspace.account.permissions;
+
+  // permissions is string[] of permission names the user has
+
+  return (
+    <TasksPageClient permissions={permissions} />
+  );
+}
+```
+
+### Conditional UI Rendering
+
+```tsx {% title="apps/web/app/[locale]/home/[account]/tasks/_components/tasks-page-client.tsx" %}
+'use client';
+
+interface TasksPageClientProps {
+  permissions: string[];
+}
+
+export function TasksPageClient({ permissions }: TasksPageClientProps) {
+  const canWrite = permissions.includes('tasks.write');
+  const canDelete = permissions.includes('tasks.delete');
+
+  return (
+    <div>
+      <h1>Tasks</h1>
+
+      {canWrite && (
+        <Button onClick={openCreateDialog}>
+          Create Task
+        </Button>
+      )}
+
+      <TaskList
+        onDelete={canDelete ? handleDelete : undefined}
+      />
+    </div>
+  );
+}
+```
+
+### Permission Gate Component
+
+Create a reusable component:
+
+```tsx {% title="apps/web/components/permission-gate.tsx" %}
+'use client';
+
+interface PermissionGateProps {
+  permissions: string[];
+  required: string | string[];
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}
+
+export function PermissionGate({
+  permissions,
+  required,
+  children,
+  fallback = null,
+}: PermissionGateProps) {
+  const requiredArray = Array.isArray(required) ? required : [required];
+  const hasPermission = requiredArray.every((p) => permissions.includes(p));
+
+  if (!hasPermission) {
+    return fallback;
+  }
+
+  return children;
+}
+```
+
+Usage:
+
+```tsx
+<PermissionGate permissions={permissions} required="tasks.delete">
+  <DeleteButton onClick={handleDelete} />
+</PermissionGate>
+
+<PermissionGate
+  permissions={permissions}
+  required={['tasks.write', 'tasks.delete']}
+  fallback={<span>Read-only access</span>}
+>
+  <EditControls />
+</PermissionGate>
+```
+
+### Page-Level Access Control
+
+```tsx {% title="apps/web/app/[locale]/home/[account]/admin/page.tsx" %}
+import { redirect } from 'next/navigation';
+
+import { loadTeamWorkspace } from '~/home/[account]/_lib/server/team-account-workspace.loader';
+
+interface Props {
+  params: Promise<{ account: string }>;
+}
+
+export default async function AdminPage({ params }: Props) {
+  const { account } = await params;
+  const workspace = await loadTeamWorkspace(account);
+  const permissions = workspace.account.permissions;
+
+  if (!permissions.includes('settings.manage')) {
+    redirect('/home');
+  }
+
+  return <AdminDashboard />;
+}
+```
+
+## Permission Naming Conventions
+
+Use a consistent `resource.action` pattern:
+
+| Pattern | Examples |
+|---------|----------|
+| `resource.read` | `tasks.read`, `reports.read` |
+| `resource.write` | `tasks.write`, `settings.write` |
+| `resource.delete` | `tasks.delete`, `members.delete` |
+| `resource.manage` | `billing.manage`, `roles.manage` |
+
+The `.manage` suffix typically implies all actions on that resource.
+
+## Testing Permissions
+
+Test RLS policies with pgTAP:
+
+```sql {% title="apps/web/supabase/tests/tasks-permissions.test.sql" %}
+begin;
+
+select plan(3);
+
+-- Create test user and account
+select tests.create_supabase_user('test-user');
+select tests.authenticate_as('test-user');
+
+-- Get the user's personal account
+select set_config('test.account_id',
+  (select id::text from accounts where primary_owner_user_id = tests.get_supabase_uid('test-user')),
+  true
+);
+
+-- Test: User with tasks.write can insert
+select lives_ok(
+  $$
+    insert into tasks (account_id, title)
+    values (current_setting('test.account_id')::uuid, 'Test Task')
+  $$,
+  'User with tasks.write permission can create tasks'
+);
+
+-- Test: User without tasks.delete cannot delete
+select throws_ok(
+  $$
+    delete from tasks
+    where account_id = current_setting('test.account_id')::uuid
+  $$,
+  'User without tasks.delete permission cannot delete tasks'
+);
+
+select * from finish();
+rollback;
+```
+
+See [Database Tests](/docs/next-supabase-turbo/development/database-tests) for more testing patterns.
+
+## Related Resources
+
+- [Database Functions](/docs/next-supabase-turbo/development/database-functions) for the `has_permission` function
+- [Database Schema](/docs/next-supabase-turbo/development/database-schema) for creating tables with RLS
+- [Database Tests](/docs/next-supabase-turbo/development/database-tests) for testing permissions
+- [Row Level Security](/docs/next-supabase-turbo/security/row-level-security) for RLS patterns

@@ -1,0 +1,387 @@
+---
+status: "published"
+label: "One-Off Payments"
+title: "Configure One-Off Payments for Lifetime Deals and Add-Ons"
+order: 8
+description: "Implement one-time purchases in your SaaS for lifetime access, add-ons, or credits. Learn how to configure one-off payments with Stripe, Lemon Squeezy, or Paddle in Makerkit."
+---
+
+One-off payments are single charges for non-recurring products: lifetime access, add-ons, credit packs, or physical goods. Unlike subscriptions, one-off purchases are stored in the `orders` table.
+
+## Use Cases
+
+- **Lifetime access**: One-time purchase for perpetual access
+- **Add-ons**: Additional features or capacity
+- **Credit packs**: Buy credits/tokens in bulk
+- **Digital products**: Templates, courses, ebooks
+- **One-time services**: Setup fees, consulting
+
+## Schema Configuration
+
+Define a one-time payment plan:
+
+```tsx {% title="apps/web/config/billing.config.ts" %}
+{
+  id: 'lifetime',
+  name: 'Lifetime Access',
+  description: 'Pay once, access forever',
+  currency: 'USD',
+  badge: 'Best Value',
+  features: [
+    'All Pro features',
+    'Lifetime updates',
+    'Priority support',
+  ],
+  plans: [
+    {
+      id: 'lifetime-deal',
+      name: 'Lifetime Access',
+      paymentType: 'one-time',  // Not recurring
+      // No interval for one-time
+      lineItems: [
+        {
+          id: 'price_lifetime_xxx',  // Provider Price ID
+          name: 'Lifetime Access',
+          cost: 299,
+          type: 'flat',  // Only flat is supported for one-time
+        },
+      ],
+    },
+  ],
+}
+```
+
+**Key differences from subscriptions:**
+
+- `paymentType` is `'one-time'` instead of `'recurring'`
+- No `interval` field
+- Line items must be `type: 'flat'` (no metered or per-seat)
+
+## Provider Setup
+
+### Stripe
+
+1. Create a product in Stripe Dashboard
+2. Add a **One-time** price
+3. Copy the Price ID to your billing schema
+
+### Lemon Squeezy
+
+1. Create a product with **Single payment** pricing
+2. Copy the Variant ID to your billing schema
+
+### Paddle
+
+1. Create a product with one-time pricing
+2. Copy the Price ID to your billing schema
+
+## Database Storage
+
+One-off purchases are stored differently than subscriptions:
+
+| Entity | Table | Description |
+|--------|-------|-------------|
+| Subscriptions | `subscriptions`, `subscription_items` | Recurring payments |
+| One-off | `orders`, `order_items` | Single payments |
+
+### Orders Table Schema
+
+```sql
+orders
+├── id (text) - Order ID from provider
+├── account_id (uuid) - Purchasing account
+├── billing_customer_id (int) - Customer reference
+├── status (payment_status) - 'pending', 'succeeded', 'failed'
+├── billing_provider (enum) - 'stripe', 'lemon-squeezy', 'paddle'
+├── total_amount (numeric) - Total charge
+├── currency (varchar)
+└── created_at, updated_at
+
+order_items
+├── id (text) - Item ID
+├── order_id (text) - Reference to order
+├── product_id (text)
+├── variant_id (text)
+├── price_amount (numeric)
+└── quantity (integer)
+```
+
+## Checking Order Status
+
+Query orders to check if a user has purchased a product:
+
+```tsx
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export async function hasLifetimeAccess(accountId: string): Promise<boolean> {
+  const supabase = getSupabaseServerClient();
+
+  const { data: order } = await supabase
+    .from('orders')
+    .select('id, status')
+    .eq('account_id', accountId)
+    .eq('status', 'succeeded')
+    .single();
+
+  return !!order;
+}
+
+// Check for specific product
+export async function hasPurchasedProduct(
+  accountId: string,
+  productId: string
+): Promise<boolean> {
+  const supabase = getSupabaseServerClient();
+
+  const { data: order } = await supabase
+    .from('orders')
+    .select(`
+      id,
+      order_items!inner(product_id)
+    `)
+    .eq('account_id', accountId)
+    .eq('status', 'succeeded')
+    .eq('order_items.product_id', productId)
+    .single();
+
+  return !!order;
+}
+```
+
+## Gating Features
+
+Use order status to control access:
+
+```tsx
+// Server Component
+import { hasLifetimeAccess } from '~/lib/orders';
+
+export default async function PremiumFeature({
+  accountId,
+}: {
+  accountId: string;
+}) {
+  const hasAccess = await hasLifetimeAccess(accountId);
+
+  if (!hasAccess) {
+    return <UpgradePrompt />;
+  }
+
+  return <PremiumContent />;
+}
+```
+
+### RLS Policy Example
+
+Gate database access based on orders:
+
+```sql
+-- Function to check if account has a successful order
+CREATE OR REPLACE FUNCTION public.has_lifetime_access(p_account_id UUID)
+RETURNS BOOLEAN
+SET search_path = ''
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.orders
+    WHERE account_id = p_account_id
+    AND status = 'succeeded'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Example policy
+CREATE POLICY premium_content_access ON public.premium_content
+  FOR SELECT TO authenticated
+  USING (
+    public.has_lifetime_access(account_id)
+  );
+```
+
+## Handling Webhooks
+
+One-off payment webhooks work similarly to subscriptions:
+
+```tsx {% title="apps/web/app/api/billing/webhook/route.ts" %}
+await service.handleWebhookEvent(request, {
+  onCheckoutSessionCompleted: async (orderOrSubscription, customerId) => {
+    // Check if this is an order (one-time) or subscription
+    if ('order_id' in orderOrSubscription) {
+      // One-time payment
+      logger.info({ orderId: orderOrSubscription.order_id }, 'Order completed');
+
+      // Provision access, send receipt, etc.
+      await provisionLifetimeAccess(orderOrSubscription.target_account_id);
+      await sendOrderReceipt(orderOrSubscription);
+    } else {
+      // Subscription
+      logger.info('Subscription created');
+    }
+  },
+
+  onPaymentFailed: async (sessionId) => {
+    // Handle failed one-time payments
+    await notifyPaymentFailed(sessionId);
+  },
+});
+```
+
+### Stripe-Specific Events
+
+For one-off payments, add these webhook events in Stripe:
+
+- `checkout.session.completed`
+- `checkout.session.async_payment_failed`
+- `checkout.session.async_payment_succeeded`
+
+{% alert type="default" title="Async payment methods" %}
+Some payment methods (bank transfers, certain local methods) are asynchronous. Listen for `async_payment_succeeded` to confirm these payments.
+{% /alert %}
+
+## Mixing Orders and Subscriptions
+
+You can offer both one-time and recurring products:
+
+```tsx
+products: [
+  // Subscription product
+  {
+    id: 'pro',
+    name: 'Pro',
+    plans: [
+      {
+        id: 'pro-monthly',
+        paymentType: 'recurring',
+        interval: 'month',
+        lineItems: [{ id: 'price_monthly', cost: 29, type: 'flat' }],
+      },
+    ],
+  },
+  // One-time product
+  {
+    id: 'lifetime',
+    name: 'Lifetime',
+    plans: [
+      {
+        id: 'lifetime-deal',
+        paymentType: 'one-time',
+        lineItems: [{ id: 'price_lifetime', cost: 299, type: 'flat' }],
+      },
+    ],
+  },
+]
+```
+
+Check for either type of access:
+
+```tsx
+export async function hasAccess(accountId: string): Promise<boolean> {
+  const supabase = getSupabaseServerClient();
+
+  // Check subscription
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('status', 'active')
+    .single();
+
+  if (subscription) return true;
+
+  // Check lifetime order
+  const { data: order } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('status', 'succeeded')
+    .single();
+
+  return !!order;
+}
+```
+
+## Billing Mode Configuration
+
+By default, Makerkit checks subscriptions for billing status. To use orders as the primary billing mechanism (versions before 2.12.0):
+
+```bash
+BILLING_MODE=one-time
+```
+
+When set, the billing section will display orders instead of subscriptions.
+
+{% alert type="default" title="Version 2.12.0+" %}
+From version 2.12.0 onwards, orders and subscriptions can coexist. The `BILLING_MODE` setting is only needed if you want to exclusively use one-time payments.
+{% /alert %}
+
+## Add-On Purchases
+
+Sell additional items to existing subscribers:
+
+```tsx
+// Add-on product
+{
+  id: 'addon-storage',
+  name: 'Extra Storage',
+  plans: [
+    {
+      id: 'storage-10gb',
+      name: '10GB Storage',
+      paymentType: 'one-time',
+      lineItems: [
+        { id: 'price_storage_10gb', name: '10GB Storage', cost: 19, type: 'flat' },
+      ],
+    },
+  ],
+}
+```
+
+Track purchased add-ons:
+
+```tsx
+export async function getStorageLimit(accountId: string): Promise<number> {
+  const supabase = getSupabaseServerClient();
+
+  // Base storage from subscription
+  const baseStorage = 5; // GB
+
+  // Additional storage from orders
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('order_items(product_id)')
+    .eq('account_id', accountId)
+    .eq('status', 'succeeded');
+
+  const additionalStorage = orders?.reduce((total, order) => {
+    const hasStorage = order.order_items.some(
+      item => item.product_id === 'storage-10gb'
+    );
+    return hasStorage ? total + 10 : total;
+  }, 0) ?? 0;
+
+  return baseStorage + additionalStorage;
+}
+```
+
+## Testing One-Off Payments
+
+1. **Test checkout:**
+   - Navigate to your pricing page
+   - Select the one-time product
+   - Complete checkout with test card `4242 4242 4242 4242`
+2. **Verify database:**
+   ```sql
+   SELECT * FROM orders WHERE account_id = 'your-account-id';
+   SELECT * FROM order_items WHERE order_id = 'order-id';
+   ```
+3. **Test access gating:**
+   - Verify features are unlocked after purchase
+   - Test with accounts that haven't purchased
+
+## Related Documentation
+
+- [Billing Schema](/docs/next-supabase-turbo/billing/billing-schema) - Configure pricing
+- [Webhooks](/docs/next-supabase-turbo/billing/billing-webhooks) - Handle payment events
+- [Stripe Setup](/docs/next-supabase-turbo/billing/stripe) - Provider configuration
+- [Credit-Based Billing](/docs/next-supabase-turbo/billing/credit-based-billing) - Token/credit systems

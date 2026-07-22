@@ -1,0 +1,98 @@
+---
+status: "published"
+title: "MCP Server for Next.js Supabase"
+label: "MCP Server"
+order: 12
+description: "Configure MCP for Next.js Supabase for best AI assistance using AI Agents"
+---
+
+The Makerkit MCP Server provides tools to AI Agents for working with the codebase.
+
+## Build MCP Server
+
+Run the command:
+
+```bash
+pnpm --filter "@kit/mcp-server" build
+```
+
+The command will build the MCP Server at `packages/mcp-server/build/index.js`.
+
+## Adding MCP Servers to AI Coding tools
+
+In general, tools should automatically detect the MCP Server and use it as we ship the configuration in the `.mcp.json` file. However, you can add it manually to your AI coding tool by following the steps below.
+
+Before getting started, retrieve the absolute path to the `index.js` file created above. You can normally do this in your IDE by right-clicking the `index.js` file and selecting `Copy Path`.
+
+I will reference this as `<full-path>` in the steps below: please replace it with the full path to your `index.js`.
+
+### Claude Code
+
+Claude will automatically detect the MCP Server and use it as we ship the configuration in the `.mcp.json` file.
+
+### Codex
+
+Open the Codex TOML config and add the following:
+
+```toml
+[mcp_servers.makerkit]
+command = "node"
+args = ["<path-to-mcp-server>"]
+```
+
+Please change the `<path-to-mcp-server>` to the actual path of the MCP Server.
+
+### Cursor
+
+Open the `mcp.json` config in Cursor and add the following config:
+
+```json
+{
+  "mcpServers": {
+    "makerkit": {
+      "command": "node",
+      "args": ["<path-to-mcp-server>"]
+    }
+  }
+}
+```
+
+Please change the `<path-to-mcp-server>` to the actual path of the MCP Server.
+
+### Other Agents
+
+Please refer to the documentation for other AI Agents. The format is normally similar with minimal differences.
+
+## CLI MCP Server
+
+The CLI MCP Server is a separate MCP server that ships with the MakerKit CLI. It lets your AI assistant create projects, install plugins, pull upstream updates, and resolve merge conflicts.
+
+To add it, drop this into your editor's MCP config:
+
+Using npx:
+
+```json
+{
+  "mcpServers": {
+    "makerkit-cli": {
+      "command": "npx",
+      "args": ["--yes", "--quiet", "@makerkit/cli@latest", "makerkit-cli-mcp"]
+    }
+  }
+}
+```
+
+Using pnpm:
+
+```json
+{
+  "mcpServers": {
+    "makerkit-cli": {
+      "command": "pnpm",
+      "args": ["--silent", "dlx", "@makerkit/cli@latest", "makerkit-cli-mcp"]
+    }
+  }
+}
+```
+
+The `--quiet` flag (npx) and `--silent` flag (pnpm) prevent package manager output from interfering with the MCP JSON-RPC stream.

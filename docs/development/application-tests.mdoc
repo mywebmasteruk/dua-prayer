@@ -1,0 +1,304 @@
+---
+status: "published"
+label: "Application tests (E2E)"
+title: "Writing Application Tests (E2E) with Playwright"
+description: "Learn how to write Application Tests (E2E) with Playwright to test your application and ensure it works as expected"
+order: 11
+---
+
+End-to-end (E2E) tests are crucial for ensuring your application works correctly from the user's perspective. This guide covers best practices for writing reliable, maintainable E2E tests using Playwright in your Makerkit application.
+
+## Core Testing Principles
+
+### 1. Test Structure and Organization
+
+Your E2E tests are organized in the `apps/e2e/tests/` directory with the following structure:
+
+```
+apps/e2e/tests/
+├── authentication/          # Auth-related tests
+│   ├── auth.spec.ts        # Test specifications
+│   └── auth.po.ts          # Page Object Model
+├── team-accounts/          # Team functionality tests
+├── invitations/           # Invitation flow tests
+├── utils/                 # Shared utilities
+│   ├── mailbox.ts         # Email testing utilities
+│   ├── otp.po.ts          # OTP verification utilities
+│   └── billing.po.ts      # Billing test utilities
+└── playwright.config.ts   # Playwright configuration
+```
+
+**Key Principles:**
+- Each feature has its own directory with `.spec.ts` and `.po.ts` files
+- Shared utilities are in the `utils/` directory
+- Page Object Model (POM) pattern is used consistently
+
+### 2. Page Object Model Pattern
+
+The Page Object Model encapsulates page interactions and makes tests more maintainable. Here's how it's implemented:
+
+```typescript
+// auth.po.ts
+export class AuthPageObject {
+  private readonly page: Page;
+  private readonly mailbox: Mailbox;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.mailbox = new Mailbox(page);
+  }
+
+  async signIn(params: { email: string; password: string }) {
+    await this.page.fill('input[name="email"]', params.email);
+    await this.page.fill('input[name="password"]', params.password);
+    await this.page.click('button[type="submit"]');
+  }
+
+  async signOut() {
+    await this.page.click('[data-test="account-dropdown-trigger"]');
+    await this.page.click('[data-test="account-dropdown-sign-out"]');
+  }
+}
+```
+
+**Best Practices:**
+- Group related functionality in Page Objects
+- Use descriptive method names that reflect user actions
+- Encapsulate complex workflows in single methods
+- Return promises or use async/await consistently
+
+The test file would look like this:
+
+```typescript
+import { expect, test } from '@playwright/test';
+
+import { AuthPageObject } from './auth.po';
+
+test.describe('Auth flow', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  let email: string;
+  let auth: AuthPageObject;
+
+  test.beforeEach(async ({ page }) => {
+    auth = new AuthPageObject(page);
+  });
+
+  test('will sign-up and redirect to the home page', async ({ page }) => {
+    await auth.goToSignUp();
+
+    email = auth.createRandomEmail();
+
+    console.log(`Signing up with email ${email} ...`);
+
+    await auth.signUp({
+      email,
+      password: 'password',
+      repeatPassword: 'password',
+    });
+
+    await auth.visitConfirmEmailLink(email);
+
+    await page.waitForURL('**/home');
+  });
+});
+```
+
+1. The test file instantiates the `AuthPageObject` before each test
+2. The Page Object wraps the logic for the auth flow so that we can reuse it in the tests
+
+## Data-Test Attributes
+
+Use `data-test` attributes to create stable, semantic selectors that won't break when UI changes.
+
+### ✅ Good: Using data-test attributes
+
+```typescript
+// In your React component
+<button data-test="submit-button" onClick={handleSubmit}>
+  Submit
+</button>
+
+// In your test
+await this.page.click('[data-test="submit-button"]');
+```
+
+### ❌ Bad: Using fragile selectors
+
+```typescript
+// Fragile - breaks if class names or text changes
+await this.page.click('.btn-primary');
+await this.page.click('button:has-text("Submit")');
+```
+
+### Common Data-Test Patterns
+
+```typescript
+// Form elements
+<input data-test="email-input" name="email" />
+<input data-test="password-input" name="password" />
+<button data-test="submit-button" type="submit">Submit</button>
+
+// Navigation
+<button data-test="account-dropdown-trigger">Account</button>
+<a data-test="settings-link" href="/settings">Settings</a>
+
+// Lists and rows
+<div data-test="team-member-row" data-user-id={user.id}>
+  <span data-test="member-role-badge">{role}</span>
+</div>
+
+// Forms with specific purposes
+<form data-test="create-team-form">
+  <input data-test="team-name-input" />
+  <button data-test="create-team-button">Create</button>
+</form>
+```
+
+## Retry-ability with expect().toPass()
+
+Use `expect().toPass()` to wrap operations that might be flaky due to timing issues or async operations.
+
+### ✅ Good: Using expect().toPass()
+
+```typescript
+async visitConfirmEmailLink(email: string) {
+  return expect(async () => {
+    const res = await this.mailbox.visitMailbox(email, { deleteAfter: true });
+    expect(res).not.toBeNull();
+  }).toPass();
+}
+
+async openAccountsSelector() {
+  return expect(async () => {
+    await this.page.click('[data-test="account-selector-trigger"]');
+    return expect(
+      this.page.locator('[data-test="account-selector-content"]'),
+    ).toBeVisible();
+  }).toPass();
+}
+```
+
+### ❌ Bad: Not using retry mechanisms
+
+```typescript
+// This might fail due to timing issues
+async openAccountsSelector() {
+  await this.page.click('[data-test="account-selector-trigger"]');
+  await expect(
+    this.page.locator('[data-test="account-selector-content"]'),
+  ).toBeVisible();
+}
+```
+
+### When to Use expect().toPass()
+
+- **Email operations**: Waiting for emails to arrive
+- **Navigation**: Waiting for URL changes after actions
+- **Async UI updates**: Operations that trigger network requests
+- **External dependencies**: Interactions with third-party services
+
+## Test Isolation and Deterministic Results
+
+Test isolation is crucial for reliable test suites:
+
+1. Make sure each tests sets up its own context and data
+2. Never rely on data from other tests
+3. For maximum isolation, you should create your own data for each test - however this can be time-consuming so you should take it into account when writing your tests
+
+### 1. Independent Test Data
+
+```typescript
+// Generate unique test data for each test
+createRandomEmail() {
+  const value = Math.random() * 10000000000000;
+  return `${value.toFixed(0)}@makerkit.dev`;
+}
+
+createTeamName() {
+  const id = Math.random().toString(36).substring(2, 8);
+  return {
+    teamName: `Test Team ${id}`,
+    slug: `test-team-${id}`,
+  };
+}
+```
+
+## Email Testing with Mailbox
+
+The `Mailbox` utility helps test email-dependent flows using Mailpit.
+
+### 1. Basic Email Operations
+
+```typescript
+export class Mailbox {
+  static URL = 'http://127.0.0.1:54324';
+
+  async visitMailbox(email: string, params: { deleteAfter: boolean; subject?: string }) {
+    const json = await this.getEmail(email, params);
+
+    if (email !== json.To[0]!.Address) {
+      throw new Error(`Email address mismatch. Expected ${email}, got ${json.To[0]!.Address}`);
+    }
+
+    const el = parse(json.HTML);
+    const linkHref = el.querySelector('a')?.getAttribute('href');
+
+    return this.page.goto(linkHref);
+  }
+}
+```
+
+## Race conditions
+
+Race conditions issues are common in E2E tests. Testing UIs is inherently asynchronous, and you need to be careful about the order of operations.
+
+In many cases, your application will execute async operations. In such cases, you want to use Playwright's utilities to wait for the operation to complete.
+
+Below is a common pattern for handling async operations in E2E tests:
+
+1. Click the button
+2. Wait for the async operation to complete
+3. Proceed with the test (expectations, assertions, etc.)
+
+```typescript
+
+const button = page.locator('[data-test="submit-button"]');
+
+const response = page.waitForResponse((resp) => {
+  return resp.url().includes(`/your-api-endpoint`);
+});
+
+await Promise.all([button.click(), response]);
+
+// proceed with the test
+```
+
+The pattern above ensures that the test will only proceed once the async operation has completed.
+
+### Handling race conditions using timeouts
+
+Timeouts are generally discouraged in E2E tests. However, in some cases, you may want to use them to avoid flaky tests when every other solution failed.
+
+```tsx
+await page.waitForTimeout(1000);
+```
+
+In general, during development, most operations resolve within 50-100ms - so these would be an appropriate amount of time to wait if you hit overly flaky tests.
+
+## Testing Checklist
+
+When writing E2E tests, ensure you:
+
+- [ ] Use `data-test` attributes for element selection
+- [ ] Implement Page Object Model pattern
+- [ ] Wrap flaky operations in `expect().toPass()`
+- [ ] Generate unique test data for each test run
+- [ ] Clean up state between tests
+- [ ] Handle async operations properly
+- [ ] Test both happy path and error scenarios
+- [ ] Include proper assertions and validations
+- [ ] Follow naming conventions for test files and methods
+- [ ] Document complex test scenarios
+
+By following these best practices, you'll create robust, maintainable E2E tests that provide reliable feedback about your application's functionality.

@@ -1,0 +1,263 @@
+---
+status: "published"
+title: "Sending Notifications"
+label: "Sending Notifications"
+description: "Create in-app notifications from Server Actions, API routes, and background jobs using the notifications API."
+order: 1
+---
+
+Notifications are created server-side using `createNotificationsApi`. This requires the Supabase admin client because only the `service_role` can insert into the notifications table.
+
+## Basic usage
+
+```typescript
+import { createNotificationsApi } from '@kit/notifications/api';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+
+async function sendNotification(accountId: string) {
+  const client = getSupabaseServerAdminClient();
+  const api = createNotificationsApi(client);
+
+  await api.createNotification({
+    account_id: accountId,
+    body: 'Your report is ready',
+  });
+}
+```
+
+The `account_id` determines who sees the notification. Pass a user's personal account ID to notify just them, or a team account ID to notify all team members.
+
+## Notification fields
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `account_id` | `uuid` | Yes | - | Personal or team account ID |
+| `body` | `string` | Yes | - | Message text (max 5000 chars) |
+| `type` | `'info' \| 'warning' \| 'error'` | No | `'info'` | Severity level |
+| `link` | `string` | No | `null` | URL to navigate on click |
+| `channel` | `'in_app' \| 'email'` | No | `'in_app'` | Delivery channel |
+| `expires_at` | `Date` | No | 1 month | Auto-expiration timestamp |
+
+## Notification types
+
+Use types to indicate severity. Each type renders with a distinct icon color:
+
+```typescript
+// Info (blue) - General updates
+await api.createNotification({
+  account_id: accountId,
+  body: 'New feature: Dark mode is now available',
+  type: 'info',
+});
+
+// Warning (yellow) - Attention needed
+await api.createNotification({
+  account_id: accountId,
+  body: 'Your trial expires in 3 days',
+  type: 'warning',
+  link: '/settings/billing',
+});
+
+// Error (red) - Action required
+await api.createNotification({
+  account_id: accountId,
+  body: 'Payment failed. Update your card to continue.',
+  type: 'error',
+  link: '/settings/billing',
+});
+```
+
+## Adding links
+
+Include a `link` to make notifications actionable. Users click the notification to navigate:
+
+```typescript
+await api.createNotification({
+  account_id: accountId,
+  body: 'John commented on your document',
+  link: '/documents/abc123#comment-456',
+});
+```
+
+Links should be relative paths within your app. The UI renders the body as a clickable anchor.
+
+## Setting expiration
+
+By default, notifications expire after 1 month. Set a custom expiration for time-sensitive messages:
+
+```typescript
+// Expire in 24 hours
+const tomorrow = new Date();
+tomorrow.setHours(tomorrow.getHours() + 24);
+
+await api.createNotification({
+  account_id: accountId,
+  body: 'Flash sale ends tonight!',
+  link: '/pricing',
+  expires_at: tomorrow,
+});
+```
+
+Expired notifications are filtered out on fetch. They remain in the database but won't appear in the UI.
+
+## Team notifications
+
+Send to a team account ID to notify all members:
+
+```typescript
+import { createNotificationsApi } from '@kit/notifications/api';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+
+async function notifyTeam(teamAccountId: string, newMemberName: string) {
+  const client = getSupabaseServerAdminClient();
+  const api = createNotificationsApi(client);
+
+  await api.createNotification({
+    account_id: teamAccountId,
+    body: `${newMemberName} joined the team`,
+    link: '/settings/members',
+    type: 'info',
+  });
+}
+```
+
+Every user with a role on that team account will see this notification via the RLS policy.
+
+## Common patterns
+
+### Welcome notification on signup
+
+```typescript
+// In your post-signup hook or Server Action
+export async function onUserCreated(userId: string) {
+  const client = getSupabaseServerAdminClient();
+  const api = createNotificationsApi(client);
+
+  await api.createNotification({
+    account_id: userId,
+    body: 'Welcome! Start by creating your first project.',
+    link: '/projects/new',
+    type: 'info',
+  });
+}
+```
+
+### Subscription renewal reminder
+
+```typescript
+export async function sendRenewalReminder(
+  accountId: string,
+  daysRemaining: number
+) {
+  const client = getSupabaseServerAdminClient();
+  const api = createNotificationsApi(client);
+
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + daysRemaining);
+
+  await api.createNotification({
+    account_id: accountId,
+    body: `Your subscription renews in ${daysRemaining} days`,
+    link: '/settings/billing',
+    type: daysRemaining <= 3 ? 'warning' : 'info',
+    expires_at: expiresAt,
+  });
+}
+```
+
+### Background job completion
+
+```typescript
+export async function onExportComplete(
+  accountId: string,
+  exportId: string
+) {
+  const client = getSupabaseServerAdminClient();
+  const api = createNotificationsApi(client);
+
+  await api.createNotification({
+    account_id: accountId,
+    body: 'Your data export is ready to download',
+    link: `/exports/${exportId}`,
+    type: 'info',
+  });
+}
+```
+
+### Payment failure
+
+```typescript
+export async function onPaymentFailed(accountId: string) {
+  const client = getSupabaseServerAdminClient();
+  const api = createNotificationsApi(client);
+
+  await api.createNotification({
+    account_id: accountId,
+    body: 'Payment failed. Please update your payment method.',
+    link: '/settings/billing',
+    type: 'error',
+  });
+}
+```
+
+## Using translation keys
+
+For internationalized apps, store translation keys instead of plain text:
+
+```typescript
+await api.createNotification({
+  account_id: accountId,
+  body: 'notifications.exportReady', // Translation key
+  link: '/exports',
+});
+```
+
+The UI component runs the body through `t()` from next-intl, falling back to the raw string if no translation exists.
+
+Add the translation to your locale files:
+
+```json
+{
+  "notifications": {
+    "exportReady": "Your data export is ready to download"
+  }
+}
+```
+
+## Notification channels
+
+The `channel` field supports `'in_app'` (default) and `'email'`. Currently, only `in_app` is implemented. The `email` channel is reserved for future use where a database trigger could send email notifications.
+
+```typescript
+// In-app only (default)
+await api.createNotification({
+  account_id: accountId,
+  body: 'New message received',
+  channel: 'in_app',
+});
+```
+
+## Error handling
+
+The API throws on failure. Wrap calls in try-catch for production code:
+
+```typescript
+try {
+  await api.createNotification({
+    account_id: accountId,
+    body: 'Notification message',
+  });
+} catch (error) {
+  console.error('Failed to send notification:', error);
+  // Don't throw - notification failure shouldn't break the main flow
+}
+```
+
+Notifications are typically non-critical. Consider logging failures but not throwing, so the primary operation (signup, export, etc.) still succeeds.
+
+## Related documentation
+
+- [Notifications overview](/docs/next-supabase-turbo/notifications): Feature overview and when to use notifications
+- [Configuration](/docs/next-supabase-turbo/notifications/notifications-configuration): Environment variables and feature flags
+- [UI Components](/docs/next-supabase-turbo/notifications/notifications-components): How notifications appear in the UI
+- [Database schema](/docs/next-supabase-turbo/notifications/notifications-schema): Table structure and security policies

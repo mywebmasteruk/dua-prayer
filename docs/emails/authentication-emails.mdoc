@@ -1,0 +1,242 @@
+---
+status: "published"
+title: "Supabase Authentication Email Templates"
+label: "Authentication Emails"
+description: "Configure Supabase Auth email templates for email verification, password reset, and magic links. Learn about PKCE flow and token hash strategy for cross-browser compatibility."
+order: 3
+---
+
+Supabase Auth sends emails for authentication flows like email verification, password reset, and magic links. MakerKit provides custom templates that use the token hash strategy, which is required for PKCE (Proof Key for Code Exchange) authentication to work correctly across different browsers and devices.
+
+## Why Custom Templates Matter
+
+Supabase's default email templates use a redirect-based flow that can break when users open email links in a different browser than where they started authentication. This happens because:
+
+1. User starts sign-up in Chrome
+2. Clicks verification link in their email client (which may open in Safari)
+3. Safari doesn't have the PKCE code verifier stored
+4. Authentication fails
+
+MakerKit's templates solve this by using the **token hash strategy**, which passes the verification token directly to a server-side endpoint that exchanges it for a session.
+
+{% alert type="warning" title="Required for Production" %}
+You must replace Supabase's default email templates with MakerKit's templates. Without this change, users may experience authentication failures when clicking email links from different browsers or email clients.
+{% /alert %}
+
+## Template Types
+
+Supabase Auth uses six email templates:
+
+| Template | Trigger | Purpose |
+|----------|---------|---------|
+| Confirm signup | New user registration | Verify email address |
+| Magic link | Passwordless login | One-click sign in |
+| Change email | Email update request | Verify new email |
+| Reset password | Password reset request | Secure password change |
+| Invite user | Admin invites user | Join the platform |
+| OTP | Code-based verification | Numeric verification code |
+
+## Template Location
+
+MakerKit's pre-built templates are in your project:
+
+```
+apps/web/supabase/templates/
+├── change-email-address.html
+├── confirm-email.html
+├── invite-user.html
+├── magic-link.html
+├── otp.html
+└── reset-password.html
+```
+
+## How the Token Hash Strategy Works
+
+The templates use this URL format:
+
+```
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&callback={{ .RedirectTo }}
+```
+
+This flow:
+
+1. Supabase generates a `token_hash` for the email action
+2. User clicks the link in their email
+3. Request goes to `/auth/confirm` (a server-side route)
+4. Server exchanges the token hash for a session using Supabase Admin API
+5. User is authenticated and redirected to the callback URL
+
+This works regardless of which browser opens the link because the token hash is self-contained.
+
+## Configuring Templates in Supabase
+
+### Option 1: Using Supabase Dashboard
+
+1. Go to your Supabase project dashboard
+2. Navigate to **Authentication** → **Email Templates**
+3. For each template type, replace the content with the corresponding MakerKit template
+4. Save changes
+
+### Option 2: Using Supabase CLI (Recommended)
+
+The templates in `apps/web/supabase/templates/` are automatically applied when you run migrations:
+
+```bash
+supabase db push
+```
+
+Or link and push:
+
+```bash
+supabase link --project-ref your-project-ref
+supabase db push
+```
+
+## Customizing Templates
+
+To customize the templates with your branding:
+
+### 1. Clone the Email Starter Repository
+
+MakerKit provides a separate repository for generating email templates:
+
+```bash
+git clone https://github.com/makerkit/makerkit-emails-starter
+cd makerkit-emails-starter
+pnpm install
+```
+
+### 2. Customize the Templates
+
+The starter uses React Email. Edit the templates in `src/emails/`:
+
+- Update colors to match your brand
+- Add your logo
+- Modify copy and messaging
+- Adjust layout as needed
+
+### 3. Export the Templates
+
+Generate the HTML templates:
+
+```bash
+pnpm build
+```
+
+### 4. Replace Templates in Your Project
+
+Copy the generated HTML files to your MakerKit project:
+
+```bash
+cp dist/*.html /path/to/your-app/apps/web/supabase/templates/
+```
+
+### 5. Push to Supabase
+
+```bash
+cd /path/to/your-app
+supabase db push
+```
+
+## Template Variables
+
+Supabase provides these variables in email templates:
+
+| Variable | Description | Available In |
+|----------|-------------|--------------|
+| `{{ .SiteURL }}` | Your application URL | All templates |
+| `{{ .TokenHash }}` | Verification token | All templates |
+| `{{ .RedirectTo }}` | Callback URL after auth | All templates |
+| `{{ .Email }}` | User's email address | All templates |
+| `{{ .Token }}` | OTP code (6 digits) | OTP template only |
+| `{{ .ConfirmationURL }}` | Legacy redirect URL | All templates (not recommended) |
+
+## Example: Confirm Email Template
+
+Here's the structure of a confirmation email template:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+</head>
+<body>
+  <h1>Confirm your email</h1>
+  <p>Click the button below to confirm your email address.</p>
+
+  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&callback={{ .RedirectTo }}">
+    Confirm Email
+  </a>
+
+  <p>If you didn't create an account, you can safely ignore this email.</p>
+</body>
+</html>
+```
+
+The key is the URL structure: `/auth/confirm?token_hash={{ .TokenHash }}&type=email&callback={{ .RedirectTo }}`
+
+## Configuring the Auth Confirm Route
+
+MakerKit includes the server-side route that handles token exchange at `apps/web/app/[locale]/auth/confirm/route.ts` in your project. This route:
+
+1. Receives the token hash from the email link
+2. Verifies the token with Supabase
+3. Creates a session
+4. Redirects the user to their destination
+
+You don't need to modify this route unless you have custom requirements.
+
+## Testing Authentication Emails
+
+### Local Development
+
+In local development, emails are captured by Mailpit:
+
+1. Start your development server: `pnpm dev`
+2. Trigger an auth action (sign up, password reset, etc.)
+3. Open Mailpit at [http://localhost:54324](http://localhost:54324)
+4. Find and click the verification link
+
+### Production Testing
+
+Before going live:
+
+1. Create a test account with a real email address
+2. Verify the email arrives and looks correct
+3. Click the verification link and confirm it works
+4. Test in multiple email clients (Gmail, Outlook, Apple Mail)
+5. Test opening links in different browsers
+
+## Troubleshooting
+
+### Links Not Working
+
+If email links fail to authenticate:
+
+- Verify templates use `token_hash` not `ConfirmationURL`
+- Check that `{{ .SiteURL }}` matches your production URL
+- Ensure the `/auth/confirm` route is deployed
+
+### Emails Not Arriving
+
+If emails don't arrive:
+
+- Check Supabase's email logs in the dashboard
+- Verify your email provider (Supabase's built-in or custom SMTP) is configured
+- Check spam folders
+- For production, configure a custom SMTP provider in Supabase settings
+
+### Wrong Redirect URL
+
+If users are redirected incorrectly:
+
+- Check the `callback` parameter in your auth calls
+- Verify `NEXT_PUBLIC_SITE_URL` is set correctly
+- Ensure redirect URLs are in Supabase's allowed list
+
+## Next Steps
+
+- [Configure your email provider](/docs/next-supabase-turbo/email-configuration) for transactional emails
+- [Create custom email templates](/docs/next-supabase-turbo/email-templates) with React Email
+- [Test emails locally](/docs/next-supabase-turbo/emails/inbucket) with Mailpit

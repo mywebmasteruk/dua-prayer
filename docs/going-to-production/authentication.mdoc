@@ -1,0 +1,326 @@
+---
+status: "published"
+title: "Configure Supabase Authentication for Production"
+label: "Authentication"
+description: "Configure Supabase authentication settings for production deployment. Covers URL configuration, SMTP setup, and third-party OAuth providers."
+order: 3
+---
+
+Configure Supabase authentication for production with proper redirect URLs, SMTP email delivery, and OAuth providers like Google. MakerKit automatically detects enabled providers and displays the appropriate login buttons.
+
+{% alert type="warning" title="Required for login to work" %}
+Skipping these steps will cause authentication failures. Users will not be able to sign up, log in, or reset passwords without proper configuration.
+{% /alert %}
+
+## Overview
+
+| Configuration | Purpose | Where |
+|--------------|---------|-------|
+| Site URL | Base URL for your application | Supabase Dashboard |
+| Redirect URLs | Allowed callback URLs after auth | Supabase Dashboard |
+| Custom SMTP | Reliable email delivery | Supabase Dashboard |
+| OAuth Providers | Google, GitHub, etc. login | Provider + Supabase |
+
+---
+
+## Authentication URLs
+
+Configure redirect URLs so Supabase knows where to send users after authentication.
+
+### Navigate to Settings
+
+1. Open your [Supabase Dashboard](https://app.supabase.io/)
+2. Select your project
+3. Go to **Authentication > URL Configuration**
+
+### Site URL
+
+Set this to your production domain:
+
+```
+https://yourdomain.com
+```
+
+This is the base URL Supabase uses for all authentication-related redirects.
+
+### Redirect URLs
+
+Add your callback URL with a wildcard pattern:
+
+```
+https://yourdomain.com/auth/callback**
+```
+
+The `**` wildcard allows MakerKit's various authentication flows to work:
+
+- `/auth/callback` - Standard OAuth callback
+- `/auth/callback/confirm` - Email confirmation
+- `/auth/callback/password-reset` - Password reset flow
+
+{% alert type="default" title="Multiple environments" %}
+Add redirect URLs for each environment:
+- Production: `https://yourdomain.com/auth/callback**`
+- Staging: `https://staging.yourdomain.com/auth/callback**`
+- Vercel previews: `https://*-yourproject.vercel.app/auth/callback**`
+{% /alert %}
+
+---
+
+## Domain Matching
+
+A common authentication issue occurs when domains don't match exactly.
+
+### The Rule
+
+Your Site URL, Redirect URLs, and actual application URL must match exactly, including:
+
+- Protocol (`https://`)
+- Subdomain (`www.` or no `www`)
+- Domain name
+- No trailing slash
+
+### Examples
+
+| Site URL | Application URL | Result |
+|----------|-----------------|--------|
+| `https://example.com` | `https://example.com` | Works |
+| `https://example.com` | `https://www.example.com` | Fails |
+| `https://www.example.com` | `https://www.example.com` | Works |
+| `https://example.com/` | `https://example.com` | May fail |
+
+### Fix Domain Mismatches
+
+If users report login issues:
+
+1. Check what URL appears in the browser when users visit your app
+2. Ensure Site URL in Supabase matches exactly
+3. Update Redirect URLs to match
+4. Configure your hosting provider to redirect to a canonical URL
+
+---
+
+## Custom SMTP
+
+Supabase's default email service has severe limitations:
+
+- **Rate limit**: 4 emails per hour
+- **Deliverability**: Low (often lands in spam)
+- **Branding**: Generic Supabase branding
+
+Configure a real SMTP provider for production.
+
+### Navigate to SMTP Settings
+
+1. Go to **Project Settings > Authentication**
+2. Scroll to **SMTP Settings**
+3. Toggle **Enable Custom SMTP**
+
+### Configuration
+
+| Field | Description |
+|-------|-------------|
+| Host | Your SMTP server hostname |
+| Port | Usually 465 (SSL) or 587 (TLS) |
+| Username | SMTP authentication username |
+| Password | SMTP authentication password or API key |
+| Sender email | The "from" address for emails |
+| Sender name | Display name for the sender |
+
+### Provider Examples
+
+#### Resend
+
+```
+Host: smtp.resend.com
+Port: 465
+Username: resend
+Password: re_your_api_key
+```
+
+#### SendGrid
+
+```
+Host: smtp.sendgrid.net
+Port: 587
+Username: apikey
+Password: SG.your_api_key
+```
+
+#### Mailgun
+
+```
+Host: smtp.mailgun.org
+Port: 587
+Username: postmaster@your-domain.mailgun.org
+Password: your_api_key
+```
+
+### Verify Configuration
+
+After saving SMTP settings:
+
+1. Create a test user with a real email address
+2. Check that the confirmation email arrives
+3. Verify the email doesn't land in spam
+4. Confirm links in the email work correctly
+
+---
+
+## Third-Party Providers
+
+MakerKit supports OAuth login through Supabase. Configure providers in both the provider's developer console and Supabase.
+
+### How It Works
+
+1. You enable a provider in Supabase Dashboard
+2. MakerKit automatically shows the login button in the UI
+3. No code changes required
+
+### Supported Providers
+
+MakerKit displays login buttons for any provider you enable in Supabase:
+
+- Google
+- GitHub
+- Apple
+- Microsoft
+- Discord
+- Twitter/X
+- And others supported by Supabase
+
+### General Setup Process
+
+For each provider:
+
+1. **Create OAuth App**: Register an application in the provider's developer console
+2. **Get Credentials**: Copy the Client ID and Client Secret
+3. **Set Callback URL**: Add the Supabase callback URL to your OAuth app
+4. **Configure Supabase**: Enter credentials in **Authentication > Providers**
+
+### Google Setup
+
+Google is the most common OAuth provider. Here's the setup:
+
+#### In Google Cloud Console
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com)
+2. Create a new project or select existing
+3. Navigate to **APIs & Services > Credentials**
+4. Click **Create Credentials > OAuth client ID**
+5. Select **Web application**
+6. Add authorized redirect URI (from Supabase)
+
+#### In Supabase Dashboard
+
+1. Go to **Authentication > Providers**
+2. Click **Google**
+3. Toggle **Enable Sign in with Google**
+4. Enter your Client ID and Client Secret
+5. Copy the **Callback URL** to Google Cloud
+
+For detailed instructions, see [Supabase Google Auth documentation](https://supabase.com/docs/guides/auth/social-login/auth-google).
+
+---
+
+## Email Templates
+
+MakerKit provides custom email templates that fix a common authentication issue with Supabase.
+
+### The PKCE Problem
+
+Supabase uses PKCE (Proof Key for Code Exchange) for secure authentication. The PKCE verifier is stored in the browser that initiated the authentication.
+
+When a user:
+1. Signs up on their laptop
+2. Receives confirmation email on their phone
+3. Clicks the link on their phone
+
+Authentication fails because the phone doesn't have the PKCE verifier.
+
+### The Solution
+
+MakerKit's email templates use token hash URLs instead of PKCE, which work regardless of which device opens the link.
+
+See the [Authentication Emails](/docs/next-supabase-turbo/going-to-production/authentication-emails) guide for setup instructions.
+
+---
+
+## Troubleshooting
+
+### "Redirect URL not allowed" error
+
+The callback URL doesn't match any configured Redirect URLs in Supabase.
+
+1. Check the exact URL in the error message
+2. Add it to Redirect URLs in Supabase
+3. Include the `**` wildcard for flexibility
+
+### Users can't log in after email confirmation
+
+Usually a domain mismatch issue. Verify:
+
+1. Site URL matches your application URL exactly
+2. Redirect URLs match your domain
+3. No trailing slashes causing mismatches
+
+### OAuth login fails silently
+
+Check browser console for errors. Common issues:
+
+1. Callback URL in provider doesn't match Supabase
+2. OAuth credentials incorrect
+3. Provider not properly enabled in Supabase
+
+### Emails not received
+
+1. Check spam/junk folders
+2. Verify SMTP settings in Supabase
+3. Check your email provider's dashboard for delivery logs
+4. Ensure sender domain has proper DNS records (SPF, DKIM)
+
+### "Invalid PKCE verifier" error
+
+Users clicking email links from different browsers/devices. Update to MakerKit's email templates. See [Authentication Emails](/docs/next-supabase-turbo/going-to-production/authentication-emails).
+
+---
+
+## Security Considerations
+
+### Protect Your Credentials
+
+- Never expose the Supabase Service Role Key in client code
+- Store OAuth credentials securely (use environment variables)
+- Rotate credentials if they're ever exposed
+
+### Configure Rate Limiting
+
+Supabase has built-in rate limiting for authentication. Review settings in **Project Settings > Auth** to prevent abuse.
+
+### Monitor Authentication Events
+
+Enable audit logging in Supabase to track:
+- Failed login attempts
+- Unusual activity patterns
+- Password reset requests
+
+---
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Why does authentication fail when users click email links?", "answer": "Most likely a PKCE issue. Supabase's default email templates use PKCE which fails if the user opens the link in a different browser. Use MakerKit's custom email templates with token_hash URLs instead. See the Authentication Emails guide."},
+     {"question": "How do I add Google login?", "answer": "Enable Google in Supabase Dashboard > Authentication > Providers. Enter your Google Cloud OAuth credentials (Client ID and Secret). Copy the Supabase callback URL to your Google Cloud OAuth app. MakerKit automatically shows the Google login button."},
+     {"question": "Can I use multiple OAuth providers?", "answer": "Yes. Enable as many providers as you want in Supabase. MakerKit displays login buttons for all enabled providers automatically. Each provider needs its own OAuth app configured with the Supabase callback URL."},
+     {"question": "Why are my authentication emails going to spam?", "answer": "Supabase's default email service has poor deliverability. Configure a real SMTP provider like Resend, SendGrid, or Postmark. Also set up SPF, DKIM, and DMARC DNS records for your sending domain."},
+     {"question": "What's the redirect URL wildcard for?", "answer": "The ** wildcard in redirect URLs matches any path. MakerKit uses different callback paths for different flows: /auth/callback for OAuth, /auth/callback/confirm for email confirmation, /auth/callback/password-reset for password recovery. The wildcard covers all of them."},
+     {"question": "How do I test authentication locally?", "answer": "Supabase local development uses Inbucket for emails at http://localhost:54324. Sign up with any email, check Inbucket for the confirmation link, and click it. For OAuth, you need to configure providers with localhost callback URLs."}
+   ]
+/%}
+
+---
+
+## Next Steps
+
+- [Authentication Emails](/docs/next-supabase-turbo/going-to-production/authentication-emails): Configure email templates with token_hash URLs
+- [Environment Variables](/docs/next-supabase-turbo/going-to-production/production-environment-variables): Complete variable reference
+- [Supabase Configuration](/docs/next-supabase-turbo/going-to-production/supabase): Full Supabase setup guide

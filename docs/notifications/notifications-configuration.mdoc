@@ -1,0 +1,141 @@
+---
+status: "published"
+title: "Configuring Notifications"
+label: "Configuration"
+description: "Enable or disable notifications, configure real-time updates, and understand the cost implications of Supabase Realtime subscriptions."
+order: 0
+---
+
+Notifications are controlled by two environment variables in your `.env` file. Both are optional with sensible defaults.
+
+## Environment variables
+
+```bash
+# Enable the notifications feature (default: true)
+NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
+
+# Enable real-time updates via Supabase Realtime (default: false)
+NEXT_PUBLIC_REALTIME_NOTIFICATIONS=false
+```
+
+These values are read in `apps/web/config/feature-flags.config.ts` using a helper that parses the string value:
+
+```typescript
+const featuresFlagConfig = FeatureFlagsSchema.parse({
+  enableNotifications: getBoolean(
+    process.env.NEXT_PUBLIC_ENABLE_NOTIFICATIONS,
+    true, // default
+  ),
+  realtimeNotifications: getBoolean(
+    process.env.NEXT_PUBLIC_REALTIME_NOTIFICATIONS,
+    false, // default
+  ),
+});
+
+function getBoolean(value: unknown, defaultValue: boolean) {
+  if (typeof value === 'string') {
+    return value === 'true';
+  }
+  return defaultValue;
+}
+```
+
+## NEXT_PUBLIC_ENABLE_NOTIFICATIONS
+
+Controls whether the notification bell icon appears in the header.
+
+| Value | Behavior |
+|-------|----------|
+| `true` (default) | Bell icon visible, notifications functional |
+| `false` | Bell icon hidden, no notification queries |
+
+When disabled, no database queries are made and the `NotificationsPopover` component doesn't render.
+
+**When to disable**: If your app doesn't need in-app notifications (e.g., you only use email notifications), set this to `false` to simplify your UI.
+
+## NEXT_PUBLIC_REALTIME_NOTIFICATIONS
+
+Controls whether the client subscribes to Supabase Realtime for instant notification delivery.
+
+| Value | Behavior |
+|-------|----------|
+| `false` (default) | Notifications load on page navigation only |
+| `true` | New notifications appear instantly without refresh |
+
+### How real-time works
+
+When enabled, each connected client opens a WebSocket connection to Supabase and subscribes to `INSERT` events on the `notifications` table, filtered by the user's account IDs:
+
+```typescript
+client.channel('notifications-channel')
+  .on('postgres_changes', {
+    event: 'INSERT',
+    schema: 'public',
+    table: 'notifications',
+    filter: `account_id=in.(${accountIds.join(', ')})`,
+  }, (payload) => {
+    // New notification received
+  })
+  .subscribe();
+```
+
+### Cost considerations
+
+Supabase Realtime connections count toward your plan limits:
+
+- **Free tier**: 200 concurrent connections
+- **Pro tier**: 500 concurrent connections (more available as add-on)
+
+Each browser tab from each user maintains one connection. For an app with 100 concurrent users averaging 2 tabs each, that's 200 connections.
+
+**Recommendation**: Start with real-time disabled. Enable it only if instant notification delivery is a core requirement. Most users check notifications on page load anyway.
+
+### Without real-time
+
+Notifications are fetched via React Query on component mount:
+
+- Initial page load fetches the 10 most recent non-dismissed, non-expired notifications
+- No refetch on window focus (to reduce server load)
+- Users see new notifications when they navigate to a new page
+
+This approach works well for most SaaS applications and has zero cost impact.
+
+## Using feature flags in your code
+
+Check these flags before rendering notification-related UI:
+
+```typescript
+import featuresFlagConfig from '~/config/feature-flags.config';
+
+function AppHeader() {
+  return (
+    <header>
+      {/* Other header content */}
+
+      {featuresFlagConfig.enableNotifications && (
+        <NotificationsPopover
+          accountIds={[accountId]}
+          realtime={featuresFlagConfig.realtimeNotifications}
+        />
+      )}
+    </header>
+  );
+}
+```
+
+The built-in layouts already handle this check. You only need to worry about feature flags if you're building custom notification UI.
+
+## Testing notifications locally
+
+1. Ensure your local Supabase is running: `pnpm supabase:web:start`
+2. Notifications are enabled by default in development
+3. Use the [sending notifications API](/docs/next-supabase-turbo/notifications/sending-notifications) to create test notifications
+4. If testing real-time, set `NEXT_PUBLIC_REALTIME_NOTIFICATIONS=true` in `.env.local`
+
+To verify real-time is working, open two browser tabs, send a notification, and confirm it appears in both tabs without refreshing.
+
+## Related documentation
+
+- [Notifications overview](/docs/next-supabase-turbo/notifications): Feature overview and architecture
+- [Sending notifications](/docs/next-supabase-turbo/notifications/sending-notifications): Server-side API for creating notifications
+- [Database schema](/docs/next-supabase-turbo/notifications/notifications-schema): Table structure and RLS policies

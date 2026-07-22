@@ -1,0 +1,354 @@
+---
+status: "published"
+title: "Supabase Clients in Next.js"
+label: "Supabase Clients"
+description: "How to use Supabase clients in browser and server environments. Includes the standard client, server client, and admin client for bypassing RLS."
+order: 0
+---
+
+MakerKit provides three Supabase clients for different environments: `useSupabase()` for Client Components, `getSupabaseServerClient()` for Server Components and Server Actions, and `getSupabaseServerAdminClient()` for admin operations that bypass Row Level Security. Use the right client for your context to ensure security and proper RLS enforcement. As of Next.js 16 and React 19, these patterns are tested and recommended.
+
+{% callout title="Which client should I use?" %}
+**In Client Components**: Use `useSupabase()` hook. **In Server Components or Server Actions**: Use `getSupabaseServerClient()`. **For webhooks or admin tasks**: Use `getSupabaseServerAdminClient()` (bypasses RLS).
+{% /callout %}
+
+## Client Overview
+
+| Client | Environment | RLS | Use Case |
+|--------|-------------|-----|----------|
+| `useSupabase()` | Browser (React) | Yes | Client components, real-time subscriptions |
+| `getSupabaseServerClient()` | Server | Yes | Server Components, Server Actions, Route Handlers |
+| `getSupabaseServerAdminClient()` | Server | **Bypassed** | Admin operations, migrations, webhooks |
+
+## Browser Client
+
+Use the `useSupabase` hook in client components. This client runs in the browser and respects all RLS policies.
+
+```tsx
+'use client';
+
+import { useSupabase } from '@kit/supabase/hooks/use-supabase';
+
+export function TasksList() {
+  const supabase = useSupabase();
+
+  const handleComplete = async (taskId: string) => {
+    const { error } = await supabase
+      .from('tasks')
+      .update({ completed: true })
+      .eq('id', taskId);
+
+    if (error) {
+      console.error('Failed to complete task:', error.message);
+    }
+  };
+
+  return (
+    <button onClick={() => handleComplete('task-123')}>
+      Complete Task
+    </button>
+  );
+}
+```
+
+### Real-time Subscriptions
+
+The browser client supports real-time subscriptions for live updates:
+
+```tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useSupabase } from '@kit/supabase/hooks/use-supabase';
+
+export function LiveTasksList({ accountId }: { accountId: string }) {
+  const supabase = useSupabase();
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  useEffect(() => {
+    // Subscribe to changes
+    const channel = supabase
+      .channel('tasks-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+          filter: `account_id=eq.${accountId}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setTasks((prev) => [...prev, payload.new as Task]);
+          }
+          if (payload.eventType === 'UPDATE') {
+            setTasks((prev) =>
+              prev.map((t) => (t.id === payload.new.id ? payload.new as Task : t))
+            );
+          }
+          if (payload.eventType === 'DELETE') {
+            setTasks((prev) => prev.filter((t) => t.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, accountId]);
+
+  return <ul>{tasks.map((task) => <li key={task.id}>{task.title}</li>)}</ul>;
+}
+```
+
+## Server Client
+
+Use `getSupabaseServerClient()` in all server environments: Server Components, Server Actions, and Route Handlers. This is a unified client that works across all server contexts.
+
+```tsx
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+// Server Component
+export default async function TasksPage() {
+  const supabase = getSupabaseServerClient();
+
+  const { data: tasks, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error('Failed to load tasks');
+  }
+
+  return <TasksList tasks={tasks} />;
+}
+```
+
+### Server Actions
+
+The same client works in Server Actions:
+
+```tsx
+'use server';
+
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import { authActionClient } from '@kit/next/safe-action';
+
+export const createTask = authActionClient
+  .inputSchema(CreateTaskSchema)
+  .action(async ({ parsedInput: data, ctx: { user } }) => {
+    const supabase = getSupabaseServerClient();
+
+    const { error } = await supabase.from('tasks').insert({
+      title: data.title,
+      account_id: data.accountId,
+      created_by: user.id,
+    });
+
+    if (error) {
+      throw new Error('Failed to create task');
+    }
+
+    return { success: true };
+  });
+```
+
+### Route Handlers
+
+And in Route Handlers:
+
+```tsx
+import { NextResponse } from 'next/server';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import { enhanceRouteHandler } from '@kit/next/routes';
+
+export const GET = enhanceRouteHandler(
+  async ({ user }) => {
+    const supabase = getSupabaseServerClient();
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('created_by', user.id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ tasks: data });
+  },
+  { auth: true }
+);
+```
+
+## Admin Client (Use with Caution)
+
+The admin client bypasses Row Level Security entirely. It uses the service role key and should only be used for:
+
+- Webhook handlers that need to write data without user context
+- Admin operations in protected admin routes
+- Database migrations or seed scripts
+- Background jobs running outside user sessions
+
+```tsx
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+
+// Example: Webhook handler that needs to update user data
+export async function POST(request: Request) {
+  const payload = await request.json();
+
+  // Verify webhook signature first!
+  if (!verifyWebhookSignature(request)) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  // Admin client bypasses RLS - use only when necessary
+  const supabase = getSupabaseServerAdminClient();
+
+  const { error } = await supabase
+    .from('subscriptions')
+    .update({ status: payload.status })
+    .eq('stripe_customer_id', payload.customer);
+
+  if (error) {
+    return new Response('Failed to update', { status: 500 });
+  }
+
+  return new Response('OK', { status: 200 });
+}
+```
+
+### Security Warning
+
+The admin client has unrestricted database access. Before using it:
+
+1. **Verify the request** - Always validate webhook signatures or admin tokens
+2. **Validate all input** - Never trust incoming data without validation
+3. **Audit access** - Log admin operations for security audits
+4. **Minimize scope** - Only query/update what's necessary
+
+```tsx
+// WRONG: Using admin client without verification
+export async function dangerousEndpoint(request: Request) {
+  const supabase = getSupabaseServerAdminClient();
+  const { userId } = await request.json();
+
+  // This deletes ANY user - extremely dangerous!
+  await supabase.from('users').delete().eq('id', userId);
+}
+
+// RIGHT: Verify authorization before admin operations
+export async function safeEndpoint(request: Request) {
+  // 1. Verify the request comes from a trusted source
+  if (!verifyAdminToken(request)) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  // 2. Validate input
+  const parsed = AdminActionSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return new Response('Invalid input', { status: 400 });
+  }
+
+  // 3. Now safe to use admin client
+  const supabase = getSupabaseServerAdminClient();
+  // ... perform operation
+}
+```
+
+## TypeScript Integration
+
+All clients are fully typed with your database schema. Generate types from your Supabase project:
+
+```bash
+pnpm supabase gen types typescript --project-id your-project-id > packages/supabase/src/database.types.ts
+```
+
+Then your queries get full autocomplete and type checking:
+
+```tsx
+const supabase = getSupabaseServerClient();
+
+// TypeScript knows the shape of 'tasks' table
+const { data } = await supabase
+  .from('tasks') // autocomplete table names
+  .select('id, title, completed, created_at') // autocomplete columns
+  .eq('completed', false); // type-safe filter values
+
+// data is typed as Pick<Task, 'id' | 'title' | 'completed' | 'created_at'>[]
+```
+
+## Common Mistakes
+
+### Using Browser Client on Server
+
+```tsx
+// WRONG: useSupabase is a React hook, can't use in Server Components
+export default async function Page() {
+  const supabase = useSupabase(); // This will error
+}
+
+// RIGHT: Use server client
+export default async function Page() {
+  const supabase = getSupabaseServerClient();
+}
+```
+
+### Using Admin Client When Not Needed
+
+```tsx
+// WRONG: Using admin client for regular user operations
+export const getUserTasks = authActionClient
+  .action(async ({ ctx: { user } }) => {
+    const supabase = getSupabaseServerAdminClient(); // Unnecessary, bypasses RLS
+    return supabase.from('tasks').select('*').eq('user_id', user.id);
+  });
+
+// RIGHT: Use regular server client, RLS handles authorization
+export const getUserTasks = authActionClient
+  .action(async ({ ctx: { user } }) => {
+    const supabase = getSupabaseServerClient(); // RLS ensures user sees only their data
+    return supabase.from('tasks').select('*');
+  });
+```
+
+### Creating Multiple Client Instances
+
+```tsx
+// WRONG: Creating new client on every call
+async function getTasks() {
+  const supabase = getSupabaseServerClient();
+  return supabase.from('tasks').select('*');
+}
+
+async function getUsers() {
+  const supabase = getSupabaseServerClient(); // Another instance
+  return supabase.from('users').select('*');
+}
+
+// This is actually fine - the client is lightweight and shares the same
+// cookie/auth state. But if you're making multiple queries in one function,
+// reuse the instance:
+
+// BETTER: Reuse client within a function
+async function loadDashboard() {
+  const supabase = getSupabaseServerClient();
+
+  const [tasks, users] = await Promise.all([
+    supabase.from('tasks').select('*'),
+    supabase.from('users').select('*'),
+  ]);
+
+  return { tasks, users };
+}
+```
+
+## Next Steps
+
+Now that you understand the Supabase clients, learn how to use them in different contexts:
+
+- [Server Components](server-components) - Loading data for pages
+- [Server Actions](server-actions) - Mutations and form handling
+- [React Query](react-query) - Client-side data management

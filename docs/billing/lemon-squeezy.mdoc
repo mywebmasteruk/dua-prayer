@@ -1,0 +1,266 @@
+---
+status: "published"
+label: "Lemon Squeezy"
+title: "Configure Lemon Squeezy Billing for Your Next.js SaaS"
+order: 3
+description: "Complete guide to setting up Lemon Squeezy payments in Makerkit. Lemon Squeezy is a Merchant of Record that handles global tax compliance, billing, and payments for your SaaS."
+---
+
+Lemon Squeezy is a Merchant of Record (MoR), meaning they handle all billing complexity for you: VAT, sales tax, invoicing, and compliance across 100+ countries. You receive payouts minus their fees.
+
+## Why Choose Lemon Squeezy?
+
+**Pros:**
+- Automatic global tax compliance (VAT, GST, sales tax)
+- No need to register for tax collection in different countries
+- Simpler setup than Stripe for international sales
+- Built-in license key generation (great for desktop apps)
+- Lower complexity for solo founders
+
+**Cons:**
+- One line item per plan (no mixing flat + metered + per-seat)
+- Less flexibility than Stripe
+- Higher fees than Stripe in some regions
+
+## Prerequisites
+
+1. Create a [Lemon Squeezy account](https://lemonsqueezy.com)
+2. Create a Store in your Lemon Squeezy dashboard
+3. Create Products and Variants for your pricing plans
+4. Set up a webhook endpoint
+
+## Step 1: Environment Variables
+
+Add these variables to your `.env.local`:
+
+```bash
+LEMON_SQUEEZY_SECRET_KEY=your_api_key_here
+LEMON_SQUEEZY_SIGNING_SECRET=your_webhook_signing_secret
+LEMON_SQUEEZY_STORE_ID=your_store_id
+```
+
+| Variable | Description | Where to Find |
+|----------|-------------|---------------|
+| `LEMON_SQUEEZY_SECRET_KEY` | API key for server-side calls | Settings → API |
+| `LEMON_SQUEEZY_SIGNING_SECRET` | Webhook signature verification | Settings → Webhooks |
+| `LEMON_SQUEEZY_STORE_ID` | Your store's numeric ID | Settings → Stores |
+
+{% alert type="error" title="Keep secrets secure" %}
+Add these to `.env.local` only. Never commit them to your repository or add them to `.env`.
+{% /alert %}
+
+## Step 2: Configure Billing Provider
+
+Set Lemon Squeezy as your billing provider in the environment:
+
+```bash
+NEXT_PUBLIC_BILLING_PROVIDER=lemon-squeezy
+```
+
+And update the database:
+
+```sql
+UPDATE public.config SET billing_provider = 'lemon-squeezy';
+```
+
+## Step 3: Create Products in Lemon Squeezy
+
+1. Go to your Lemon Squeezy Dashboard → Products
+2. Click **New Product**
+3. Configure your product:
+   - **Name**: "Pro Plan", "Starter Plan", etc.
+   - **Pricing**: Choose subscription or one-time
+   - **Variant**: Create variants for different billing intervals
+
+4. Copy the **Variant ID** (not Product ID) for your billing schema
+
+The Variant ID looks like `123456` (numeric). This goes in your line item's `id` field.
+
+## Step 4: Update Billing Schema
+
+Lemon Squeezy has a key limitation: **one line item per plan**. You cannot mix flat, per-seat, and metered billing in a single plan.
+
+```tsx
+import { createBillingSchema } from '@kit/billing';
+
+export default createBillingSchema({
+  provider: 'lemon-squeezy',
+  products: [
+    {
+      id: 'pro',
+      name: 'Pro',
+      description: 'For professionals',
+      currency: 'USD',
+      plans: [
+        {
+          id: 'pro-monthly',
+          name: 'Pro Monthly',
+          paymentType: 'recurring',
+          interval: 'month',
+          lineItems: [
+            {
+              id: '123456',  // Lemon Squeezy Variant ID
+              name: 'Pro Plan',
+              cost: 29,
+              type: 'flat',
+            },
+            // Cannot add more line items with Lemon Squeezy!
+          ],
+        },
+      ],
+    },
+  ],
+});
+```
+
+{% alert type="warning" title="Single line item only" %}
+The schema validation will fail if you add multiple line items with Lemon Squeezy. This is a platform limitation.
+{% /alert %}
+
+## Step 5: Configure Webhooks
+
+### Local Development
+
+Lemon Squeezy requires a public URL for webhooks. Use a tunneling service like ngrok:
+
+```bash
+# Install ngrok
+npm install -g ngrok
+
+# Expose your local server
+ngrok http 3000
+```
+
+Copy the ngrok URL (e.g., `https://abc123.ngrok.io`).
+
+### Create Webhook in Lemon Squeezy
+
+1. Go to Settings → Webhooks
+2. Click **Add Webhook**
+3. Configure:
+   - **URL**: `https://your-ngrok-url.ngrok.io/api/billing/webhook` (dev) or `https://yourdomain.com/api/billing/webhook` (prod)
+   - **Secret**: Generate a secure secret and save it as `LEMON_SQUEEZY_SIGNING_SECRET`
+
+4. Select these events:
+   - `order_created`
+   - `subscription_created`
+   - `subscription_updated`
+   - `subscription_expired`
+
+5. Click **Save**
+
+### Production Webhooks
+
+For production, replace the ngrok URL with your actual domain:
+
+```
+https://yourdomain.com/api/billing/webhook
+```
+
+## Metered Usage with Lemon Squeezy
+
+Lemon Squeezy handles metered billing differently than Stripe. Usage applies to the entire subscription, not individual line items.
+
+### Setup Fee + Metered Usage
+
+Use the `setupFee` property for a flat base charge plus usage-based pricing:
+
+```tsx
+{
+  id: 'api-monthly',
+  name: 'API Monthly',
+  paymentType: 'recurring',
+  interval: 'month',
+  lineItems: [
+    {
+      id: '123456',
+      name: 'API Access',
+      cost: 0,
+      type: 'metered',
+      unit: 'requests',
+      setupFee: 10,  // $10 base fee
+      tiers: [
+        { upTo: 1000, cost: 0 },
+        { upTo: 'unlimited', cost: 0.001 },
+      ],
+    },
+  ],
+}
+```
+
+The setup fee is charged once when the subscription is created.
+
+### Reporting Usage
+
+Report usage using the billing API:
+
+```tsx
+import { createBillingGatewayService } from '@kit/billing-gateway';
+
+async function reportUsage(subscriptionItemId: string, quantity: number) {
+  const service = createBillingGatewayService('lemon-squeezy');
+
+  return service.reportUsage({
+    id: subscriptionItemId,  // From subscription_items table
+    usage: {
+      quantity,
+      action: 'increment',
+    },
+  });
+}
+```
+
+See the [metered usage guide](/docs/next-supabase-turbo/billing/metered-usage) for complete implementation details.
+
+## Testing
+
+### Test Mode
+
+Lemon Squeezy has a test mode. Enable it in your dashboard under Settings → Test Mode.
+
+Test mode uses separate products and variants, so create test versions of your products.
+
+### Test Cards
+
+In test mode, use these card numbers:
+- **Success**: `4242 4242 4242 4242`
+- **Decline**: `4000 0000 0000 0002`
+
+Any future expiry date and any 3-digit CVC will work.
+
+## Common Issues
+
+### Webhook signature verification failed
+
+1. Check that `LEMON_SQUEEZY_SIGNING_SECRET` matches the secret in your Lemon Squeezy webhook settings
+2. Ensure the raw request body is used for verification (not parsed JSON)
+3. Verify the webhook URL is correct
+
+### Subscription not created
+
+1. Check webhook logs in Lemon Squeezy dashboard
+2. Verify the `order_created` event is enabled
+3. Check your application logs for errors
+
+### Multiple line items error
+
+Lemon Squeezy only supports one line item per plan. Restructure your pricing to use a single line item, or use Stripe for more complex pricing models.
+
+## Testing Checklist
+
+Before going live:
+
+- [ ] Create test products in Lemon Squeezy test mode
+- [ ] Test subscription checkout with test card
+- [ ] Verify subscription appears in user's billing section
+- [ ] Test subscription cancellation
+- [ ] Verify webhook events are processed correctly
+- [ ] Test with failing card to verify error handling
+- [ ] Switch to production products and webhook URL
+
+## Related Documentation
+
+- [Billing Overview](/docs/next-supabase-turbo/billing/overview) - Architecture and provider comparison
+- [Billing Schema](/docs/next-supabase-turbo/billing/billing-schema) - Configure your pricing
+- [Webhooks](/docs/next-supabase-turbo/billing/billing-webhooks) - Custom webhook handling
+- [Metered Usage](/docs/next-supabase-turbo/billing/metered-usage) - Usage-based billing implementation

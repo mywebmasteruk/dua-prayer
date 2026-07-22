@@ -1,0 +1,650 @@
+---
+status: "published"
+label: "Team Account API"
+order: 1
+title: "Team Account API | Next.js Supabase SaaS Kit"
+description: "Complete reference for the Team Account API in MakerKit. Manage teams, members, permissions, invitations, subscriptions, and workspace data with type-safe methods."
+---
+
+The Team Account API manages team accounts, members, permissions, and invitations. Use it to check user permissions, manage team subscriptions, and handle team invitations in your multi-tenant SaaS application.
+
+{% sequence title="Team Account API Reference" description="Learn how to use the Team Account API in MakerKit" %}
+
+[Setup and initialization](#setup-and-initialization)
+
+[getTeamAccountById](#getteamaccountbyid)
+
+[getAccountWorkspace](#getaccountworkspace)
+
+[getSubscription](#getsubscription)
+
+[getOrder](#getorder)
+
+[hasPermission](#haspermission)
+
+[getMembersCount](#getmemberscount)
+
+[getCustomerId](#getcustomerid)
+
+[getInvitation](#getinvitation)
+
+[Real-world examples](#real-world-examples)
+
+{% /sequence %}
+
+## Setup and initialization
+
+Import `createTeamAccountsApi` from `@kit/team-accounts/api` and pass a Supabase server client.
+
+```tsx
+import { createTeamAccountsApi } from '@kit/team-accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+async function ServerComponent() {
+  const client = getSupabaseServerClient();
+  const api = createTeamAccountsApi(client);
+
+  // Use API methods
+}
+```
+
+In Server Actions:
+
+```tsx
+'use server';
+
+import { createTeamAccountsApi } from '@kit/team-accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export async function myServerAction() {
+  const client = getSupabaseServerClient();
+  const api = createTeamAccountsApi(client);
+
+  // Use API methods
+}
+```
+
+{% callout title="Request-scoped clients" %}
+Always create the Supabase client and API instance inside your request handler, not at module scope. The client is tied to the current user's session and RLS policies.
+{% /callout %}
+
+## API Methods
+
+### getTeamAccountById
+
+Retrieves a team account by its UUID. Also verifies the current user has access to the team.
+
+```tsx
+const account = await api.getTeamAccountById(accountId);
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `accountId` | `string` | The team account UUID |
+
+**Returns:**
+
+```tsx
+{
+  id: string;
+  name: string;
+  slug: string;
+  picture_url: string | null;
+  public_data: Json | null;
+  primary_owner_user_id: string;
+  created_at: string;
+  updated_at: string;
+} | null
+```
+
+**Usage notes:**
+
+- Returns `null` if the account doesn't exist or user lacks access
+- RLS policies ensure users only see teams they belong to
+- Use this to verify team membership before operations
+
+---
+
+### getAccountWorkspace
+
+Returns the team workspace data for a given team slug. This is the primary method for loading team context in layouts.
+
+```tsx
+const workspace = await api.getAccountWorkspace(slug);
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `slug` | `string` | The team URL slug |
+
+**Returns:**
+
+```tsx
+{
+  account: {
+    id: string;
+    name: string;
+    slug: string;
+    picture_url: string | null;
+    role: string;
+    role_hierarchy_level: number;
+    primary_owner_user_id: string;
+    subscription_status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'paused' | null;
+    permissions: string[];
+  };
+  accounts: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    picture_url: string | null;
+    role: string;
+  }>;
+}
+```
+
+**Usage notes:**
+
+- Called automatically in the `/home/[account]` layout
+- The `permissions` array contains all permissions for the current user in this team
+- Use `role_hierarchy_level` for role-based comparisons (lower = more permissions)
+
+---
+
+### getSubscription
+
+Returns the subscription data for a team account, including all line items.
+
+```tsx
+const subscription = await api.getSubscription(accountId);
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `accountId` | `string` | The team account UUID |
+
+**Returns:**
+
+```tsx
+{
+  id: string;
+  account_id: string;
+  billing_provider: 'stripe' | 'lemon-squeezy' | 'paddle';
+  status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'paused';
+  currency: string;
+  cancel_at_period_end: boolean;
+  period_starts_at: string;
+  period_ends_at: string;
+  trial_starts_at: string | null;
+  trial_ends_at: string | null;
+  items: Array<{
+    id: string;
+    subscription_id: string;
+    product_id: string;
+    variant_id: string;
+    type: 'flat' | 'per_seat' | 'metered';
+    quantity: number;
+    price_amount: number;
+    interval: 'month' | 'year';
+    interval_count: number;
+  }>;
+} | null
+```
+
+**Example: Check per-seat limits**
+
+```tsx
+import { createTeamAccountsApi } from '@kit/team-accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+async function canAddTeamMember(accountId: string) {
+  const client = getSupabaseServerClient();
+  const api = createTeamAccountsApi(client);
+
+  const [subscription, membersCount] = await Promise.all([
+    api.getSubscription(accountId),
+    api.getMembersCount(accountId),
+  ]);
+
+  if (!subscription) {
+    // Free tier: allow up to 3 members
+    return membersCount < 3;
+  }
+
+  const perSeatItem = subscription.items.find((item) => item.type === 'per_seat');
+
+  if (perSeatItem) {
+    return membersCount < perSeatItem.quantity;
+  }
+
+  // Flat-rate plan: no seat limit
+  return true;
+}
+```
+
+---
+
+### getOrder
+
+Returns one-time purchase order data for team accounts using lifetime deals.
+
+```tsx
+const order = await api.getOrder(accountId);
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `accountId` | `string` | The team account UUID |
+
+**Returns:**
+
+```tsx
+{
+  id: string;
+  account_id: string;
+  billing_provider: 'stripe' | 'lemon-squeezy' | 'paddle';
+  status: 'pending' | 'completed' | 'refunded';
+  currency: string;
+  total_amount: number;
+  items: Array<{
+    product_id: string;
+    variant_id: string;
+    quantity: number;
+    price_amount: number;
+  }>;
+} | null
+```
+
+---
+
+### hasPermission
+
+Checks if a user has a specific permission within a team account. Use this for fine-grained authorization checks.
+
+```tsx
+const canManage = await api.hasPermission({
+  accountId: 'team-uuid',
+  userId: 'user-uuid',
+  permission: 'billing.manage',
+});
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `accountId` | `string` | The team account UUID |
+| `userId` | `string` | The user UUID to check |
+| `permission` | `string` | The permission identifier |
+
+**Returns:** `boolean`
+
+**Built-in permissions:**
+
+| Permission | Description |
+|------------|-------------|
+| `billing.manage` | Manage subscription and payment methods |
+| `members.invite` | Invite new team members |
+| `members.remove` | Remove team members |
+| `members.manage` | Update member roles |
+| `settings.manage` | Update team settings |
+
+**Example: Permission-gated Server Action**
+
+```tsx
+'use server';
+
+import * as z from 'zod';
+import { authActionClient } from '@kit/next/safe-action';
+import { createTeamAccountsApi } from '@kit/team-accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+const UpdateTeamSchema = z.object({
+  accountId: z.string().uuid(),
+  name: z.string().min(2).max(50),
+});
+
+export const updateTeamSettings = authActionClient
+  .inputSchema(UpdateTeamSchema)
+  .action(async ({ parsedInput: data, ctx: { user } }) => {
+    const client = getSupabaseServerClient();
+    const api = createTeamAccountsApi(client);
+
+    const canManage = await api.hasPermission({
+      accountId: data.accountId,
+      userId: user.id,
+      permission: 'settings.manage',
+    });
+
+    if (!canManage) {
+      return {
+        success: false,
+        error: 'You do not have permission to update team settings',
+      };
+    }
+
+    // Update team...
+    return { success: true };
+  });
+```
+
+---
+
+### getMembersCount
+
+Returns the total number of members in a team account.
+
+```tsx
+const count = await api.getMembersCount(accountId);
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `accountId` | `string` | The team account UUID |
+
+**Returns:** `number | null`
+
+**Example: Display team size**
+
+```tsx
+import { createTeamAccountsApi } from '@kit/team-accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+async function TeamStats({ accountId }: { accountId: string }) {
+  const client = getSupabaseServerClient();
+  const api = createTeamAccountsApi(client);
+  const membersCount = await api.getMembersCount(accountId);
+
+  return (
+    <div>
+      <span className="font-medium">{membersCount}</span>
+      <span className="text-muted-foreground"> team members</span>
+    </div>
+  );
+}
+```
+
+---
+
+### getCustomerId
+
+Returns the billing provider customer ID for a team account.
+
+```tsx
+const customerId = await api.getCustomerId(accountId);
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `accountId` | `string` | The team account UUID |
+
+**Returns:** `string | null`
+
+---
+
+### getInvitation
+
+Retrieves invitation data from an invite token. Requires an admin client to bypass RLS for pending invitations.
+
+```tsx
+const invitation = await api.getInvitation(adminClient, token);
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `adminClient` | `SupabaseClient` | Admin client (bypasses RLS) |
+| `token` | `string` | The invitation token |
+
+**Returns:**
+
+```tsx
+{
+  id: number;
+  email: string;
+  account: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  role: string;
+  expires_at: string;
+} | null
+```
+
+**Example: Accept invitation flow**
+
+```tsx
+import { createTeamAccountsApi } from '@kit/team-accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+
+async function getInvitationDetails(token: string) {
+  const client = getSupabaseServerClient();
+  const adminClient = getSupabaseServerAdminClient();
+  const api = createTeamAccountsApi(client);
+
+  const invitation = await api.getInvitation(adminClient, token);
+
+  if (!invitation) {
+    return { error: 'Invalid or expired invitation' };
+  }
+
+  const now = new Date();
+  const expiresAt = new Date(invitation.expires_at);
+
+  if (now > expiresAt) {
+    return { error: 'This invitation has expired' };
+  }
+
+  return {
+    teamName: invitation.account.name,
+    role: invitation.role,
+    email: invitation.email,
+  };
+}
+```
+
+{% callout type="warning" title="Admin client security" %}
+The admin client bypasses Row Level Security. Only use it for operations that require elevated privileges, and always validate authorization separately.
+{% /callout %}
+
+---
+
+## Real-world examples
+
+### Complete team management Server Actions
+
+```tsx
+// lib/server/team-actions.ts
+'use server';
+
+import * as z from 'zod';
+import { revalidatePath } from 'next/cache';
+import { authActionClient } from '@kit/next/safe-action';
+import { createTeamAccountsApi } from '@kit/team-accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+const InviteMemberSchema = z.object({
+  accountId: z.string().uuid(),
+  email: z.string().email(),
+  role: z.enum(['admin', 'member']),
+});
+
+const RemoveMemberSchema = z.object({
+  accountId: z.string().uuid(),
+  userId: z.string().uuid(),
+});
+
+export const inviteMember = authActionClient
+  .inputSchema(InviteMemberSchema)
+  .action(async ({ parsedInput: data, ctx: { user } }) => {
+    const client = getSupabaseServerClient();
+    const api = createTeamAccountsApi(client);
+
+    // Check permission
+    const canInvite = await api.hasPermission({
+      accountId: data.accountId,
+      userId: user.id,
+      permission: 'members.invite',
+    });
+
+    if (!canInvite) {
+      return { success: false, error: 'Permission denied' };
+    }
+
+    // Check seat limits
+    const [subscription, membersCount] = await Promise.all([
+      api.getSubscription(data.accountId),
+      api.getMembersCount(data.accountId),
+    ]);
+
+    if (subscription) {
+      const perSeatItem = subscription.items.find((i) => i.type === 'per_seat');
+      if (perSeatItem && membersCount >= perSeatItem.quantity) {
+        return {
+          success: false,
+          error: 'Team has reached maximum seats. Please upgrade your plan.',
+        };
+      }
+    }
+
+    // Create invitation...
+    const { error } = await client.from('invitations').insert({
+      account_id: data.accountId,
+      email: data.email,
+      role: data.role,
+      invited_by: user.id,
+    });
+
+    if (error) {
+      return { success: false, error: 'Failed to send invitation' };
+    }
+
+    revalidatePath(`/home/[account]/settings/members`, 'page');
+    return { success: true };
+  });
+
+export const removeMember = authActionClient
+  .inputSchema(RemoveMemberSchema)
+  .action(async ({ parsedInput: data, ctx: { user } }) => {
+    const client = getSupabaseServerClient();
+    const api = createTeamAccountsApi(client);
+
+    // Cannot remove yourself
+    if (data.userId === user.id) {
+      return { success: false, error: 'You cannot remove yourself' };
+    }
+
+    // Check permission
+    const canRemove = await api.hasPermission({
+      accountId: data.accountId,
+      userId: user.id,
+      permission: 'members.remove',
+    });
+
+    if (!canRemove) {
+      return { success: false, error: 'Permission denied' };
+    }
+
+    // Check if target is owner
+    const account = await api.getTeamAccountById(data.accountId);
+    if (account?.primary_owner_user_id === data.userId) {
+      return { success: false, error: 'Cannot remove the team owner' };
+    }
+
+    // Remove member...
+    const { error } = await client
+      .from('accounts_memberships')
+      .delete()
+      .eq('account_id', data.accountId)
+      .eq('user_id', data.userId);
+
+    if (error) {
+      return { success: false, error: 'Failed to remove member' };
+    }
+
+    revalidatePath(`/home/[account]/settings/members`, 'page');
+    return { success: true };
+  });
+```
+
+### Permission-based UI rendering
+
+```tsx
+import { createTeamAccountsApi } from '@kit/team-accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import { requireUser } from '@kit/supabase/require-user';
+import { redirect } from 'next/navigation';
+
+async function TeamSettingsPage({ params }: { params: { account: string } }) {
+  const client = getSupabaseServerClient();
+  const auth = await requireUser(client);
+
+  if (auth.error) {
+    redirect(auth.redirectTo);
+  }
+
+  const api = createTeamAccountsApi(client);
+  const workspace = await api.getAccountWorkspace(params.account);
+
+  const permissions = {
+    canManageSettings: workspace.account.permissions.includes('settings.manage'),
+    canManageBilling: workspace.account.permissions.includes('billing.manage'),
+    canInviteMembers: workspace.account.permissions.includes('members.invite'),
+    canRemoveMembers: workspace.account.permissions.includes('members.remove'),
+  };
+
+  return (
+    <div>
+      <h1>Team Settings</h1>
+
+      {permissions.canManageSettings && (
+        <section>
+          <h2>General Settings</h2>
+          {/* Settings form */}
+        </section>
+      )}
+
+      {permissions.canManageBilling && (
+        <section>
+          <h2>Billing</h2>
+          {/* Billing management */}
+        </section>
+      )}
+
+      {permissions.canInviteMembers && (
+        <section>
+          <h2>Invite Members</h2>
+          {/* Invitation form */}
+        </section>
+      )}
+
+      {!permissions.canManageSettings &&
+        !permissions.canManageBilling &&
+        !permissions.canInviteMembers && (
+          <p>You don't have permission to manage this team.</p>
+        )}
+    </div>
+  );
+}
+```
+
+## Related documentation
+
+- [Account API](/docs/next-supabase-turbo/api/account-api) - Personal account management
+- [Team Workspace API](/docs/next-supabase-turbo/api/account-workspace-api) - Workspace context for layouts
+- [Policies API](/docs/next-supabase-turbo/api/policies-api) - Business rule validation
+- [Per-seat Billing](/docs/next-supabase-turbo/billing/per-seat-billing) - Team-based pricing

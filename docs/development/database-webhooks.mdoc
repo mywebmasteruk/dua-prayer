@@ -1,0 +1,263 @@
+---
+status: "published"
+label: "Database Webhooks"
+order: 6
+title: "Database Webhooks in the Next.js Supabase Starter Kit"
+description: "Handle database change events with webhooks to send notifications, sync external services, and trigger custom logic when data changes."
+---
+
+Database webhooks let you execute custom code when rows are inserted, updated, or deleted in your Supabase tables. Makerkit provides a typed webhook handler at `@kit/database-webhooks` that processes these events in a Next.js API route.
+
+{% sequence title="Database Webhooks Setup" description="Configure and handle database change events" %}
+
+[Understand the webhook system](#how-database-webhooks-work)
+
+[Add custom handlers](#adding-custom-webhook-handlers)
+
+[Configure webhook triggers](#configuring-webhook-triggers)
+
+[Test webhooks locally](#testing-webhooks-locally)
+
+{% /sequence %}
+
+## How Database Webhooks Work
+
+Supabase database webhooks fire HTTP requests to your application when specified database events occur. The flow is:
+
+1. A row is inserted, updated, or deleted in a table
+2. Supabase sends a POST request to your webhook endpoint
+3. Your handler processes the event and executes custom logic
+4. The handler returns a success response
+
+Makerkit includes built-in handlers for:
+
+- **User deletion**: Cleans up related subscriptions and data
+- **User signup**: Sends welcome emails
+- **Invitation creation**: Sends invitation emails
+
+You can extend this with your own handlers.
+
+## Adding Custom Webhook Handlers
+
+The webhook endpoint is at `apps/web/app/api/db/webhook/route.ts`. Add your handlers to the `handleEvent` callback:
+
+```tsx {% title="apps/web/app/api/db/webhook/route.ts" %}
+import { getDatabaseWebhookHandlerService } from '@kit/database-webhooks';
+import { enhanceRouteHandler } from '@kit/next/routes';
+
+export const POST = enhanceRouteHandler(
+  async ({ request }) => {
+    const service = getDatabaseWebhookHandlerService();
+
+    try {
+      const signature = request.headers.get('X-Supabase-Event-Signature');
+
+      if (!signature) {
+        return new Response('Missing signature', { status: 400 });
+      }
+
+      const body = await request.clone().json();
+
+      await service.handleWebhook({
+        body,
+        signature,
+        async handleEvent(change) {
+          // Handle new project creation
+          if (change.type === 'INSERT' && change.table === 'projects') {
+            await notifyTeamOfNewProject(change.record);
+          }
+
+          // Handle subscription cancellation
+          if (change.type === 'UPDATE' && change.table === 'subscriptions') {
+            if (change.record.status === 'canceled') {
+              await sendCancellationSurvey(change.record);
+            }
+          }
+
+          // Handle user deletion
+          if (change.type === 'DELETE' && change.table === 'accounts') {
+            await cleanupExternalServices(change.old_record);
+          }
+        },
+      });
+
+      return new Response(null, { status: 200 });
+    } catch (error) {
+      console.error('Webhook error:', error);
+      return new Response(null, { status: 500 });
+    }
+  },
+  { auth: false },
+);
+```
+
+### RecordChange Type
+
+The `change` object is typed to your database schema:
+
+```tsx
+import type { Database } from '@kit/supabase/database';
+
+type Tables = Database['public']['Tables'];
+
+type TableChangeType = 'INSERT' | 'UPDATE' | 'DELETE';
+
+interface RecordChange<
+  Table extends keyof Tables,
+  Row = Tables[Table]['Row'],
+> {
+  type: TableChangeType;
+  table: Table;
+  record: Row;           // Current row data (null for DELETE)
+  schema: 'public';
+  old_record: Row | null; // Previous row data (null for INSERT)
+}
+```
+
+### Type-Safe Handlers
+
+Cast to specific table types for better type safety:
+
+```tsx
+import type { RecordChange } from '@kit/database-webhooks';
+
+type ProjectChange = RecordChange<'projects'>;
+type SubscriptionChange = RecordChange<'subscriptions'>;
+
+async function handleEvent(change: RecordChange<keyof Tables>) {
+  if (change.table === 'projects') {
+    const projectChange = change as ProjectChange;
+    // projectChange.record is now typed to the projects table
+    console.log(projectChange.record.name);
+  }
+}
+```
+
+### Async Handlers
+
+For long-running operations, consider using background jobs:
+
+```tsx
+async handleEvent(change) {
+  if (change.type === 'INSERT' && change.table === 'orders') {
+    // Queue for background processing instead of blocking
+    await queueOrderProcessing(change.record.id);
+  }
+}
+```
+
+## Configuring Webhook Triggers
+
+Webhooks are configured in Supabase. You can set them up via SQL or the Dashboard.
+
+### SQL Configuration
+
+Add a trigger in your schema file at `apps/web/supabase/schemas/`:
+
+```sql {% title="apps/web/supabase/schemas/webhooks.sql" %}
+-- Create the webhook trigger for the projects table
+create trigger projects_webhook
+  after insert or update or delete on public.projects
+  for each row execute function supabase_functions.http_request(
+    'https://your-app.com/api/db/webhook',
+    'POST',
+    '{"Content-Type":"application/json"}',
+    '{}',
+    '5000'
+  );
+```
+
+### Dashboard Configuration
+
+1. Open your Supabase project dashboard
+2. Navigate to **Database** > **Webhooks**
+3. Click **Create a new hook**
+4. Configure:
+   - **Name**: `projects_webhook`
+   - **Table**: `projects`
+   - **Events**: INSERT, UPDATE, DELETE
+   - **Type**: HTTP Request
+   - **URL**: `https://your-app.com/api/db/webhook`
+   - **Method**: POST
+
+### Webhook Security
+
+Supabase automatically signs webhook payloads using the `X-Supabase-Event-Signature` header. The `@kit/database-webhooks` package verifies this signature against your `SUPABASE_DB_WEBHOOK_SECRET` environment variable.
+
+Configure the webhook secret:
+
+```bash {% title=".env.local" %}
+SUPABASE_DB_WEBHOOK_SECRET=your-webhook-secret
+```
+
+Set the same secret in your Supabase webhook configuration. The handler validates signatures automatically, rejecting requests with missing or invalid signatures.
+
+## Testing Webhooks Locally
+
+### Local Development Setup
+
+When running Supabase locally, webhooks need to reach your Next.js server:
+
+1. Start your development server on a known port:
+    ```bash
+    pnpm run dev
+    ```
+2. Configure the webhook URL in your local Supabase to point to `http://host.docker.internal:3000/api/db/webhook` (Docker) or `http://localhost:3000/api/db/webhook`.
+
+### Manual Testing
+
+Test your webhook handler by sending a mock request:
+
+```bash
+curl -X POST http://localhost:3000/api/db/webhook \
+  -H "Content-Type: application/json" \
+  -H "X-Supabase-Event-Signature: your-secret-key" \
+  -d '{
+    "type": "INSERT",
+    "table": "projects",
+    "schema": "public",
+    "record": {
+      "id": "test-id",
+      "name": "Test Project",
+      "account_id": "account-id"
+    },
+    "old_record": null
+  }'
+```
+
+Expected response: `200 OK`
+
+### Debugging Tips
+
+**Webhook not firing**: Check that the trigger exists in Supabase and the URL is correct.
+
+**Handler not executing**: Add logging to trace the event flow:
+
+```tsx
+async handleEvent(change) {
+  console.log('Received webhook:', {
+    type: change.type,
+    table: change.table,
+    recordId: change.record?.id,
+  });
+}
+```
+
+**Timeout errors**: Move long operations to background jobs. Webhooks should respond quickly.
+
+## Common Use Cases
+
+| Use Case | Trigger | Action |
+|----------|---------|--------|
+| Welcome email | INSERT on `users` | Send onboarding email |
+| Invitation email | INSERT on `invitations` | Send invite link |
+| Subscription change | UPDATE on `subscriptions` | Sync with CRM |
+| User deletion | DELETE on `accounts` | Clean up external services |
+| Audit logging | INSERT/UPDATE/DELETE | Write to audit table |
+| Search indexing | INSERT/UPDATE | Update search index |
+
+## Related Resources
+
+- [Database Schema](/docs/next-supabase-turbo/development/database-schema) for extending your schema
+- [Database Functions](/docs/next-supabase-turbo/development/database-functions) for built-in SQL functions
+- [Email Configuration](/docs/next-supabase-turbo/emails/email-configuration) for sending emails from webhooks

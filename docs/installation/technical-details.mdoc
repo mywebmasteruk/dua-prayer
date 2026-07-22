@@ -1,0 +1,167 @@
+---
+status: "published"
+title: "Technical Details of the Next.js Supabase SaaS Starter Kit"
+label: "Technical Details"
+order: 2
+description: "Tech stack overview: Next.js 16, React 19, Supabase, Tailwind CSS 4, Turborepo monorepo with TypeScript, Shadcn UI, and Zod."
+---
+
+The kit is built as a [Turborepo](https://turbo.build) monorepo using these core technologies:
+
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Next.js | 16 | App Router with Turbopack |
+| React | 19 | UI framework |
+| Supabase | Latest | Database, Auth, Storage |
+| Tailwind CSS | 4 | Styling |
+| TypeScript | 5.9+ | Type safety |
+| pnpm | 10.19+ | Package manager |
+| Node.js | 20.10+ | Runtime (required) |
+
+### Key Libraries
+
+- **Shadcn UI** (Base UI-based) for accessible UI components
+- **React Query** (@tanstack/react-query) for client-side data fetching
+- **next-intl** for internationalization with locale-prefixed URL routing
+- **next-safe-action** for type-safe server actions
+- **Zod** for schema validation
+- **Lucide** for icons
+- **react.email** for email templates
+- **Nodemailer** or **Resend** for sending emails
+
+The kit deploys to Vercel, Cloudflare, or any Node.js hosting. Edge runtime support enables deployment to Cloudflare Workers.
+
+## Monorepo Structure
+
+### Core Packages
+
+| Package | Import | Purpose |
+|---------|--------|---------|
+| `@kit/ui` | `@kit/ui/*` | Shadcn UI components and custom components |
+| `@kit/supabase` | `@kit/supabase/*` | Supabase clients, types, and queries |
+| `@kit/next` | `@kit/next/*` | Server Actions, route handlers, middleware utilities |
+| `@kit/shared` | `@kit/shared/*` | Shared utilities and helpers |
+| `@kit/i18n` | `@kit/i18n/*` | Internationalization utilities |
+
+### Feature Packages
+
+Located in `packages/features/`:
+
+| Package | Purpose |
+|---------|---------|
+| `@kit/auth` | Authentication flows (Supabase Auth) |
+| `@kit/accounts` | Personal account management |
+| `@kit/team-accounts` | Team/organization management |
+| `@kit/admin` | Super admin dashboard |
+| `@kit/notifications` | In-app notifications |
+
+### Billing Packages
+
+Located in `packages/billing/`:
+
+| Package | Purpose |
+|---------|---------|
+| `@kit/billing` | Core billing logic and types |
+| `@kit/billing-gateway` | Payment provider abstraction |
+| `@kit/stripe` | Stripe integration |
+| `@kit/lemon-squeezy` | Lemon Squeezy integration |
+
+### Infrastructure Packages
+
+| Package | Purpose |
+|---------|---------|
+| `@kit/mailers` | Email provider abstraction (Resend, Nodemailer, SendGrid) |
+| `@kit/email-templates` | React Email templates |
+| `@kit/monitoring` | Error tracking (Sentry, Baselime) |
+| `@kit/analytics` | User behavior tracking |
+| `@kit/database-webhooks` | Database trigger handlers |
+| `@kit/cms` | Content management abstraction |
+| `@kit/keystatic` | Keystatic CMS integration |
+| `@kit/wordpress` | WordPress headless CMS integration |
+| `@kit/policies` | Authorization policy helpers |
+| `@kit/otp` | One-time password utilities |
+
+## Application Configuration
+
+Configuration files live in `apps/web/config/`:
+
+| File | Purpose |
+|------|---------|
+| `app.config.ts` | App name, description, URLs |
+| `auth.config.ts` | Auth providers, redirect paths |
+| `billing.config.ts` | Billing provider, plans |
+| `feature-flags.config.ts` | Feature toggles |
+| `paths.config.ts` | Route definitions |
+| `personal-account-navigation.config.tsx` | Personal dashboard sidebar |
+| `team-account-navigation.config.tsx` | Team dashboard sidebar |
+
+## Key Patterns
+
+### Server Actions
+
+Use `authActionClient` from `@kit/next/safe-action` for type-safe, validated server actions:
+
+```typescript
+import { authActionClient, publicActionClient } from '@kit/next/safe-action';
+import * as z from 'zod';
+
+const schema = z.object({ name: z.string().min(1) });
+
+// Authenticated action
+export const updateName = authActionClient
+  .inputSchema(schema)
+  .action(async ({ parsedInput: data, ctx: { user } }) => {
+    // data is validated, user is authenticated
+  });
+
+// Public action (no auth required)
+export const submitContact = publicActionClient
+  .inputSchema(schema)
+  .action(async ({ parsedInput: data }) => {
+    // data is validated, no user required
+  });
+```
+
+Use `authActionClient` for authenticated actions and `publicActionClient` for public actions like contact forms.
+
+### Route Handlers
+
+Use `enhanceRouteHandler` from `@kit/next/routes` for API routes:
+
+```typescript
+import { enhanceRouteHandler } from '@kit/next/routes';
+
+export const POST = enhanceRouteHandler(async ({ body, user }) => {
+  // body is parsed, user is available
+  return NextResponse.json({ success: true });
+}, { schema: yourSchema });
+```
+
+### Supabase Clients
+
+```typescript
+// Server Components and Server Actions
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+// Admin operations (bypasses RLS)
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+```
+
+## Deployment Targets
+
+The kit supports multiple deployment targets:
+
+- **Vercel**: Zero-config deployment with environment variables
+- **Cloudflare Pages/Workers**: Edge runtime support
+- **Docker**: Self-hosted deployments
+- **Any Node.js host**: Standard Next.js deployment
+
+For production deployment, see the [going to production checklist](/docs/next-supabase-turbo/going-to-production/checklist).
+
+## Upgrading from v2
+
+{% callout title="Differences with v2" %}
+In v2, the kit used Radix UI primitives, `enhanceAction` for server actions, `i18next` for translations, and `import { z } from 'zod'`. In v3, it uses Base UI primitives, `authActionClient`/`publicActionClient` from `next-safe-action`, `next-intl` for i18n, and `import * as z from 'zod'`.
+
+For the full migration guide, see [Upgrading from v2 to v3](/docs/next-supabase-turbo/installation/v3-migration).
+{% /callout %}

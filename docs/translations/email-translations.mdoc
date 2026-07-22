@@ -1,0 +1,430 @@
+---
+status: "published"
+title: "Email Template Translations | Next.js Supabase SaaS Kit"
+label: "Email Translations"
+description: "Learn how to translate email templates for team invitations, account deletion, and OTP verification in your multi-language SaaS application."
+order: 3
+---
+
+Email templates in Makerkit have their own translation system, separate from the main application translations. This allows emails to be sent in the recipient's preferred language.
+
+## Email Translation Structure
+
+Email translations are stored in the `packages/email-templates` package:
+
+```
+packages/email-templates/src/
+├── locales/
+│   └── en/
+│       ├── account-delete-email.json
+│       ├── invite-email.json
+│       └── otp-email.json
+└── lib/
+    └── i18n.ts
+```
+
+## Default Email Templates
+
+Makerkit includes three translatable email templates:
+
+### Team Invitation Email
+
+Sent when a user is invited to join a team:
+
+```json title="packages/email-templates/src/locales/en/invite-email.json"
+{
+  "subject": "You have been invited to join a team",
+  "heading": "Join {teamName} on {productName}",
+  "hello": "Hello {invitedUserEmail},",
+  "mainText": "<strong>{inviter}</strong> has invited you to the <strong>{teamName}</strong> team on <strong>{productName}</strong>.",
+  "joinTeam": "Join {teamName}",
+  "copyPasteLink": "or copy and paste this URL into your browser:",
+  "invitationIntendedFor": "This invitation is intended for {invitedUserEmail}."
+}
+```
+
+### Account Deletion Email
+
+Sent when a user requests account deletion:
+
+```json title="packages/email-templates/src/locales/en/account-delete-email.json"
+{
+  "subject": "We have deleted your {productName} account",
+  "previewText": "We have deleted your {productName} account",
+  "hello": "Hello {displayName},",
+  "paragraph1": "This is to confirm that we have processed your request to delete your account with {productName}.",
+  "paragraph2": "We're sorry to see you go. Please note that this action is irreversible, and we'll make sure to delete all of your data from our systems.",
+  "paragraph3": "We thank you again for using {productName}.",
+  "paragraph4": "The {productName} Team"
+}
+```
+
+### OTP Verification Email
+
+Sent for one-time password verification:
+
+```json title="packages/email-templates/src/locales/en/otp-email.json"
+{
+  "subject": "One-time password for {productName}",
+  "heading": "One-time password for {productName}",
+  "otpText": "Your one-time password is: {otp}",
+  "mainText": "You're receiving this email because you need to verify your identity using a one-time password.",
+  "footerText": "Please enter the one-time password in the app to continue."
+}
+```
+
+## Adding Email Translations
+
+### 1. Create Language Folder
+
+Create a new folder for your language:
+
+```bash
+mkdir packages/email-templates/src/locales/es
+```
+
+### 2. Copy and Translate Files
+
+Copy the English templates:
+
+```bash
+cp packages/email-templates/src/locales/en/*.json packages/email-templates/src/locales/es/
+```
+
+Translate each file:
+
+```json title="packages/email-templates/src/locales/es/invite-email.json"
+{
+  "subject": "Has sido invitado a unirte a un equipo",
+  "heading": "Unete a {teamName} en {productName}",
+  "hello": "Hola {invitedUserEmail},",
+  "mainText": "<strong>{inviter}</strong> te ha invitado al equipo <strong>{teamName}</strong> en <strong>{productName}</strong>.",
+  "joinTeam": "Unirse a {teamName}",
+  "copyPasteLink": "o copia y pega esta URL en tu navegador:",
+  "invitationIntendedFor": "Esta invitacion es para {invitedUserEmail}."
+}
+```
+
+## How Email Translations Work
+
+The email template system initializes i18n separately from the main application:
+
+```tsx title="packages/email-templates/src/lib/i18n.ts"
+import type { AbstractIntlMessages } from 'next-intl';
+import { createTranslator } from 'next-intl';
+
+export async function initializeEmailI18n(params: {
+  language: string | undefined;
+  namespace: string;
+}) {
+  const language = params.language ?? 'en';
+
+  try {
+    const messages = (await import(
+      `../locales/${language}/${params.namespace}.json`
+    )) as AbstractIntlMessages;
+
+    const translator = createTranslator({
+      locale: language,
+      messages,
+    });
+
+    const t = translator as unknown as (
+      key: string,
+      values?: Record<string, unknown>,
+    ) => string;
+
+    return { t, language };
+  } catch (error) {
+    console.log(
+      `Error loading i18n file: locales/${language}/${params.namespace}.json`,
+      error,
+    );
+
+    const t = (key: string) => key;
+    return { t, language };
+  }
+}
+```
+
+Key points:
+- Each email type has its own namespace (e.g., `invite-email`, `otp-email`)
+- The language can be passed when sending the email
+- Falls back to `'en'` if no language specified
+
+## Sending Translated Emails
+
+When sending emails, pass the recipient's preferred language:
+
+```tsx title="apps/web/lib/server/send-invite-email.ts"
+import { renderInviteEmail } from '@kit/email-templates';
+
+export async function sendInviteEmail(params: {
+  invitedUserEmail: string;
+  inviter: string;
+  teamName: string;
+  inviteLink: string;
+  language?: string; // Recipient's preferred language
+}) {
+  const { html, subject } = await renderInviteEmail({
+    invitedUserEmail: params.invitedUserEmail,
+    inviter: params.inviter,
+    teamName: params.teamName,
+    link: params.inviteLink,
+    productName: 'Your App',
+    language: params.language, // Pass the language
+  });
+
+  await sendEmail({
+    to: params.invitedUserEmail,
+    subject,
+    html,
+  });
+}
+```
+
+## Determining Recipient Language
+
+To send emails in the recipient's language, you need to know their preference. Common approaches:
+
+### From User Profile
+
+Store language preference in the user profile:
+
+```tsx
+// When sending an email
+const user = await getUserById(userId);
+const language = user.preferredLanguage ?? 'en';
+
+await sendInviteEmail({
+  // ...other params
+  language,
+});
+```
+
+### From Request Context
+
+Use the current user's language when they trigger an action:
+
+```tsx title="apps/web/lib/server/invite-member.ts"
+'use server';
+
+import { getLocale } from 'next-intl/server';
+
+export async function inviteMember(email: string) {
+  const currentLanguage = await getLocale();
+
+  await sendInviteEmail({
+    invitedUserEmail: email,
+    // Use inviter's language as default for the invited user
+    language: currentLanguage,
+  });
+}
+```
+
+## Adding Custom Email Templates
+
+To add a new translatable email template:
+
+### 1. Create Translation Files
+
+```json title="packages/email-templates/src/locales/en/welcome-email.json"
+{
+  "subject": "Welcome to {productName}",
+  "heading": "Welcome aboard!",
+  "hello": "Hello {userName},",
+  "mainText": "Thank you for joining {productName}. We're excited to have you!",
+  "getStarted": "Get Started",
+  "helpText": "If you have any questions, feel free to reach out to our support team."
+}
+```
+
+### 2. Create the Email Template Component
+
+```tsx title="packages/email-templates/src/emails/welcome.email.tsx"
+import {
+  Body,
+  Button,
+  Container,
+  Head,
+  Heading,
+  Html,
+  Preview,
+  Section,
+  Text,
+  render,
+} from 'react-email';
+
+import { initializeEmailI18n } from '../lib/i18n';
+
+interface WelcomeEmailProps {
+  userName: string;
+  productName: string;
+  dashboardUrl: string;
+  language?: string;
+}
+
+export async function renderWelcomeEmail(props: WelcomeEmailProps) {
+  const namespace = 'welcome-email';
+
+  const { t } = await initializeEmailI18n({
+    language: props.language,
+    namespace,
+  });
+
+  const subject = t('subject', { productName: props.productName });
+
+  // Use render() to convert JSX to HTML string
+  const html = await render(
+    <Html>
+      <Head />
+      <Preview>{subject}</Preview>
+      <Body>
+        <Container>
+          <Heading>{t('heading')}</Heading>
+
+          <Text>{t('hello', { userName: props.userName })}</Text>
+
+          <Text>
+            {t('mainText', { productName: props.productName })}
+          </Text>
+
+          <Section>
+            <Button href={props.dashboardUrl}>
+              {t('getStarted')}
+            </Button>
+          </Section>
+
+          <Text>{t('helpText')}</Text>
+        </Container>
+      </Body>
+    </Html>
+  );
+
+  return { html, subject };
+}
+```
+
+### 3. Export from Package
+
+```tsx title="packages/email-templates/src/index.ts"
+export * from './emails/welcome.email';
+```
+
+## Interpolation in Email Translations
+
+Email translations support the same interpolation syntax as the main application:
+
+### Simple Variables
+
+```json
+{
+  "hello": "Hello {userName},"
+}
+```
+
+### HTML Tags
+
+You can use basic HTML for formatting:
+
+```json
+{
+  "mainText": "<strong>{inviter}</strong> has invited you to join <strong>{teamName}</strong>."
+}
+```
+
+The email template must render this content appropriately:
+
+```tsx
+<Text dangerouslySetInnerHTML={{ __html: t('mainText', { inviter, teamName }) }} />
+```
+
+{% callout type="warning" title="Security Warning" %}
+When using `dangerouslySetInnerHTML`, ensure all interpolated values come from trusted sources (your database, not user input). Never interpolate raw user input into HTML translations without sanitization. For user-provided content, use plain text translations instead.
+{% /callout %}
+
+## Testing Email Translations
+
+### Preview in Development
+
+Use the email preview feature to test translations:
+
+```bash
+# Start the email preview server
+cd packages/email-templates
+pnpm dev
+```
+
+Then open `http://localhost:3001` to preview email templates.
+
+### Test with Inbucket
+
+When running Supabase locally, emails are captured by Inbucket:
+
+1. Start Supabase: `pnpm supabase:web:start`
+2. Open Inbucket: `http://localhost:54324`
+3. Trigger an action that sends an email
+4. Check Inbucket for the translated email
+
+### Verify All Languages
+
+Create a test script to verify translations exist for all configured languages:
+
+```bash
+# Check that all email translation files exist
+for lang in en es de fr; do
+  for file in invite-email account-delete-email otp-email; do
+    path="packages/email-templates/src/locales/${lang}/${file}.json"
+    if [ -f "$path" ]; then
+      echo "OK: $path"
+    else
+      echo "MISSING: $path"
+    fi
+  done
+done
+```
+
+## Troubleshooting
+
+### Email Shows English Instead of User's Language
+
+Check that you're passing the language parameter when rendering the email:
+
+```tsx
+const { html, subject } = await renderInviteEmail({
+  // ...
+  language: user.preferredLanguage, // Must be passed explicitly
+});
+```
+
+### Translation File Not Found Error
+
+Verify the file exists at the expected path:
+
+```
+packages/email-templates/src/locales/[language]/[namespace].json
+```
+
+The namespace must match the email template name (e.g., `invite-email`, not `invite`).
+
+### HTML Not Rendering in Email
+
+Email clients have limited HTML support. Stick to basic tags (`<strong>`, `<em>`, `<br>`) and avoid complex CSS. Test with multiple email clients (Gmail, Outlook, Apple Mail).
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "How do I preview email translations locally?", "answer": "Run 'pnpm dev' in the packages/email-templates directory to start the email preview server at localhost:3001. You can switch languages in the preview to test different translations."},
+     {"question": "Can I use the same translations for app and email?", "answer": "Email templates use a separate translation system in packages/email-templates/src/locales. This separation allows emails to be rendered without the full app context and keeps email-specific strings isolated."},
+     {"question": "How do I add a new email template with translations?", "answer": "Create the translation JSON files in packages/email-templates/src/locales/[lang]/[template-name].json, then create the React Email component that calls initializeEmailI18n with the matching namespace."},
+     {"question": "Do email translations support pluralization?", "answer": "Yes, email translations use next-intl's createTranslator which supports ICU message format for pluralization."},
+     {"question": "How do I comply with email regulations (CAN-SPAM, GDPR)?", "answer": "Include an unsubscribe link in marketing emails, add your physical address, and honor unsubscribe requests within 10 days. For GDPR, ensure you have consent before sending and document it. These requirements apply regardless of language."}
+   ]
+/%}
+
+## Related Documentation
+
+- [Using Translations](/docs/next-supabase-turbo/translations/using-translations) - Translation basics
+- [Adding Translations](/docs/next-supabase-turbo/translations/adding-translations) - Add new languages
+- [Language Selector](/docs/next-supabase-turbo/translations/language-selector) - Let users change language
+- [Sending Emails](/docs/next-supabase-turbo/emails/sending-emails) - Email sending configuration

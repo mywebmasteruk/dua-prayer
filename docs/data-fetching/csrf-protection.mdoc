@@ -1,0 +1,32 @@
+---
+status: "published"
+title: "CSRF Protection"
+description: "How CSRF protection works in Makerkit."
+label: "CSRF Protection"
+order: 6
+---
+
+## CSRF Protection
+
+CSRF protection is handled automatically by Next.js when using Server Actions. You do not need to manage CSRF tokens manually.
+
+### Server Actions
+
+Server Actions are inherently protected against CSRF attacks by Next.js. The framework validates the origin of all Server Action requests, ensuring they come from the same origin as your application.
+
+No additional configuration or token passing is needed.
+
+### API Route Handlers
+
+API Route Handlers under `/api/*` do not have CSRF protection, as they are typically used for webhooks, external services, and third-party integrations. If you need to protect an API route from unauthorized access, use authentication checks via `enhanceRouteHandler` with `auth: true`.
+
+### Recommendations
+
+- **Prefer Server Actions** for all mutations from client components. They provide built-in CSRF protection and type safety.
+- **Use Route Handlers** only for webhooks, streaming responses, or integrations that require standard HTTP endpoints.
+
+---
+
+## V2 Legacy
+
+In v2, Makerkit used `@edge-csrf/nextjs` middleware to protect non-API routes against CSRF attacks. A `useCsrfToken` hook from `@kit/shared/hooks` was used to retrieve the CSRF token and pass it as an `X-CSRF-Token` header on fetch requests. Both have been removed in v3 since Server Actions handle CSRF protection natively.

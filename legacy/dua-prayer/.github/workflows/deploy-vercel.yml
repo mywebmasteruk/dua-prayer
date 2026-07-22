@@ -1,0 +1,29 @@
+# Deploy DuaPrayer to Vercel production on every push to main.
+#
+# Uses a Vercel Deploy Hook so the build runs on Vercel's servers,
+# not GitHub Actions — this uses ~5 seconds of Actions minutes per push
+# instead of the ~3 minutes a full build would consume.
+#
+# Secret required (GitHub repo → Settings → Secrets and variables → Actions):
+#   VERCEL_DEPLOY_HOOK_URL   from Vercel dashboard → Project → Settings → Git → Deploy Hooks
+
+name: Deploy Vercel Production
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: vercel-production-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Trigger Vercel deployment
+        run: |
+          curl -s -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}" \
+            -d "ref=main" \
+            --fail-with-body

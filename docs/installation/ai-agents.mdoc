@@ -1,0 +1,439 @@
+---
+status: "published"
+title: "AI Agentic Development | Next.js Supabase Turbo"
+label: "AI Agentic Development"
+order: 11
+description: "Configure Claude Code, Cursor, Windsurf, and other AI coding assistants to work effectively with the Next.js Supabase Turbo SaaS Starter Kit."
+---
+
+AI Agentic Development uses AI coding assistants like Claude Code or Cursor to write code within your project. MakerKit ships with instruction files (`AGENTS.md`, `CLAUDE.md`) that teach these AI agents your codebase patterns, available skills, and project conventions so they generate code matching your architecture.
+
+The kit includes pre-configured agent rules for Claude Code, Cursor, Windsurf, Codex, and Gemini. In our extensive testing with state-of-the-art agents like Claude Code, we found that modern tools already crawl existing patterns and learn from your codebase. With a polished codebase like MakerKit, agents have the context they need to produce good code without exhaustive API documentation.
+
+{% sequence title="AI Agent Setup" description="Get AI agents working with your MakerKit codebase." %}
+
+[Understand the Agent Files](#agent-configuration-files)
+
+[Configure Your Editor](#editor-configuration)
+
+[Add the MCP Server](#mcp-server-optional)
+
+[Customize Rules for Your App](#customizing-rules)
+
+{% /sequence %}
+
+## Agent Configuration Files
+
+MakerKit uses a hierarchical system of instruction files. Global rules live at the project root, and package-specific rules live in subdirectories.
+
+### File Locations
+
+| File | Purpose | Used By |
+|------|---------|---------|
+| `AGENTS.md` | Primary agent instructions | Cursor, Windsurf |
+| `CLAUDE.md` | Claude-specific instructions | Claude Code |
+| `.gemini/GEMINI.md` | Gemini instructions | Gemini |
+
+### Hierarchical Structure
+
+AI agents read instructions from multiple files based on context. When you work in `apps/web`, the agent reads:
+
+1. Root `AGENTS.md` (global patterns, commands, tech stack)
+2. `apps/web/AGENTS.md` (route organization, component patterns)
+3. `apps/web/supabase/AGENTS.md` (database migrations, RLS policies)
+
+This hierarchy means agents get more specific instructions as they work deeper in the codebase.
+
+```
+AGENTS.md                          # Global: tech stack, commands, patterns
+├── apps/web/AGENTS.md             # App: routes, components, config files
+│   ├── apps/web/supabase/AGENTS.md    # Database: schemas, migrations, RLS
+│   └── apps/web/app/admin/AGENTS.md   # Admin: super admin features
+├── packages/ui/AGENTS.md          # UI: components, design system
+├── packages/supabase/AGENTS.md    # Supabase: clients, auth, types
+├── packages/features/AGENTS.md    # Features: feature packages
+└── packages/next/AGENTS.md        # Next.js: actions, routes, utilities
+```
+
+### What Agents Learn
+
+The root `AGENTS.md` teaches agents:
+
+- **Tech stack**: Next.js 16, React 19, Supabase, Tailwind CSS 4, Turborepo
+- **Multi-tenant architecture**: Personal accounts vs team accounts, account_id foreign keys
+- **Essential commands**: `pnpm dev`, `pnpm typecheck`, `pnpm supabase:web:reset`
+- **Key patterns**: Server Actions with `authActionClient`, Route Handlers with `enhanceRouteHandler`
+- **Authorization**: RLS enforces access control, admin client bypasses RLS
+
+Package-specific files add context for that area:
+
+```markdown
+# packages/supabase/AGENTS.md
+
+## Client Usage
+
+### Server Components (Preferred)
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+const client = getSupabaseServerClient();
+// RLS automatically enforced
+
+### Admin Client (Use Sparingly)
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+// CRITICAL: Bypasses RLS - validate manually!
+```
+
+## Editor Configuration
+
+### Claude Code
+
+Claude Code reads `CLAUDE.md` files automatically. The root file references `@AGENTS.md` to include those instructions.
+
+No configuration needed. Start Claude Code in your project directory:
+
+```bash
+claude
+```
+
+Claude Code discovers and reads the instruction files on startup.
+
+### Cursor
+
+Cursor reads `AGENTS.md` files automatically when you open a project. The agent instructions appear in context when you use Cursor's AI features.
+
+For the best experience:
+
+1. Open the project root in Cursor (not a subdirectory)
+2. The agent rules load automatically
+3. Use Cmd+K or the chat panel to interact with the agent
+
+### Windsurf
+
+Windsurf uses the same `AGENTS.md` files as Cursor. Open your project and the rules apply automatically.
+
+### Codex
+
+Codex reads `AGENTS.md` files. Open the project root and the agent instructions apply to generated code.
+
+### Gemini
+
+Gemini reads from `.gemini/GEMINI.md`. This file points to the `AGENTS.md` files:
+
+```markdown
+# .gemini/GEMINI.md
+
+- Check for the presence of AGENTS.md files in the project workspace
+- There may be additional AGENTS.md in sub-folders with additional specific instructions
+```
+
+## MCP Server (Optional)
+
+The Makerkit MCP Server gives AI agents additional tools for working with the codebase. See the [MCP Server documentation](./mcp) for setup instructions.
+
+MCP tools help agents:
+
+- Understand the project structure
+- Navigate between related files
+- Apply MakerKit-specific patterns
+
+## Customizing Rules
+
+The default rules cover MakerKit patterns. Add your own rules for application-specific logic.
+
+### Adding Business Logic Rules
+
+Create or edit `AGENTS.md` files to include your domain knowledge:
+
+```markdown
+# apps/web/AGENTS.md (add to existing file)
+
+## Business Logic
+
+### Subscription Tiers
+- Free: 1 team member, 3 projects
+- Pro: 10 team members, unlimited projects
+- Enterprise: Unlimited everything, SSO
+
+### Project Limits
+Check limits before creating projects:
+- Use `checkProjectLimit(accountId)` from `~/lib/server/projects`
+- Returns { allowed: boolean, current: number, limit: number }
+
+### Naming Conventions
+- Projects use kebab-case slugs: "my-project-name"
+- Team accounts use slugs, not IDs, in URLs
+```
+
+### What Makes Effective Agent Rules
+
+In our testing, we noticed that adding detailed API instructions to agent rules has diminishing returns. Modern agents like Claude Code crawl your existing code, learn the patterns, and apply them. What actually moves the needle:
+
+1. **Must-do rules**: Things the agent should always do
+2. **Must-not-do rules**: Things the agent should never do
+3. **Router instructions**: Where to find things the agent needs
+
+```markdown
+# apps/web/AGENTS.md (add to existing file)
+
+## MUST DO
+- Always use `authActionClient` for Server Actions
+- Always enable RLS on new tables
+- Always run `pnpm typecheck` after changes
+- Always use the `Trans` component for user-facing text
+
+## MUST NOT DO
+- Never use the admin client without manual auth validation
+- Never commit .env files or secrets
+- Never use `any` type in TypeScript
+- Never skip RLS policies on tables with user data
+
+## Where to Find Things
+- Auth patterns: `packages/supabase/src/clients/`
+- UI components: `packages/ui/src/`
+- Billing logic: `packages/billing/`
+- Database schemas: `apps/web/supabase/schemas/`
+```
+
+This approach works better than documenting every API because agents learn APIs from code, but they need explicit guidance on project-specific constraints and conventions.
+
+### Adding Feature Flags
+
+Document which features are gated so agents know what's available:
+
+```markdown
+## Feature Flags
+
+Check `config/feature-flags.config.ts` for current flags:
+- `enableTeamAccounts`: Team workspaces enabled
+- `enableTeamCreation`: Users can create new teams
+- `enableTeamAccountBilling`: Team billing enabled
+- `enablePersonalAccountBilling`: Personal account billing enabled
+- `enableNotifications`: In-app notifications enabled
+
+Import the config directly:
+import featureFlags from '~/config/feature-flags.config';
+if (featureFlags.enableTeamCreation) { /* ... */ }
+```
+
+## Claude Code Directory Structure
+
+Claude Code uses a `.claude/` directory for additional configuration:
+
+```
+.claude/
+├── agents/               # Custom agent definitions
+│   └── code-quality-reviewer.md
+├── commands/             # Slash commands
+│   └── feature-builder.md
+├── evals/                # Evaluation scripts
+├── skills/               # Reusable skills
+│   ├── playwright-e2e/
+│   ├── postgres-expert/
+│   ├── react-form-builder/
+│   └── server-action-builder/
+└── settings.local.json   # Local permissions (git-ignored)
+```
+
+## Built-in Skills
+
+The kit includes skills for Claude Code that provide specialized guidance for common tasks.
+
+{% callout title="Skills may require explicit invocation" %}
+Claude can automatically invoke skills based on the context of the conversation. However, you can also explicitly invoke skills by typing the skill name at the start of your message when you need specialized guidance, such as '/postgres-supabase-expert' "review the database schema for the projects feature".
+{% /callout %}
+
+| Skill | Command | Purpose |
+|-------|---------|---------|
+| Postgres & Supabase Expert | `/postgres-supabase-expert` | Database schemas, RLS policies, migrations, PgTAP tests |
+| Server Action Builder | `/server-action-builder` | Server Actions with validation and error handling |
+| React Form Builder | `/react-form-builder` | Forms with Zod validation and Shadcn UI |
+| Playwright E2E | `/playwright-e2e` | End-to-end test patterns |
+
+### Using Skills
+
+Invoke a skill by typing its command at the start of your message:
+
+```
+/postgres-supabase-expert Create a projects table with RLS policies for team access
+```
+
+```
+/server-action-builder Create an action to update user settings
+```
+
+### Feature Builder Command
+
+The `/feature-builder` command orchestrates multiple skills for end-to-end feature implementation:
+
+```
+/feature-builder Add a projects feature with CRUD operations
+```
+
+This command guides you through:
+1. Database schema with `/postgres-supabase-expert`
+2. Server Actions with `/server-action-builder`
+3. Forms with `/react-form-builder`
+
+## Adding External Skills
+
+The [Agent Skills](https://github.com/vercel-labs/agent-skills) project provides additional skills you can install:
+
+```bash
+npx add-skill vercel-labs/agent-skills
+```
+
+Available skills:
+
+- **[react-best-practices](https://vercel.com/blog/introducing-react-best-practices)**: Performance optimization guidelines from Vercel Engineering (40+ rules across 8 categories)
+- **web-design-guidelines**: UI audit with accessibility checks (100+ rules covering accessibility, performance, UX)
+- **vercel-deploy-claimable**: Deploy directly from conversations with live preview URLs
+
+## Verification Workflow
+
+Agents are instructed to run verification after making changes:
+
+```bash
+pnpm typecheck        # Must pass
+pnpm lint:fix         # Auto-fix issues
+pnpm format:fix       # Format code
+```
+
+If an agent skips verification, remind it:
+
+```
+Run typecheck and lint:fix to verify the changes
+```
+
+## Common Patterns Agents Know
+
+### Server Actions
+
+Agents use `authActionClient` for Server Actions:
+
+```typescript
+'use server';
+
+import { authActionClient } from '@kit/next/safe-action';
+import * as z from 'zod';
+
+const schema = z.object({
+  name: z.string().min(1),
+});
+
+export const createProjectAction = authActionClient
+  .inputSchema(schema)
+  .action(async ({ parsedInput: data, ctx: { user } }) => {
+    // Implementation
+  });
+```
+
+### Route Handlers
+
+Agents use `enhanceRouteHandler` for API routes:
+
+```typescript
+import { enhanceRouteHandler } from '@kit/next/routes';
+
+export const POST = enhanceRouteHandler(
+  async ({ body, user }) => {
+    // Implementation
+    return NextResponse.json({ success: true });
+  },
+  { schema: requestSchema }
+);
+```
+
+### Database Queries
+
+Agents prefer Server Components with the standard client:
+
+```typescript
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+async function ProjectList() {
+  const client = getSupabaseServerClient();
+  const { data } = await client.from('projects').select('*');
+  // RLS enforced automatically
+}
+```
+
+## Best Practices for Using AI Agents
+
+After extensive use of AI agents with MakerKit, we've identified what works:
+
+### Keep AGENTS.md Files Focused
+
+Long instruction files cause context drift where agents forget earlier rules. Keep each file under 500 lines. Split by concern rather than cramming everything into the root file.
+
+### Use Rules as a Router
+
+Rather than documenting every API, tell agents where to find things:
+
+```markdown
+## Where to Look
+- Need a UI component? Check `packages/ui/src/` first
+- Building a form? See `packages/ui/src/shadcn/form.tsx` for patterns
+- Adding a Server Action? Reference `apps/web/app/home/_lib/server/`
+```
+
+Agents are excellent at reading code once they know where to look.
+
+### Explicit Constraints Beat Implicit Conventions
+
+"Always use `authActionClient`" works better than "We prefer using authActionClient for most cases." Agents follow explicit rules; they guess at preferences.
+
+### Let Agents Learn from Your Codebase
+
+With a consistent codebase like MakerKit, agents pick up patterns automatically. You don't need to document that Server Components fetch data or that forms use Zod. Focus your rules on project-specific decisions and gotchas.
+
+## Troubleshooting
+
+### Agent Ignores Rules
+
+1. Verify files exist at the expected locations
+2. Check file names match exactly (case-sensitive)
+3. Restart your editor to reload configuration
+
+### Agent Generates Wrong Patterns
+
+Add explicit examples to your `AGENTS.md`:
+
+```markdown
+## Patterns
+
+### CORRECT - Use authActionClient
+export const action = authActionClient.inputSchema(schema).action(async ({ parsedInput: data, ctx: { user } }) => {});
+
+### INCORRECT - Raw Server Action
+export async function action(data: FormData) {} // Missing validation
+```
+
+### Agent Misunderstands Structure
+
+Add a quick reference section:
+
+```markdown
+## Quick Reference
+
+- App routes: `apps/web/app/`
+- Shared components: `packages/ui/src/`
+- Database schemas: `apps/web/supabase/schemas/`
+- Feature packages: `packages/features/*/`
+```
+
+## Next Steps
+
+- Configure the [MCP Server](./mcp) for enhanced agent capabilities
+- Add [LLM rules](./llms) for additional context from documentation
+- Review [conventions](./conventions) to understand the patterns agents follow
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Which AI coding tool works best with MakerKit?", "answer": "Claude Code and Cursor have the deepest integration through AGENTS.md and CLAUDE.md files. Both support the hierarchical instruction system and built-in skills. Choose based on your preferred workflow."},
+     {"question": "Do I need the MCP Server?", "answer": "No, but it helps. The MCP Server gives agents additional tools for understanding the codebase. Agents work without it, but may need more guidance for complex tasks."},
+     {"question": "How do I update agent rules when I change my app?", "answer": "Edit the relevant AGENTS.md file. Changes apply immediately to new agent sessions. Document your domain logic, API patterns, and feature flags so agents generate code that fits your application."},
+     {"question": "Can I use multiple AI tools on the same project?", "answer": "Yes. The instruction files work across tools. AGENTS.md covers Cursor, Windsurf, and Codex. CLAUDE.md adds Claude-specific context. You can switch between tools without reconfiguring."},
+     {"question": "Why does the agent generate code that doesn't match my patterns?", "answer": "Add explicit examples to your AGENTS.md showing correct and incorrect patterns. Agents learn from examples better than abstract rules. Include the specific imports, function signatures, and patterns you want."},
+     {"question": "How do skills work with AI agents?", "answer": "Skills are specialized instruction sets you invoke explicitly with /skill-name syntax in Claude Code. For example, /postgres-supabase-expert provides database guidance, /server-action-builder helps with Server Actions."}
+   ]
+/%}

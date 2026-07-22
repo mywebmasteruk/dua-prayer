@@ -1,0 +1,377 @@
+---
+status: "published"
+title: "Creating a Custom Mailer"
+label: "Custom Mailer"
+description: "Integrate third-party email providers like SendGrid, Postmark, or AWS SES into your Next.js Supabase application by creating a custom mailer implementation."
+order: 5
+---
+
+MakerKit's mailer system is designed to be extensible. While Nodemailer and Resend cover most use cases, you may need to integrate a different email provider like SendGrid, Postmark, Mailchimp Transactional, or AWS SES.
+
+This guide shows you how to create a custom mailer that plugs into MakerKit's email system.
+
+## Mailer Architecture
+
+The mailer system uses a registry pattern with lazy loading:
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Application   │────▶│  Mailer Registry │────▶│  Your Provider  │
+│   getMailer()   │     │  (lazy loading)  │     │  (SendGrid etc) │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+```
+
+1. Your code calls `getMailer()`
+2. The registry checks `MAILER_PROVIDER` environment variable
+3. The matching mailer implementation is loaded and returned
+4. You call `sendEmail()` on the returned instance
+
+## Creating a Custom Mailer
+
+Let's create a mailer for SendGrid as an example. The same pattern works for any provider.
+
+### Step 1: Implement the Mailer Class
+
+Create a new file in the mailers package:
+
+```tsx {% title="packages/mailers/sendgrid/src/index.ts" %}
+import 'server-only';
+
+import * as z from 'zod';
+import { Mailer, MailerSchema } from '@kit/mailers-shared';
+
+type Config = z.infer<typeof MailerSchema>;
+
+const SENDGRID_API_KEY = z
+  .string({
+    description: 'SendGrid API key',
+    required_error: 'SENDGRID_API_KEY environment variable is required',
+  })
+  .parse(process.env.SENDGRID_API_KEY);
+
+export function createSendGridMailer() {
+  return new SendGridMailer();
+}
+
+class SendGridMailer implements Mailer {
+  async sendEmail(config: Config) {
+    const body = {
+      personalizations: [
+        {
+          to: [{ email: config.to }],
+        },
+      ],
+      from: { email: config.from },
+      subject: config.subject,
+      content: [
+        {
+          type: 'text' in config ? 'text/plain' : 'text/html',
+          value: 'text' in config ? config.text : config.html,
+        },
+      ],
+    };
+
+    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${SENDGRID_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`SendGrid error: ${response.status} - ${error}`);
+    }
+
+    return { success: true };
+  }
+}
+```
+
+### Step 2: Create Package Structure
+
+If creating a separate package (recommended), set up the structure:
+
+```
+packages/mailers/sendgrid/
+├── src/
+│   └── index.ts
+├── package.json
+└── tsconfig.json
+```
+
+**package.json:**
+
+```json {% title="packages/mailers/sendgrid/package.json" %}
+{
+  "name": "@kit/sendgrid",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@kit/mailers-shared": "workspace:*",
+    "server-only": "^0.0.1",
+    "zod": "catalog:"
+  }
+}
+```
+
+**tsconfig.json:**
+
+```json {% title="packages/mailers/sendgrid/tsconfig.json" %}
+{
+  "extends": "@kit/tsconfig/base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*"]
+}
+```
+
+### Step 3: Install the Package
+
+Add the new package as a dependency to the mailers core package:
+
+```bash
+pnpm i "@kit/sendgrid:workspace:*" --filter "@kit/mailers"
+```
+
+### Step 4: Register the Mailer
+
+Add your mailer to the registry:
+
+```tsx {% title="packages/mailers/core/src/registry.ts" %}
+import { Mailer } from '@kit/mailers-shared';
+import { createRegistry } from '@kit/shared/registry';
+
+import { MailerProvider } from './provider-enum';
+
+const mailerRegistry = createRegistry<Mailer, MailerProvider>();
+
+// Existing mailers
+mailerRegistry.register('nodemailer', async () => {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { createNodemailerService } = await import('@kit/nodemailer');
+    return createNodemailerService();
+  } else {
+    throw new Error(
+      'Nodemailer is not available on the edge runtime. Please use another mailer.',
+    );
+  }
+});
+
+mailerRegistry.register('resend', async () => {
+  const { createResendMailer } = await import('@kit/resend');
+  return createResendMailer();
+});
+
+// Add your custom mailer
+mailerRegistry.register('sendgrid', async () => {
+  const { createSendGridMailer } = await import('@kit/sendgrid');
+  return createSendGridMailer();
+});
+
+export { mailerRegistry };
+```
+
+### Step 5: Update Provider Enum
+
+Add your provider to the providers array:
+
+```tsx {% title="packages/mailers/core/src/provider-enum.ts" %}
+import * as z from 'zod';
+
+const MAILER_PROVIDERS = [
+  'nodemailer',
+  'resend',
+  'sendgrid', // Add this
+] as const;
+
+const MAILER_PROVIDER = z
+  .enum(MAILER_PROVIDERS)
+  .default('nodemailer')
+  .parse(process.env.MAILER_PROVIDER);
+
+export { MAILER_PROVIDER };
+
+export type MailerProvider = (typeof MAILER_PROVIDERS)[number];
+```
+
+### Step 6: Configure Environment Variables
+
+Set the environment variable to use your mailer:
+
+```bash
+MAILER_PROVIDER=sendgrid
+SENDGRID_API_KEY=SG.your-api-key-here
+EMAIL_SENDER=YourApp <noreply@yourdomain.com>
+```
+
+## Edge Runtime Compatibility
+
+If your mailer uses HTTP APIs (not SMTP), it can run on edge runtimes. The key requirements:
+
+1. **No Node.js-specific APIs**: Avoid `fs`, `net`, `crypto` (use Web Crypto instead)
+2. **Use fetch**: HTTP requests via `fetch` work everywhere
+3. **Import server-only**: Add `import 'server-only'` to prevent client-side usage
+
+### Checking Runtime Compatibility
+
+```tsx
+mailerRegistry.register('my-mailer', async () => {
+  // This check is optional but recommended for documentation
+  if (process.env.NEXT_RUNTIME === 'edge') {
+    // Edge-compatible path
+    const { createMyMailer } = await import('@kit/my-mailer');
+    return createMyMailer();
+  } else {
+    // Node.js path (can use SMTP, etc.)
+    const { createMyMailer } = await import('@kit/my-mailer');
+    return createMyMailer();
+  }
+});
+```
+
+For Nodemailer (SMTP-based), edge runtime is not supported. For HTTP-based providers like Resend, SendGrid, or Postmark, edge runtime works fine.
+
+## Example Implementations
+
+### Postmark
+
+```tsx
+import 'server-only';
+import * as z from 'zod';
+import { Mailer, MailerSchema } from '@kit/mailers-shared';
+
+const POSTMARK_API_KEY = z.string().parse(process.env.POSTMARK_API_KEY);
+
+export function createPostmarkMailer() {
+  return new PostmarkMailer();
+}
+
+class PostmarkMailer implements Mailer {
+  async sendEmail(config: z.infer<typeof MailerSchema>) {
+    const body = {
+      From: config.from,
+      To: config.to,
+      Subject: config.subject,
+      ...'text' in config
+        ? { TextBody: config.text }
+        : { HtmlBody: config.html },
+    };
+
+    const response = await fetch('https://api.postmarkapp.com/email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Postmark-Server-Token': POSTMARK_API_KEY,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Postmark error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+}
+```
+
+### AWS SES (HTTP API)
+
+```tsx
+import 'server-only';
+import * as z from 'zod';
+import { Mailer, MailerSchema } from '@kit/mailers-shared';
+
+// Using AWS SDK v3 (modular)
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+
+const sesClient = new SESClient({
+  region: process.env.AWS_REGION ?? 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
+
+export function createSESMailer() {
+  return new SESMailer();
+}
+
+class SESMailer implements Mailer {
+  async sendEmail(config: z.infer<typeof MailerSchema>) {
+    const command = new SendEmailCommand({
+      Source: config.from,
+      Destination: {
+        ToAddresses: [config.to],
+      },
+      Message: {
+        Subject: { Data: config.subject },
+        Body: 'text' in config
+          ? { Text: { Data: config.text } }
+          : { Html: { Data: config.html } },
+      },
+    });
+
+    return sesClient.send(command);
+  }
+}
+```
+
+## Testing Your Custom Mailer
+
+Test your mailer in isolation before integrating:
+
+```tsx
+// test/sendgrid-mailer.test.ts
+import { createSendGridMailer } from '@kit/sendgrid';
+
+describe('SendGrid Mailer', () => {
+  it('sends an email', async () => {
+    const mailer = createSendGridMailer();
+
+    // Use a test email or mock the API
+    await mailer.sendEmail({
+      to: 'test@example.com',
+      from: 'noreply@yourdomain.com',
+      subject: 'Test Email',
+      text: 'This is a test email',
+    });
+  });
+});
+```
+
+## Quick Integration (Without Separate Package)
+
+For a faster setup without creating a separate package, add your mailer directly to the core package:
+
+```tsx {% title="packages/mailers/core/src/sendgrid.ts" %}
+import 'server-only';
+import * as z from 'zod';
+import { Mailer, MailerSchema } from '@kit/mailers-shared';
+
+// ... implementation
+```
+
+Then register it:
+
+```tsx {% title="packages/mailers/core/src/registry.ts" %}
+mailerRegistry.register('sendgrid', async () => {
+  const { createSendGridMailer } = await import('./sendgrid');
+  return createSendGridMailer();
+});
+```
+
+This approach is faster but puts all mailer code in one package. Use separate packages for cleaner separation.
+
+## Next Steps
+
+- [Configure your email provider](/docs/next-supabase-turbo/email-configuration) with environment variables
+- [Create email templates](/docs/next-supabase-turbo/email-templates) with React Email
+- [Test emails locally](/docs/next-supabase-turbo/emails/inbucket) with Mailpit

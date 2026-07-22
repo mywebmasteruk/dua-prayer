@@ -1,0 +1,632 @@
+---
+status: "published"
+label: "Billing Schema"
+title: "Configure SaaS Pricing Plans with the Billing Schema"
+order: 1
+description: "Define your SaaS pricing with Makerkit's billing schema. Configure products, plans, flat subscriptions, per-seat pricing, metered usage, and one-off payments for Stripe, Lemon Squeezy, or Paddle."
+---
+
+The billing schema defines your products and pricing in a single configuration file. This schema drives the pricing table UI, checkout sessions, and subscription management across all supported providers (Stripe, Lemon Squeezy, Paddle).
+
+## Schema Structure
+
+The schema has three levels:
+
+```
+Products (what you sell)
+└── Plans (pricing options: monthly, yearly)
+    └── Line Items (how you charge: flat, per-seat, metered)
+```
+
+**Example:** A "Pro" product might have "Pro Monthly" and "Pro Yearly" plans. Each plan has line items defining the actual charges.
+
+## Quick Start
+
+Create or edit `apps/web/config/billing.config.ts`:
+
+```tsx
+import { createBillingSchema } from '@kit/billing';
+
+const provider = process.env.NEXT_PUBLIC_BILLING_PROVIDER ?? 'stripe';
+
+export default createBillingSchema({
+  provider,
+  products: [
+    {
+      id: 'pro',
+      name: 'Pro',
+      description: 'For growing teams',
+      currency: 'USD',
+      badge: 'Popular',
+      plans: [
+        {
+          id: 'pro-monthly',
+          name: 'Pro Monthly',
+          paymentType: 'recurring',
+          interval: 'month',
+          lineItems: [
+            {
+              id: 'price_xxxxxxxxxxxxx', // Your Stripe Price ID
+              name: 'Pro Plan',
+              cost: 29,
+              type: 'flat',
+            },
+          ],
+        },
+        {
+          id: 'pro-yearly',
+          name: 'Pro Yearly',
+          paymentType: 'recurring',
+          interval: 'year',
+          lineItems: [
+            {
+              id: 'price_yyyyyyyyyyyyy', // Your Stripe Price ID
+              name: 'Pro Plan',
+              cost: 290,
+              type: 'flat',
+            },
+          ],
+        },
+      ],
+    },
+  ],
+});
+```
+
+{% alert type="warning" title="Match IDs exactly" %}
+Line item `id` values **must match** the Price IDs in your billing provider (Stripe, Lemon Squeezy, or Paddle). The schema validates this format but cannot verify the IDs exist in your provider account.
+{% /alert %}
+
+## Setting the Billing Provider
+
+Set the provider via environment variable:
+
+```bash
+NEXT_PUBLIC_BILLING_PROVIDER=stripe  # or lemon-squeezy, paddle
+```
+
+Also update the database configuration:
+
+```sql
+UPDATE public.config SET billing_provider = 'stripe';
+```
+
+The provider determines which API is called when creating checkouts, managing subscriptions, and processing webhooks.
+
+## Products
+
+Products represent what you're selling (e.g., "Starter", "Pro", "Enterprise"). Each product can have multiple plans with different billing intervals.
+
+```tsx
+{
+  id: 'pro',
+  name: 'Pro',
+  description: 'For growing teams',
+  currency: 'USD',
+  badge: 'Popular',
+  highlighted: true,
+  enableDiscountField: true,
+  features: [
+    'Unlimited projects',
+    'Priority support',
+    'Advanced analytics',
+  ],
+  plans: [/* ... */],
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | Yes | Unique identifier (your choice, not the provider's ID) |
+| `name` | Yes | Display name in pricing table |
+| `description` | Yes | Short description shown to users |
+| `currency` | Yes | ISO currency code (e.g., "USD", "EUR") |
+| `plans` | Yes | Array of pricing plans |
+| `badge` | No | Badge text (e.g., "Popular", "Best Value") |
+| `highlighted` | No | Visually highlight this product |
+| `enableDiscountField` | No | Show coupon/discount input at checkout |
+| `features` | No | Feature list for pricing table |
+| `hidden` | No | Hide from pricing table (for legacy plans) |
+
+The `id` is your internal identifier. It doesn't need to match anything in Stripe or your payment provider.
+
+## Plans
+
+Plans define pricing options within a product. Typically, you'll have monthly and yearly variants.
+
+```tsx
+{
+  id: 'pro-monthly',
+  name: 'Pro Monthly',
+  paymentType: 'recurring',
+  interval: 'month',
+  trialDays: 14,
+  lineItems: [/* ... */],
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | Yes | Unique identifier (your choice) |
+| `name` | Yes | Display name |
+| `paymentType` | Yes | `'recurring'` or `'one-time'` |
+| `interval` | Recurring only | `'month'` or `'year'` |
+| `lineItems` | Yes | Array of line items (charges) |
+| `trialDays` | No | Free trial period in days. Trials are granted once per user identity, not per account — see [Trial Eligibility](/docs/billing/stripe#trial-eligibility-one-trial-per-user). |
+| `custom` | No | Mark as custom/enterprise plan (see below) |
+| `href` | Custom only | Link for custom plans |
+| `label` | Custom only | Button label for custom plans |
+| `buttonLabel` | No | Custom checkout button text |
+
+**Plan ID validation:** The schema validates that plan IDs are unique across all products.
+
+## Line Items
+
+Line items define how you charge for a plan. Makerkit supports three types:
+
+| Type | Use Case | Example |
+|------|----------|---------|
+| `flat` | Fixed recurring price | $29/month |
+| `per_seat` | Per-user pricing | $10/seat/month |
+| `metered` | Usage-based pricing | $0.01 per API call |
+
+**Provider limitations:**
+
+- **Stripe:** Supports multiple line items per plan (mix flat + per-seat + metered)
+- **Lemon Squeezy:** One line item per plan only
+- **Paddle:** Flat and per-seat only (no metered billing)
+
+### Flat Subscriptions
+
+The most common pricing model. A fixed amount charged at each billing interval.
+
+```tsx
+{
+  id: 'pro-monthly',
+  name: 'Pro Monthly',
+  paymentType: 'recurring',
+  interval: 'month',
+  lineItems: [
+    {
+      id: 'price_1NNwYHI1i3VnbZTqI2UzaHIe', // Stripe Price ID
+      name: 'Pro Plan',
+      cost: 29,
+      type: 'flat',
+    },
+  ],
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | Yes | **Must match** your provider's Price ID |
+| `name` | Yes | Display name |
+| `cost` | Yes | Price (for UI display only) |
+| `type` | Yes | `'flat'` |
+
+{% alert type="default" title="Cost is for display only" %}
+The `cost` field is used for the pricing table UI. The actual charge comes from your billing provider. Make sure they match to avoid confusing users.
+{% /alert %}
+
+### Metered Billing
+
+Charge based on usage (API calls, storage, tokens). You report usage through the billing API, and the provider calculates charges at the end of each billing period.
+
+```tsx
+{
+  id: 'api-monthly',
+  name: 'API Monthly',
+  paymentType: 'recurring',
+  interval: 'month',
+  lineItems: [
+    {
+      id: 'price_1NNwYHI1i3VnbZTqI2UzaHIe',
+      name: 'API Requests',
+      cost: 0,
+      type: 'metered',
+      unit: 'requests',
+      tiers: [
+        { upTo: 1000, cost: 0 },        // First 1000 free
+        { upTo: 10000, cost: 0.001 },   // $0.001 per request
+        { upTo: 'unlimited', cost: 0.0005 }, // Volume discount
+      ],
+    },
+  ],
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | Yes | **Must match** your provider's Price ID |
+| `name` | Yes | Display name |
+| `cost` | Yes | Base cost (usually 0 for metered) |
+| `type` | Yes | `'metered'` |
+| `unit` | Yes | Unit label (e.g., "requests", "GBs", "tokens") |
+| `tiers` | Yes | Array of pricing tiers |
+
+**Tier structure:**
+
+```tsx
+{
+  upTo: number | 'unlimited',  // Usage threshold
+  cost: number,                // Cost per unit in this tier
+}
+```
+
+The last tier should always have `upTo: 'unlimited'`.
+
+{% alert type="warning" title="Provider-specific metered billing" %}
+Stripe and Lemon Squeezy handle metered billing differently. See the [metered usage guide](/docs/next-supabase-turbo/billing/metered-usage) for provider-specific implementation details.
+{% /alert %}
+
+### Per-Seat Billing
+
+Charge based on team size. Makerkit automatically updates seat counts when members are added or removed from a team account.
+
+```tsx
+{
+  id: 'team-monthly',
+  name: 'Team Monthly',
+  paymentType: 'recurring',
+  interval: 'month',
+  lineItems: [
+    {
+      id: 'price_1NNwYHI1i3VnbZTqI2UzaHIe',
+      name: 'Team Seats',
+      cost: 0,
+      type: 'per_seat',
+      tiers: [
+        { upTo: 3, cost: 0 },          // First 3 seats free
+        { upTo: 10, cost: 12 },        // $12/seat for 4-10
+        { upTo: 'unlimited', cost: 10 }, // Volume discount
+      ],
+    },
+  ],
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | Yes | **Must match** your provider's Price ID |
+| `name` | Yes | Display name |
+| `cost` | Yes | Base cost (usually 0 for tiered) |
+| `type` | Yes | `'per_seat'` |
+| `tiers` | Yes | Array of pricing tiers |
+
+**Common patterns:**
+
+```tsx
+// Free tier + flat per-seat
+tiers: [
+  { upTo: 5, cost: 0 },       // 5 free seats
+  { upTo: 'unlimited', cost: 15 },
+]
+
+// Volume discounts
+tiers: [
+  { upTo: 10, cost: 20 },     // $20/seat for 1-10
+  { upTo: 50, cost: 15 },     // $15/seat for 11-50
+  { upTo: 'unlimited', cost: 10 },
+]
+
+// Flat price (no tiers)
+tiers: [
+  { upTo: 'unlimited', cost: 10 },
+]
+```
+
+Makerkit handles seat count updates automatically when:
+- A new member joins the team
+- A member is removed from the team
+- A member invitation is accepted
+
+[Full per-seat billing guide →](/docs/next-supabase-turbo/billing/per-seat-billing)
+
+### One-Off Payments
+
+Single charges for lifetime access, add-ons, or credits. One-off payments are stored in the `orders` table instead of `subscriptions`.
+
+```tsx
+{
+  id: 'lifetime',
+  name: 'Lifetime Access',
+  paymentType: 'one-time',
+  // No interval for one-time payments
+  lineItems: [
+    {
+      id: 'price_1NNwYHI1i3VnbZTqI2UzaHIe',
+      name: 'Lifetime Access',
+      cost: 299,
+      type: 'flat',
+    },
+  ],
+}
+```
+
+**Key differences from subscriptions:**
+
+- `paymentType` must be `'one-time'`
+- No `interval` field
+- Line items can only be `type: 'flat'`
+- Data is stored in `orders` and `order_items` tables
+
+[Full one-off payments guide →](/docs/next-supabase-turbo/billing/one-off-payments)
+
+## Combining Line Items (Stripe Only)
+
+With Stripe, you can combine multiple line items in a single plan. This is useful for hybrid pricing models:
+
+```tsx
+{
+  id: 'growth-monthly',
+  name: 'Growth Monthly',
+  paymentType: 'recurring',
+  interval: 'month',
+  lineItems: [
+    // Base platform fee
+    {
+      id: 'price_base_fee',
+      name: 'Platform Fee',
+      cost: 49,
+      type: 'flat',
+    },
+    // Per-seat charges
+    {
+      id: 'price_seats',
+      name: 'Team Seats',
+      cost: 0,
+      type: 'per_seat',
+      tiers: [
+        { upTo: 5, cost: 0 },
+        { upTo: 'unlimited', cost: 10 },
+      ],
+    },
+    // Usage-based charges
+    {
+      id: 'price_api',
+      name: 'API Calls',
+      cost: 0,
+      type: 'metered',
+      unit: 'calls',
+      tiers: [
+        { upTo: 10000, cost: 0 },
+        { upTo: 'unlimited', cost: 0.001 },
+      ],
+    },
+  ],
+}
+```
+
+{% alert type="warning" title="Lemon Squeezy and Paddle limitations" %}
+Lemon Squeezy and Paddle only support one line item per plan. The schema validation will fail if you add multiple line items with these providers.
+{% /alert %}
+
+## Custom Plans (Enterprise/Contact Us)
+
+Display a plan in the pricing table without checkout functionality. Useful for enterprise tiers or "Contact Us" options.
+
+```tsx
+{
+  id: 'enterprise',
+  name: 'Enterprise',
+  paymentType: 'recurring',
+  interval: 'month',
+  custom: true,
+  label: '$5,000+',  // or 'common.contactUs' for i18n
+  href: '/contact',
+  buttonLabel: 'Contact Sales',
+  lineItems: [],  // Must be empty array
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `custom` | Yes | Set to `true` |
+| `label` | Yes | Price label (e.g., "Custom pricing", "$5,000+") |
+| `href` | Yes | Link destination (e.g., "/contact", "mailto:sales@...") |
+| `buttonLabel` | No | Custom CTA text |
+| `lineItems` | Yes | Must be empty array `[]` |
+
+Custom plans appear in the pricing table but clicking them navigates to `href` instead of opening checkout.
+
+## Legacy Plans
+
+When you discontinue a plan but have existing subscribers, use the `hidden` flag to keep the plan in your schema without showing it in the pricing table:
+
+```tsx
+{
+  id: 'old-pro',
+  name: 'Pro (Legacy)',
+  description: 'This plan is no longer available',
+  currency: 'USD',
+  hidden: true,  // Won't appear in pricing table
+  plans: [
+    {
+      id: 'old-pro-monthly',
+      name: 'Pro Monthly (Legacy)',
+      paymentType: 'recurring',
+      interval: 'month',
+      lineItems: [
+        {
+          id: 'price_legacy_xxx',
+          name: 'Pro Plan',
+          cost: 19,
+          type: 'flat',
+        },
+      ],
+    },
+  ],
+}
+```
+
+Hidden plans:
+- Don't appear in the pricing table
+- Still display correctly in the user's billing section
+- Allow existing subscribers to continue without issues
+
+**If you remove a plan entirely:** Makerkit will attempt to fetch plan details from the billing provider. This works for `flat` line items only. For complex plans, keep them in your schema with `hidden: true`.
+
+## Schema Validation
+
+The `createBillingSchema` function validates your configuration and throws errors for common mistakes:
+
+| Validation | Rule |
+|------------|------|
+| Unique Plan IDs | Plan IDs must be unique across all products |
+| Unique Line Item IDs | Line item IDs must be unique across all plans |
+| Provider constraints | Lemon Squeezy: max 1 line item per plan |
+| Required tiers | Metered and per-seat items require `tiers` array |
+| One-time payments | Must have `type: 'flat'` line items only |
+| Recurring payments | Must specify `interval: 'month'` or `'year'` |
+
+## Complete Example
+
+Here's a full billing schema with multiple products and pricing models:
+
+```tsx
+import { createBillingSchema } from '@kit/billing';
+
+const provider = process.env.NEXT_PUBLIC_BILLING_PROVIDER ?? 'stripe';
+
+export default createBillingSchema({
+  provider,
+  products: [
+    // Free tier (custom plan, no billing)
+    {
+      id: 'free',
+      name: 'Free',
+      description: 'Get started for free',
+      currency: 'USD',
+      plans: [
+        {
+          id: 'free',
+          name: 'Free',
+          paymentType: 'recurring',
+          interval: 'month',
+          custom: true,
+          label: '$0',
+          href: '/auth/sign-up',
+          buttonLabel: 'Get Started',
+          lineItems: [],
+        },
+      ],
+    },
+    // Pro tier with monthly/yearly
+    {
+      id: 'pro',
+      name: 'Pro',
+      description: 'For professionals and small teams',
+      currency: 'USD',
+      badge: 'Popular',
+      highlighted: true,
+      features: [
+        'Unlimited projects',
+        'Priority support',
+        'Advanced analytics',
+        'Custom integrations',
+      ],
+      plans: [
+        {
+          id: 'pro-monthly',
+          name: 'Pro Monthly',
+          paymentType: 'recurring',
+          interval: 'month',
+          trialDays: 14,
+          lineItems: [
+            {
+              id: 'price_pro_monthly',
+              name: 'Pro Plan',
+              cost: 29,
+              type: 'flat',
+            },
+          ],
+        },
+        {
+          id: 'pro-yearly',
+          name: 'Pro Yearly',
+          paymentType: 'recurring',
+          interval: 'year',
+          trialDays: 14,
+          lineItems: [
+            {
+              id: 'price_pro_yearly',
+              name: 'Pro Plan',
+              cost: 290,
+              type: 'flat',
+            },
+          ],
+        },
+      ],
+    },
+    // Team tier with per-seat pricing
+    {
+      id: 'team',
+      name: 'Team',
+      description: 'For growing teams',
+      currency: 'USD',
+      features: [
+        'Everything in Pro',
+        'Team management',
+        'SSO authentication',
+        'Audit logs',
+      ],
+      plans: [
+        {
+          id: 'team-monthly',
+          name: 'Team Monthly',
+          paymentType: 'recurring',
+          interval: 'month',
+          lineItems: [
+            {
+              id: 'price_team_monthly',
+              name: 'Team Seats',
+              cost: 0,
+              type: 'per_seat',
+              tiers: [
+                { upTo: 5, cost: 0 },
+                { upTo: 'unlimited', cost: 15 },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    // Enterprise tier
+    {
+      id: 'enterprise',
+      name: 'Enterprise',
+      description: 'For large organizations',
+      currency: 'USD',
+      features: [
+        'Everything in Team',
+        'Dedicated support',
+        'Custom contracts',
+        'SLA guarantees',
+      ],
+      plans: [
+        {
+          id: 'enterprise',
+          name: 'Enterprise',
+          paymentType: 'recurring',
+          interval: 'month',
+          custom: true,
+          label: 'Custom',
+          href: '/contact',
+          buttonLabel: 'Contact Sales',
+          lineItems: [],
+        },
+      ],
+    },
+  ],
+});
+```
+
+## Related Documentation
+
+- [Billing Overview](/docs/next-supabase-turbo/billing/overview) - Architecture and provider comparison
+- [Stripe Setup](/docs/next-supabase-turbo/billing/stripe) - Configure Stripe billing
+- [Lemon Squeezy Setup](/docs/next-supabase-turbo/billing/lemon-squeezy) - Configure Lemon Squeezy
+- [Paddle Setup](/docs/next-supabase-turbo/billing/paddle) - Configure Paddle
+- [Per-Seat Billing](/docs/next-supabase-turbo/billing/per-seat-billing) - Team-based pricing
+- [Metered Usage](/docs/next-supabase-turbo/billing/metered-usage) - Usage-based pricing
+- [One-Off Payments](/docs/next-supabase-turbo/billing/one-off-payments) - Lifetime deals and add-ons

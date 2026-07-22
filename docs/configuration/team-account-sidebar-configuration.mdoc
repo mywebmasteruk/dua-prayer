@@ -1,0 +1,265 @@
+---
+status: "published"
+label: "Team Account Navigation"
+title: "Team Account Navigation Configuration in the Next.js Supabase SaaS Kit"
+description: "Configure the team account sidebar navigation, layout style, and menu structure in the Next.js Supabase SaaS Kit for B2B team workspaces."
+order: 6
+---
+
+The team account navigation at `apps/web/config/team-account-navigation.config.tsx` defines the sidebar menu for team workspaces. This configuration differs from personal navigation because routes include the team slug as a dynamic segment.
+
+{% alert type="default" title="Team Context" %}
+Team navigation routes use `[account]` as a placeholder that gets replaced with the actual team slug at runtime (e.g., `/home/acme-corp/settings`).
+{% /alert %}
+
+## Layout Options
+
+| Variable | Options | Default | Description |
+|----------|---------|---------|-------------|
+| `NEXT_PUBLIC_TEAM_NAVIGATION_STYLE` | `sidebar`, `header` | `sidebar` | Navigation layout style |
+| `NEXT_PUBLIC_TEAM_SIDEBAR_COLLAPSED` | `true`, `false` | `false` | Start with collapsed sidebar |
+| `NEXT_PUBLIC_SIDEBAR_COLLAPSIBLE_STYLE` | `offcanvas`, `icon`, `none` | `icon` | How sidebar collapses |
+
+### Sidebar Style (Default)
+
+```bash
+NEXT_PUBLIC_TEAM_NAVIGATION_STYLE=sidebar
+```
+
+### Header Style
+
+```bash
+NEXT_PUBLIC_TEAM_NAVIGATION_STYLE=header
+```
+
+## Default Configuration
+
+The kit ships with these team routes:
+
+```tsx
+import { CreditCard, LayoutDashboard, Settings, Users } from 'lucide-react';
+
+import { NavigationConfigSchema } from '@kit/ui/navigation-schema';
+
+import featureFlagsConfig from '~/config/feature-flags.config';
+import pathsConfig from '~/config/paths.config';
+
+const iconClasses = 'w-4';
+
+const getRoutes = (account: string) => [
+  {
+    label: 'common.routes.application',
+    children: [
+      {
+        label: 'common.routes.dashboard',
+        path: pathsConfig.app.accountHome.replace('[account]', account),
+        Icon: <LayoutDashboard className={iconClasses} />,
+        highlightMatch: `${pathsConfig.app.accountHome.replace('[account]', account)}$`,
+      },
+    ],
+  },
+  {
+    label: 'common.routes.settings',
+    collapsible: false,
+    children: [
+      {
+        label: 'common.routes.settings',
+        path: createPath(pathsConfig.app.accountSettings, account),
+        Icon: <Settings className={iconClasses} />,
+      },
+      {
+        label: 'common.routes.members',
+        path: createPath(pathsConfig.app.accountMembers, account),
+        Icon: <Users className={iconClasses} />,
+      },
+      featureFlagsConfig.enableTeamAccountBilling
+        ? {
+            label: 'common.routes.billing',
+            path: createPath(pathsConfig.app.accountBilling, account),
+            Icon: <CreditCard className={iconClasses} />,
+          }
+        : undefined,
+    ].filter(Boolean),
+  },
+];
+
+export function getTeamAccountSidebarConfig(account: string) {
+  return NavigationConfigSchema.parse({
+    routes: getRoutes(account),
+    style: process.env.NEXT_PUBLIC_TEAM_NAVIGATION_STYLE,
+    sidebarCollapsed: process.env.NEXT_PUBLIC_TEAM_SIDEBAR_COLLAPSED,
+    sidebarCollapsedStyle: process.env.NEXT_PUBLIC_SIDEBAR_COLLAPSIBLE_STYLE,
+  });
+}
+
+function createPath(path: string, account: string) {
+  return path.replace('[account]', account);
+}
+```
+
+## Key Differences from Personal Navigation
+
+| Aspect | Personal Navigation | Team Navigation |
+|--------|--------------------|-----------------:|
+| Export | `personalAccountNavigationConfig` (object) | `getTeamAccountSidebarConfig(account)` (function) |
+| Paths | Static (e.g., `/home/settings`) | Dynamic (e.g., `/home/acme-corp/settings`) |
+| Context | Single user workspace | Team-specific workspace |
+
+## Adding Custom Routes
+
+### Simple Route
+
+Add a route to an existing section. Use the `createPath` helper to inject the team slug:
+
+```tsx
+const getRoutes = (account: string) => [
+  {
+    label: 'common.routes.application',
+    children: [
+      {
+        label: 'common.routes.dashboard',
+        path: createPath(pathsConfig.app.accountHome, account),
+        Icon: <LayoutDashboard className={iconClasses} />,
+        highlightMatch: `${createPath(pathsConfig.app.accountHome, account)}$`,
+      },
+      {
+        label: 'Projects',
+        path: createPath('/home/[account]/projects', account),
+        Icon: <Folder className={iconClasses} />,
+      },
+    ],
+  },
+  // ... rest of routes
+];
+```
+
+### New Section
+
+Add a new section for team-specific features:
+
+```tsx
+const getRoutes = (account: string) => [
+  // ... existing sections
+  {
+    label: 'Workspace',
+    children: [
+      {
+        label: 'Projects',
+        path: createPath('/home/[account]/projects', account),
+        Icon: <Folder className={iconClasses} />,
+      },
+      {
+        label: 'Documents',
+        path: createPath('/home/[account]/documents', account),
+        Icon: <FileText className={iconClasses} />,
+      },
+      {
+        label: 'Integrations',
+        path: createPath('/home/[account]/integrations', account),
+        Icon: <Plug className={iconClasses} />,
+      },
+    ],
+  },
+];
+```
+
+### Conditional Routes
+
+Show routes based on feature flags or team permissions:
+
+```tsx
+const getRoutes = (account: string) => [
+  {
+    label: 'common.routes.settings',
+    collapsible: false,
+    children: [
+      {
+        label: 'common.routes.settings',
+        path: createPath(pathsConfig.app.accountSettings, account),
+        Icon: <Settings className={iconClasses} />,
+      },
+      {
+        label: 'common.routes.members',
+        path: createPath(pathsConfig.app.accountMembers, account),
+        Icon: <Users className={iconClasses} />,
+      },
+      // Only show billing if enabled
+      featureFlagsConfig.enableTeamAccountBilling
+        ? {
+            label: 'common.routes.billing',
+            path: createPath(pathsConfig.app.accountBilling, account),
+            Icon: <CreditCard className={iconClasses} />,
+          }
+        : undefined,
+    ].filter(Boolean),
+  },
+];
+```
+
+## Route Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `label` | `string` | Yes | Display text (supports i18n keys) |
+| `path` | `string` | Yes | Route path with team slug |
+| `Icon` | `ReactNode` | No | Lucide icon component |
+| `highlightMatch` | `string` | No | Regex pattern for active route highlighting |
+| `children` | `Route[]` | No | Nested routes for sub-menus |
+| `collapsible` | `boolean` | No | Whether section can collapse |
+
+## Using the createPath Helper
+
+Always use the `createPath` helper to replace `[account]` with the team slug:
+
+```tsx
+function createPath(path: string, account: string) {
+  return path.replace('[account]', account);
+}
+
+// Usage
+const settingsPath = createPath('/home/[account]/settings', 'acme-corp');
+// Result: '/home/acme-corp/settings'
+```
+
+For paths defined in `pathsConfig`, use the same pattern:
+
+```tsx
+createPath(pathsConfig.app.accountSettings, account)
+// Converts '/home/[account]/settings' to '/home/acme-corp/settings'
+```
+
+## Non-Collapsible Sections
+
+Set `collapsible: false` to keep a section always expanded:
+
+```tsx
+{
+  label: 'common.routes.settings',
+  collapsible: false,  // Always expanded
+  children: [
+    // ... routes
+  ],
+}
+```
+
+## Best Practices
+
+1. **Always use `createPath`**: Never hardcode team slugs. Always use the helper function.
+2. **Keep paths in `pathsConfig`**: When adding new routes, add them to `paths.config.ts` first.
+3. **Filter undefined routes**: When using conditional routes, always add `.filter(Boolean)`.
+4. **Use the `highlightMatch` property**: Add `highlightMatch` with a regex pattern to index routes to prevent matching nested paths.
+5. **Consider mobile**: Test navigation on mobile devices. Complex nested menus can be hard to navigate.
+
+## Common Pitfalls
+
+1. **Forgetting to replace `[account]`**: If paths show `[account]` literally in the URL, you forgot to use `createPath`.
+2. **Not exporting as function**: Team navigation must be a function that accepts the account slug, not a static object.
+3. **Mixing personal and team routes**: Team routes should use `/home/[account]/...`, personal routes use `/home/...`.
+4. **Hardcoding team slugs**: Never hardcode a specific team slug. Always use the `account` parameter.
+
+## Related Topics
+
+- [Personal Account Navigation](/docs/next-supabase-turbo/configuration/personal-account-sidebar-configuration) - Configure personal navigation
+- [Paths Configuration](/docs/next-supabase-turbo/configuration/paths-configuration) - Centralized path management
+- [Team Accounts](/docs/next-supabase-turbo/api/team-account-api) - Understanding team workspaces
+- [Feature Flags](/docs/next-supabase-turbo/configuration/feature-flags-configuration) - Toggle team features

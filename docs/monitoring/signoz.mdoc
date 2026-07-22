@@ -1,0 +1,270 @@
+---
+status: "published"
+title: "Configuring SigNoz in Your Next.js Supabase SaaS Kit"
+label: "SigNoz"
+order: 6
+description: "Set up SigNoz for OpenTelemetry-native observability with self-hosted error tracking, traces, logs, and metrics."
+---
+
+{% sequence title="Steps to configure SigNoz" description="Learn how to configure SigNoz in your Next.js Supabase SaaS kit." %}
+
+[Installing the SigNoz plugin](#installing-the-signoz-plugin)
+
+[Registering the monitoring services](#registering-the-monitoring-services)
+
+[Environment variables](#environment-variables)
+
+[Running SigNoz locally](#running-signoz-locally)
+
+[Configuring logging with Winston](#configuring-logging-with-winston)
+
+{% /sequence %}
+
+[SigNoz](https://signoz.io) is an open-source, self-hostable observability platform built on OpenTelemetry. It provides traces, metrics, logs, and error tracking in one interface. Choose SigNoz if you want full control over your observability data and prefer OpenTelemetry standards.
+
+## Installing the SigNoz Plugin
+
+SigNoz is distributed as a Makerkit plugin. Install it using the CLI:
+
+```bash
+npx @makerkit/cli@latest plugins add signoz
+```
+
+This creates the plugin at `packages/plugins/signoz`.
+
+Our codemod will wire up the plugin in your project, so you don't have to do anything manually. Please review the changes with `git diff`.
+
+## Environment Variables
+
+SigNoz requires several OpenTelemetry environment variables:
+
+```bash title=".env.local"
+# Enable SigNoz as the monitoring provider
+NEXT_PUBLIC_MONITORING_PROVIDER=signoz
+
+# Service identification
+NEXT_PUBLIC_OTEL_SERVICE_NAME=makerkit
+OTEL_RESOURCE_ATTRIBUTES="service.name=makerkit,service.version=1.0.0"
+
+# Client-side SigNoz configuration
+NEXT_PUBLIC_SIGNOZ_INGESTION_KEY=your_ingestion_key
+NEXT_PUBLIC_SIGNOZ_INGESTION_URL=http://localhost:4318/v1/logs
+
+# Server-side OpenTelemetry configuration
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4318/v1/traces
+OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://localhost:4318/v1/logs
+OTEL_EXPORTER_OTLP_HEADERS="signoz-ingestion-key=your_ingestion_key"
+```
+
+### Variable reference
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_OTEL_SERVICE_NAME` | Name shown in SigNoz dashboards |
+| `OTEL_RESOURCE_ATTRIBUTES` | Service metadata (name, version) |
+| `NEXT_PUBLIC_SIGNOZ_INGESTION_KEY` | Your SigNoz ingestion API key |
+| `NEXT_PUBLIC_SIGNOZ_INGESTION_URL` | Logs ingestion endpoint |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base OTLP endpoint |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Traces ingestion endpoint |
+| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` | Logs ingestion endpoint |
+
+## Running SigNoz Locally
+
+For development, run SigNoz in Docker:
+
+```bash
+# Clone SigNoz
+git clone -b main https://github.com/SigNoz/signoz.git && cd signoz/deploy/
+
+# Start SigNoz
+docker compose -f docker/clickhouse-setup/docker-compose.yaml up -d
+```
+
+SigNoz will be available at `http://localhost:3301`.
+
+For detailed installation options, see the [SigNoz Docker installation guide](https://signoz.io/docs/install/docker/).
+
+### Local environment variables
+
+When running SigNoz locally, use these endpoints:
+
+```bash title=".env.local"
+NEXT_PUBLIC_SIGNOZ_INGESTION_URL=http://localhost:4318/v1/logs
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4318/v1/traces
+OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://localhost:4318/v1/logs
+```
+
+For local development, you can leave `OTEL_EXPORTER_OTLP_HEADERS` empty since no authentication is required.
+
+## Production Configuration
+
+When deploying SigNoz to production (self-hosted or SigNoz Cloud):
+
+### Self-hosted
+
+Update the endpoints to point to your SigNoz instance:
+
+```bash title=".env.production"
+NEXT_PUBLIC_SIGNOZ_INGESTION_URL=https://signoz.yourdomain.com/v1/logs
+OTEL_EXPORTER_OTLP_ENDPOINT=https://signoz.yourdomain.com
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://signoz.yourdomain.com/v1/traces
+OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://signoz.yourdomain.com/v1/logs
+```
+
+### SigNoz Cloud
+
+If using SigNoz Cloud, update the endpoints and add your ingestion key:
+
+```bash title=".env.production"
+NEXT_PUBLIC_SIGNOZ_INGESTION_KEY=your_cloud_ingestion_key
+NEXT_PUBLIC_SIGNOZ_INGESTION_URL=https://ingest.{region}.signoz.cloud/v1/logs
+OTEL_EXPORTER_OTLP_ENDPOINT=https://ingest.{region}.signoz.cloud
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://ingest.{region}.signoz.cloud/v1/traces
+OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://ingest.{region}.signoz.cloud/v1/logs
+OTEL_EXPORTER_OTLP_HEADERS="signoz-ingestion-key=your_cloud_ingestion_key"
+```
+
+Replace `{region}` with your SigNoz Cloud region (e.g., `us`, `eu`).
+
+## Configuring Logging with Winston
+
+{% alert type="warning" title="Pino logging limitation" %}
+Due to compatibility issues between Next.js and the OpenTelemetry transport for Pino (Makerkit's default logger), logs cannot be sent to SigNoz using Pino. Switch to Winston for log ingestion.
+{% /alert %}
+
+### 1. Switch to Winston
+
+Set the logger environment variable:
+
+```bash title=".env.local"
+LOGGER=winston
+```
+
+### 2. Register the Winston logger
+
+```typescript title="packages/shared/src/logger/index.ts"
+// Register the Winston logger implementation
+loggerRegistry.register('winston', async () => {
+  const { Logger: WinstonLogger } = await import('./impl/winston');
+
+  return WinstonLogger;
+});
+```
+
+### 3. Configure Winston with OpenTelemetry
+
+Follow the [SigNoz Winston integration guide](https://signoz.io/docs/logs-management/send-logs/nodejs-winston-logs/) to configure the OpenTelemetry transport for Winston.
+
+Example Winston configuration:
+
+```typescript title="packages/shared/src/logger/impl/winston.ts"
+import winston from 'winston';
+
+const { combine, timestamp, json } = winston.format;
+
+export const Logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: combine(
+    timestamp(),
+    json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    // Add OpenTelemetry transport for SigNoz
+  ],
+});
+```
+
+## What SigNoz Captures
+
+### Traces
+
+SigNoz captures distributed traces across your application:
+
+- HTTP request traces
+- Database query traces
+- External API call traces
+- Server Component render times
+
+View traces in SigNoz under **Traces** to see the full request lifecycle.
+
+### Metrics
+
+OpenTelemetry metrics are automatically collected:
+
+- Request duration histograms
+- Error rates
+- Request counts by endpoint
+
+### Logs
+
+When configured with Winston, logs flow to SigNoz:
+
+- Application logs at all levels (debug, info, warn, error)
+- Correlated with traces via trace IDs
+- Searchable and filterable
+
+### Exceptions
+
+Errors captured via the monitoring service appear in SigNoz with:
+
+- Stack traces
+- Request context
+- Correlation with traces and logs
+
+## SigNoz vs Sentry
+
+| Feature | SigNoz | Sentry |
+|---------|--------|--------|
+| Self-hostable | Yes (primary use case) | Yes (limited) |
+| OpenTelemetry native | Yes | No |
+| Traces | Yes | Yes (via APM) |
+| Logs | Yes | No |
+| Metrics | Yes | No |
+| Error tracking | Yes | Yes (primary focus) |
+| Session replay | No | Yes |
+| Source maps | Limited | Full support |
+| Pricing | Free (self-hosted) | Usage-based |
+
+**Choose SigNoz when:**
+
+- You want to self-host your observability stack
+- You prefer OpenTelemetry standards
+- You need traces, logs, and metrics in one place
+- You want predictable costs (self-hosted = infrastructure cost only)
+
+**Choose Sentry when:**
+
+- You want managed service with minimal setup
+- You need advanced error tracking features
+- You want session replay
+- You prefer detailed source map integration
+
+## Troubleshooting
+
+### Traces not appearing
+
+1. **Check OTLP endpoints**: Verify all `OTEL_EXPORTER_OTLP_*` variables are set
+2. **Check connectivity**: Ensure your app can reach the SigNoz endpoints
+3. **Check the SigNoz logs**: Look for ingestion errors in SigNoz container logs
+
+### Logs not appearing
+
+1. **Verify Winston is configured**: Check `LOGGER=winston` is set
+2. **Check the OpenTelemetry transport**: Ensure the Winston transport is correctly configured
+3. **Check log levels**: Verify your log level includes the logs you expect
+
+### Authentication errors
+
+1. **Check ingestion key**: Verify `signoz-ingestion-key` header is set correctly
+2. **Check key format**: The header value should be just the key, not `Bearer key`
+
+## Next Steps
+
+- [SigNoz documentation](https://signoz.io/docs/)
+- [OpenTelemetry SDK documentation](https://opentelemetry.io/docs/languages/js/)
+- [SigNoz GitHub repository](https://github.com/SigNoz/signoz)
+- [Return to monitoring overview](/docs/next-supabase-turbo/monitoring/overview)

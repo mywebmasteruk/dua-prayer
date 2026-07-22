@@ -1,0 +1,184 @@
+---
+status: "published"
+title: "Navigating the Next.js Supabase SaaS Kit Codebase"
+label: "Navigating the Codebase"
+order: 7
+description: "Understand the Turborepo monorepo structure, key directories, and where to add your custom code."
+---
+
+The kit uses Turborepo to organize code into reusable packages. Understanding this structure helps you know where to find things and where to add your own code.
+
+## Top-Level Structure
+
+```
+├── apps/
+│   ├── web/          # Main Next.js application
+│   ├── dev-tool/     # Development debugging tool
+│   └── e2e/          # Playwright end-to-end tests
+├── packages/
+│   ├── features/     # Feature modules (auth, accounts, admin)
+│   ├── ui/           # Shared UI components
+│   ├── supabase/     # Database client and types
+│   ├── billing/      # Payment integrations
+│   ├── mailers/      # Email providers
+│   └── ...           # Other shared packages
+└── turbo.json        # Turborepo configuration
+```
+
+## Where You'll Work Most
+
+**90% of your work** happens in `apps/web/`. The packages provide infrastructure; you build your product in the app.
+
+### apps/web/ Directory
+
+```
+apps/web/
+├── app/              # Next.js App Router (routes)
+├── components/       # App-specific components
+├── config/           # Application configuration
+├── lib/              # App-specific utilities
+├── content/          # CMS content (Keystatic)
+├── styles/           # Global CSS
+└── supabase/         # Migrations and database tests
+```
+
+| Directory | What Goes Here |
+|-----------|---------------|
+| `app/` | All routes and pages |
+| `components/` | Components specific to this app |
+| `config/` | App settings, feature flags, navigation |
+| `lib/` | Utilities that don't belong in packages |
+| `supabase/` | Database migrations and seed data |
+
+## App Router Structure
+
+The `app/` directory follows Next.js App Router conventions:
+
+```
+app/
+├── [locale]/              # i18n locale segment (wraps all routes)
+│   ├── (marketing)/       # Public pages (landing, pricing, blog)
+│   ├── auth/              # Authentication pages
+│   ├── home/              # Authenticated dashboard
+│   │   ├── (user)/        # Personal account routes
+│   │   └── [account]/     # Team account routes (dynamic)
+│   ├── admin/             # Super admin dashboard
+│   ├── join/              # Team invitation acceptance
+│   ├── update-password/   # Password reset completion
+│   └── identities/        # OAuth identity linking
+├── api/                   # API route handlers (outside [locale])
+└── layout.tsx             # Minimal root layout
+```
+
+### Route Groups Explained
+
+**`(marketing)`** - Pathless group for public pages. URLs don't include "marketing":
+- `app/[locale]/(marketing)/page.tsx` → `/`
+- `app/[locale]/(marketing)/pricing/page.tsx` → `/pricing`
+
+**`home/(user)`** - Personal account dashboard. Pathless group under /home:
+- `app/[locale]/home/(user)/page.tsx` → `/home`
+- `app/[locale]/home/(user)/settings/page.tsx` → `/home/settings`
+
+**`home/[account]`** - Team account dashboard. Dynamic segment for team slug:
+- `app/[locale]/home/[account]/page.tsx` → `/home/acme-corp`
+- `app/[locale]/home/[account]/settings/page.tsx` → `/home/acme-corp/settings`
+
+The `[locale]` segment is optional for the default language (en). Non-default locales use a prefix (e.g., `/es/pricing`).
+
+## Packages Overview
+
+Packages provide reusable functionality. Import from them; don't modify unless necessary.
+
+### Feature Packages (`packages/features/`)
+
+| Package | Import | Contains |
+|---------|--------|----------|
+| `@kit/auth` | `@kit/auth/*` | Sign in/up forms, auth hooks |
+| `@kit/accounts` | `@kit/accounts/*` | Personal account components |
+| `@kit/team-accounts` | `@kit/team-accounts/*` | Team management, invitations |
+| `@kit/admin` | `@kit/admin/*` | Super admin dashboard |
+| `@kit/notifications` | `@kit/notifications/*` | In-app notifications |
+
+### Infrastructure Packages
+
+| Package | Import | Contains |
+|---------|--------|----------|
+| `@kit/ui` | `@kit/ui/*` | Shadcn components, design system |
+| `@kit/supabase` | `@kit/supabase/*` | Database clients, types |
+| `@kit/next` | `@kit/next/*` | Server actions, route helpers |
+| `@kit/billing` | `@kit/billing/*` | Subscription logic |
+| `@kit/mailers` | `@kit/mailers/*` | Email sending |
+
+## Adding Your Own Code
+
+### New Pages
+
+Add routes in `apps/web/app/[locale]/`:
+
+```
+# Public page
+apps/web/app/[locale]/(marketing)/features/page.tsx → /features
+
+# Authenticated page (personal)
+apps/web/app/[locale]/home/(user)/dashboard/page.tsx → /home/dashboard
+
+# Authenticated page (team)
+apps/web/app/[locale]/home/[account]/projects/page.tsx → /home/[slug]/projects
+```
+
+### New Components
+
+Add to `apps/web/components/` for app-specific components:
+
+```
+apps/web/components/
+├── dashboard/
+│   ├── stats-card.tsx
+│   └── activity-feed.tsx
+└── projects/
+    ├── project-list.tsx
+    └── project-form.tsx
+```
+
+### New Database Tables
+
+1. Create migration in `apps/web/supabase/migrations/`
+2. Run `pnpm run supabase:web:reset` to apply
+3. Run `pnpm run supabase:web:typegen` to update types
+
+### New API Routes
+
+Add to `apps/web/app/api/`:
+
+```typescript
+// apps/web/app/api/projects/route.ts
+import { enhanceRouteHandler } from '@kit/next/routes';
+
+export const GET = enhanceRouteHandler(async ({ user }) => {
+  // Your logic here
+});
+```
+
+## Configuration Files
+
+Located in `apps/web/config/`:
+
+| File | Purpose | When to Edit |
+|------|---------|--------------|
+| `app.config.ts` | App name, URLs | During initial setup |
+| `auth.config.ts` | Auth providers | Adding OAuth providers |
+| `billing.config.ts` | Plans, prices | Setting up billing |
+| `feature-flags.config.ts` | Feature toggles | Enabling/disabling features |
+| `paths.config.ts` | Route constants | Adding new routes |
+| `*-navigation.config.tsx` | Sidebar menus | Customizing navigation |
+
+## Next Steps
+
+- [Review common commands](/docs/next-supabase-turbo/installation/common-commands) for daily development
+- [Configure the app](/docs/next-supabase-turbo/configuration/application-configuration) for your product
+- [Add marketing pages](/docs/next-supabase-turbo/development/marketing-pages) to start building
+
+
+
+

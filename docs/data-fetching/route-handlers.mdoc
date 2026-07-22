@@ -1,0 +1,567 @@
+---
+status: "published"
+title: "API Route Handlers in Next.js"
+label: "Route Handlers"
+description: "Build API endpoints with Next.js Route Handlers. Covers the enhanceRouteHandler utility, webhook handling, CSRF protection, and when to use Route Handlers vs Server Actions."
+order: 2
+---
+
+[Route Handlers](/blog/tutorials/server-actions-vs-route-handlers) create HTTP API endpoints in Next.js by exporting functions named GET, POST, PUT, or DELETE from a `route.ts` file. 
+
+While Server Actions handle most mutations, Route Handlers are essential for webhooks (Stripe, Lemon Squeezy), external API access, streaming responses, and scenarios needing custom HTTP headers or status codes. 
+
+MakerKit's `enhanceRouteHandler` adds authentication and validation. Tested with Next.js 16 (async headers/params).
+
+{% callout title="When to use Route Handlers" %}
+**Use Route Handlers** for webhooks, external services calling your API, streaming responses, and public APIs. **Use Server Actions** for mutations from your own app (forms, button clicks).
+{% /callout %}
+
+## When to Use Route Handlers
+
+**Use Route Handlers for:**
+- Webhook endpoints (Stripe, Lemon Squeezy, GitHub, etc.)
+- External services calling your API
+- Public APIs for third-party consumption
+- Streaming responses or Server-Sent Events
+- Custom headers, status codes, or response formats
+
+**Use Server Actions instead for:**
+- Form submissions from your own app
+- Mutations triggered by user interactions
+- Any operation that doesn't need HTTP details
+
+## Basic Route Handler
+
+Create a `route.ts` file in any route segment:
+
+```tsx
+// app/api/health/route.ts
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  return NextResponse.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+  });
+}
+```
+
+This creates an endpoint at `/api/health` that responds to GET requests.
+
+### HTTP Methods
+
+Export functions named after HTTP methods:
+
+```tsx
+// app/api/tasks/route.ts
+import { NextResponse } from 'next/server';
+
+export async function GET(request: Request) {
+  // Handle GET /api/tasks
+}
+
+export async function POST(request: Request) {
+  // Handle POST /api/tasks
+}
+
+export async function PUT(request: Request) {
+  // Handle PUT /api/tasks
+}
+
+export async function DELETE(request: Request) {
+  // Handle DELETE /api/tasks
+}
+```
+
+## Using enhanceRouteHandler
+
+The `enhanceRouteHandler` utility adds authentication, validation, and captcha verification:
+
+```tsx
+import { NextResponse } from 'next/server';
+import * as z from 'zod';
+import { enhanceRouteHandler } from '@kit/next/routes';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+const CreateTaskSchema = z.object({
+  title: z.string().min(1),
+  accountId: z.string().uuid(),
+});
+
+export const POST = enhanceRouteHandler(
+  async ({ body, user, request }) => {
+    // body is validated against the schema
+    // user is the authenticated user
+    // request is the original NextRequest
+
+    const supabase = getSupabaseServerClient();
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert({
+        title: body.title,
+        account_id: body.accountId,
+        created_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json(
+        { error: 'Failed to create task' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ task: data }, { status: 201 });
+  },
+  {
+    schema: CreateTaskSchema,
+    auth: true, // Require authentication (default)
+  }
+);
+```
+
+### Configuration Options
+
+```tsx
+enhanceRouteHandler(handler, {
+  // Zod schema for request body validation
+  schema: MySchema,
+
+  // Require authentication (default: true)
+  auth: true,
+
+  // Require captcha verification (default: false)
+  captcha: false,
+});
+```
+
+### Public Endpoints
+
+For public endpoints (no authentication required):
+
+```tsx
+export const GET = enhanceRouteHandler(
+  async ({ request }) => {
+    // user will be undefined
+    const supabase = getSupabaseServerClient();
+
+    const { data } = await supabase
+      .from('public_content')
+      .select('*')
+      .limit(10);
+
+    return NextResponse.json({ content: data });
+  },
+  { auth: false }
+);
+```
+
+## Dynamic Route Parameters
+
+Access route parameters in Route Handlers:
+
+```tsx
+// app/api/tasks/[id]/route.ts
+import { NextResponse } from 'next/server';
+import { enhanceRouteHandler } from '@kit/next/routes';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export const GET = enhanceRouteHandler(
+  async ({ user, params }) => {
+    const supabase = getSupabaseServerClient();
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', params.id)
+      .single();
+
+    if (error || !data) {
+      return NextResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ task: data });
+  },
+  { auth: true }
+);
+
+export const DELETE = enhanceRouteHandler(
+  async ({ user, params }) => {
+    const supabase = getSupabaseServerClient();
+
+    const { error } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', params.id)
+      .eq('created_by', user.id);
+
+    if (error) {
+      return NextResponse.json(
+        { error: 'Failed to delete task' },
+        { status: 500 }
+      );
+    }
+
+    return new Response(null, { status: 204 });
+  },
+  { auth: true }
+);
+```
+
+## Webhook Handling
+
+Webhooks require special handling since they come from external services without user authentication.
+
+### Stripe Webhook Example
+
+```tsx
+// app/api/webhooks/stripe/route.ts
+import { headers } from 'next/headers';
+import { NextResponse } from 'next/server';
+import Stripe from 'stripe';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+
+export async function POST(request: Request) {
+  const body = await request.text();
+  const headersList = await headers();
+  const signature = headersList.get('stripe-signature');
+
+  if (!signature) {
+    return NextResponse.json(
+      { error: 'Missing signature' },
+      { status: 400 }
+    );
+  }
+
+  let event: Stripe.Event;
+
+  try {
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err);
+    return NextResponse.json(
+      { error: 'Invalid signature' },
+      { status: 400 }
+    );
+  }
+
+  // Use admin client since webhooks don't have user context
+  const supabase = getSupabaseServerAdminClient();
+
+  switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data.object as Stripe.Checkout.Session;
+
+      await supabase
+        .from('subscriptions')
+        .update({ status: 'active' })
+        .eq('stripe_customer_id', session.customer);
+      break;
+    }
+
+    case 'customer.subscription.deleted': {
+      const subscription = event.data.object as Stripe.Subscription;
+
+      await supabase
+        .from('subscriptions')
+        .update({ status: 'cancelled' })
+        .eq('stripe_subscription_id', subscription.id);
+      break;
+    }
+
+    default:
+      console.log(`Unhandled event type: ${event.type}`);
+  }
+
+  return NextResponse.json({ received: true });
+}
+```
+
+### Generic Webhook Pattern
+
+```tsx
+// app/api/webhooks/[provider]/route.ts
+import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+
+type WebhookHandler = {
+  verifySignature: (body: string, signature: string) => boolean;
+  handleEvent: (event: unknown) => Promise<void>;
+};
+
+const handlers: Record<string, WebhookHandler> = {
+  stripe: {
+    verifySignature: (body, sig) => { /* ... */ },
+    handleEvent: async (event) => { /* ... */ },
+  },
+  github: {
+    verifySignature: (body, sig) => { /* ... */ },
+    handleEvent: async (event) => { /* ... */ },
+  },
+};
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ provider: string }> }
+) {
+  const { provider } = await params;
+  const handler = handlers[provider];
+
+  if (!handler) {
+    return NextResponse.json(
+      { error: 'Unknown provider' },
+      { status: 404 }
+    );
+  }
+
+  const body = await request.text();
+  const headersList = await headers();
+  const signature = headersList.get('x-signature') ?? '';
+
+  if (!handler.verifySignature(body, signature)) {
+    return NextResponse.json(
+      { error: 'Invalid signature' },
+      { status: 401 }
+    );
+  }
+
+  try {
+    const event = JSON.parse(body);
+    await handler.handleEvent(event);
+    return NextResponse.json({ received: true });
+  } catch (error) {
+    console.error(`Webhook error (${provider}):`, error);
+    return NextResponse.json(
+      { error: 'Processing failed' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+## CSRF Protection
+
+CSRF protection is handled natively by Next.js Server Actions. No manual CSRF token management is needed.
+
+Routes under `/api/*` are intended for external access (webhooks, third-party integrations) and do not have CSRF protection. Use authentication checks via `enhanceRouteHandler` with `auth: true` if needed.
+
+## Streaming Responses
+
+Route Handlers support streaming for real-time data:
+
+```tsx
+// app/api/stream/route.ts
+export async function GET() {
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      for (let i = 0; i < 10; i++) {
+        const data = JSON.stringify({ count: i, timestamp: Date.now() });
+        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  });
+}
+```
+
+## File Uploads
+
+Handle file uploads with Route Handlers:
+
+```tsx
+// app/api/upload/route.ts
+import { NextResponse } from 'next/server';
+import { enhanceRouteHandler } from '@kit/next/routes';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export const POST = enhanceRouteHandler(
+  async ({ request, user }) => {
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
+
+    if (!file) {
+      return NextResponse.json(
+        { error: 'No file provided' },
+        { status: 400 }
+      );
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      return NextResponse.json(
+        { error: 'Invalid file type' },
+        { status: 400 }
+      );
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: 'File too large' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = getSupabaseServerClient();
+    const fileName = `${user.id}/${Date.now()}-${file.name}`;
+
+    const { error } = await supabase.storage
+      .from('uploads')
+      .upload(fileName, file);
+
+    if (error) {
+      return NextResponse.json(
+        { error: 'Upload failed' },
+        { status: 500 }
+      );
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('uploads')
+      .getPublicUrl(fileName);
+
+    return NextResponse.json({
+      url: urlData.publicUrl,
+    });
+  },
+  { auth: true }
+);
+```
+
+## Error Handling
+
+### Consistent Error Responses
+
+Create a helper for consistent error responses:
+
+```tsx
+// lib/api-errors.ts
+import { NextResponse } from 'next/server';
+
+export function apiError(
+  message: string,
+  status: number = 500,
+  details?: Record<string, unknown>
+) {
+  return NextResponse.json(
+    {
+      error: message,
+      ...details,
+    },
+    { status }
+  );
+}
+
+export function notFound(resource: string = 'Resource') {
+  return apiError(`${resource} not found`, 404);
+}
+
+export function unauthorized(message: string = 'Unauthorized') {
+  return apiError(message, 401);
+}
+
+export function badRequest(message: string, field?: string) {
+  return apiError(message, 400, field ? { field } : undefined);
+}
+```
+
+Usage:
+
+```tsx
+import { notFound, badRequest } from '@/lib/api-errors';
+
+export const GET = enhanceRouteHandler(
+  async ({ params }) => {
+    const task = await getTask(params.id);
+
+    if (!task) {
+      return notFound('Task');
+    }
+
+    return NextResponse.json({ task });
+  },
+  { auth: true }
+);
+```
+
+## Route Handler vs Server Action
+
+| Scenario | Use |
+|----------|-----|
+| Form submission from your app | Server Action |
+| Button click triggers mutation | Server Action |
+| Webhook from Stripe/GitHub | Route Handler |
+| External service needs your API | Route Handler |
+| Need custom status codes | Route Handler |
+| Need streaming response | Route Handler |
+| Need to set specific headers | Route Handler |
+
+## Common Mistakes
+
+### Forgetting to Verify Webhook Signatures
+
+```tsx
+// WRONG: Trusting webhook data without verification
+export async function POST(request: Request) {
+  const event = await request.json();
+  await processEvent(event); // Anyone can call this!
+}
+
+// RIGHT: Verify signature before processing
+export async function POST(request: Request) {
+  const body = await request.text();
+  const signature = request.headers.get('x-signature');
+
+  if (!verifySignature(body, signature)) {
+    return new Response('Invalid signature', { status: 401 });
+  }
+
+  const event = JSON.parse(body);
+  await processEvent(event);
+}
+```
+
+### Using Wrong Client in Webhooks
+
+```tsx
+// WRONG: Regular client in webhook (no user session)
+export async function POST(request: Request) {
+  const supabase = getSupabaseServerClient();
+  // This will fail - no user session for RLS
+  await supabase.from('subscriptions').update({ ... });
+}
+
+// RIGHT: Admin client for webhook operations
+export async function POST(request: Request) {
+  // Verify signature first!
+  const supabase = getSupabaseServerAdminClient();
+  await supabase.from('subscriptions').update({ ... });
+}
+```
+
+## Next Steps
+
+- [Server Actions](server-actions) - For mutations from your app
+- [CSRF Protection](csrf-protection) - Secure your endpoints
+- [Captcha Protection](captcha-protection) - Bot protection

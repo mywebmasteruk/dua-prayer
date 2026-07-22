@@ -1,0 +1,467 @@
+---
+status: "published"
+label: "CMS API"
+title: "CMS API Reference for the Next.js Supabase SaaS Kit"
+description: "Complete API reference for fetching, filtering, and rendering content from any CMS provider in Makerkit."
+order: 1
+---
+
+The CMS API provides a unified interface for fetching content regardless of your storage backend. The same code works with Keystatic, WordPress, Supabase, or any custom CMS client you create.
+
+## Creating a CMS Client
+
+The `createCmsClient` function returns a client configured for your chosen provider:
+
+```tsx
+import { createCmsClient } from '@kit/cms';
+
+const client = await createCmsClient();
+```
+
+The provider is determined by the `CMS_CLIENT` environment variable:
+
+```bash
+CMS_CLIENT=keystatic  # Default
+CMS_CLIENT=wordpress
+CMS_CLIENT=supabase   # Requires plugin
+```
+
+You can also override the provider at runtime:
+
+```tsx
+import { createCmsClient } from '@kit/cms';
+
+// Force WordPress regardless of env var
+const wpClient = await createCmsClient('wordpress');
+```
+
+## Fetching Multiple Content Items
+
+Use `getContentItems()` to retrieve lists of content with filtering and pagination:
+
+```tsx
+import { createCmsClient } from '@kit/cms';
+
+const client = await createCmsClient();
+
+const { items, total } = await client.getContentItems({
+  collection: 'posts',
+  limit: 10,
+  offset: 0,
+  sortBy: 'publishedAt',
+  sortDirection: 'desc',
+  status: 'published',
+});
+```
+
+### Options Reference
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `collection` | `string` | Required | The collection to query (`posts`, `documentation`, `changelog`) |
+| `limit` | `number` | `10` | Maximum items to return |
+| `offset` | `number` | `0` | Number of items to skip (for pagination) |
+| `sortBy` | `'publishedAt' \| 'order' \| 'title'` | `'publishedAt'` | Field to sort by |
+| `sortDirection` | `'asc' \| 'desc'` | `'asc'` | Sort direction |
+| `status` | `'published' \| 'draft' \| 'review' \| 'pending'` | `'published'` | Filter by content status |
+| `categories` | `string[]` | - | Filter by category slugs |
+| `tags` | `string[]` | - | Filter by tag slugs |
+| `language` | `string` | - | Filter by language code |
+| `content` | `boolean` | `true` | Whether to fetch full content (set `false` for list views) |
+| `parentIds` | `string[]` | - | Filter by parent content IDs (for hierarchical content) |
+
+### Pagination Example
+
+```tsx
+import { createCmsClient } from '@kit/cms';
+import { cache } from 'react';
+
+const getPostsPage = cache(async (page: number, perPage = 10) => {
+  const client = await createCmsClient();
+
+  return client.getContentItems({
+    collection: 'posts',
+    limit: perPage,
+    offset: (page - 1) * perPage,
+    sortBy: 'publishedAt',
+    sortDirection: 'desc',
+  });
+});
+
+// Usage in a Server Component
+async function BlogList({ page }: { page: number }) {
+  const { items, total } = await getPostsPage(page);
+  const totalPages = Math.ceil(total / 10);
+
+  return (
+    <div>
+      {items.map((post) => (
+        <article key={post.id}>
+          <h2>{post.title}</h2>
+          <p>{post.description}</p>
+        </article>
+      ))}
+
+      <nav>
+        Page {page} of {totalPages}
+      </nav>
+    </div>
+  );
+}
+```
+
+### Filtering by Category
+
+```tsx
+const { items } = await client.getContentItems({
+  collection: 'posts',
+  categories: ['tutorials', 'guides'],
+  limit: 5,
+});
+```
+
+### List View Optimization
+
+For list views where you only need titles and descriptions, skip content fetching:
+
+```tsx
+const { items } = await client.getContentItems({
+  collection: 'posts',
+  content: false, // Don't fetch full content
+  limit: 20,
+});
+```
+
+## Fetching a Single Content Item
+
+Use `getContentItemBySlug()` to retrieve a specific piece of content:
+
+```tsx
+import { createCmsClient } from '@kit/cms';
+
+const client = await createCmsClient();
+
+const post = await client.getContentItemBySlug({
+  slug: 'getting-started',
+  collection: 'posts',
+});
+
+if (!post) {
+  // Handle not found
+}
+```
+
+### Options Reference
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `slug` | `string` | Required | The URL slug of the content item |
+| `collection` | `string` | Required | The collection to search |
+| `status` | `'published' \| 'draft' \| 'review' \| 'pending'` | `'published'` | Required status for the item |
+
+### Draft Preview
+
+To preview unpublished content (e.g., for admin users):
+
+```tsx
+const draft = await client.getContentItemBySlug({
+  slug: 'upcoming-feature',
+  collection: 'posts',
+  status: 'draft',
+});
+```
+
+## Content Item Shape
+
+All CMS providers return items matching this TypeScript interface:
+
+```tsx
+interface ContentItem {
+  id: string;
+  title: string;
+  label: string | undefined;
+  slug: string;
+  url: string;
+  description: string | undefined;
+  content: unknown; // Provider-specific format
+  publishedAt: string; // ISO date string
+  image: string | undefined;
+  status: 'draft' | 'published' | 'review' | 'pending';
+  categories: Category[];
+  tags: Tag[];
+  order: number;
+  parentId: string | undefined;
+  children: ContentItem[];
+  collapsible?: boolean;
+  collapsed?: boolean;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface Tag {
+  id: string;
+  name: string;
+  slug: string;
+}
+```
+
+## Rendering Content
+
+Content format varies by provider (Markdoc nodes, HTML, React nodes). Use the `ContentRenderer` component for provider-agnostic rendering:
+
+```tsx
+import { createCmsClient, ContentRenderer } from '@kit/cms';
+import { notFound } from 'next/navigation';
+
+async function ArticlePage({ slug }: { slug: string }) {
+  const client = await createCmsClient();
+
+  const article = await client.getContentItemBySlug({
+    slug,
+    collection: 'posts',
+  });
+
+  if (!article) {
+    notFound();
+  }
+
+  return (
+    <article>
+      <header>
+        <h1>{article.title}</h1>
+        {article.description && <p>{article.description}</p>}
+        <time dateTime={article.publishedAt}>
+          {new Date(article.publishedAt).toLocaleDateString()}
+        </time>
+      </header>
+
+      <ContentRenderer content={article.content} />
+
+      <footer>
+        {article.categories.map((cat) => (
+          <span key={cat.id}>{cat.name}</span>
+        ))}
+      </footer>
+    </article>
+  );
+}
+```
+
+## Working with Categories and Tags
+
+### Fetch All Categories
+
+```tsx
+const categories = await client.getCategories({
+  limit: 50,
+  offset: 0,
+});
+```
+
+### Fetch a Category by Slug
+
+```tsx
+const category = await client.getCategoryBySlug('tutorials');
+
+if (category) {
+  // Fetch posts in this category
+  const { items } = await client.getContentItems({
+    collection: 'posts',
+    categories: [category.slug],
+  });
+}
+```
+
+### Fetch All Tags
+
+```tsx
+const tags = await client.getTags({
+  limit: 100,
+});
+```
+
+### Fetch a Tag by Slug
+
+```tsx
+const tag = await client.getTagBySlug('react');
+```
+
+## Building Dynamic Pages
+
+### Blog Post Page
+
+```tsx {% title="app/[locale]/(marketing)/blog/[slug]/page.tsx" %}
+import { createCmsClient, ContentRenderer } from '@kit/cms';
+import { notFound } from 'next/navigation';
+
+interface Props {
+  params: Promise<{ slug: string }>;
+}
+
+export async function generateStaticParams() {
+  const client = await createCmsClient();
+  const { items } = await client.getContentItems({
+    collection: 'posts',
+    content: false,
+    limit: 1000,
+  });
+
+  return items.map((post) => ({
+    slug: post.slug,
+  }));
+}
+
+export async function generateMetadata({ params }: Props) {
+  const { slug } = await params;
+  const client = await createCmsClient();
+
+  const post = await client.getContentItemBySlug({
+    slug,
+    collection: 'posts',
+  });
+
+  if (!post) {
+    return {};
+  }
+
+  return {
+    title: post.title,
+    description: post.description,
+    openGraph: {
+      images: post.image ? [post.image] : [],
+    },
+  };
+}
+
+export default async function BlogPostPage({ params }: Props) {
+  const { slug } = await params;
+  const client = await createCmsClient();
+
+  const post = await client.getContentItemBySlug({
+    slug,
+    collection: 'posts',
+  });
+
+  if (!post) {
+    notFound();
+  }
+
+  return (
+    <article>
+      <h1>{post.title}</h1>
+      <ContentRenderer content={post.content} />
+    </article>
+  );
+}
+```
+
+### CMS-Powered Static Pages
+
+Store pages like Terms of Service or Privacy Policy in your CMS:
+
+```tsx {% title="app/[slug]/page.tsx" %}
+import { createCmsClient, ContentRenderer } from '@kit/cms';
+import { notFound } from 'next/navigation';
+
+interface Props {
+  params: Promise<{ slug: string }>;
+}
+
+export default async function StaticPage({ params }: Props) {
+  const { slug } = await params;
+  const client = await createCmsClient();
+
+  const page = await client.getContentItemBySlug({
+    slug,
+    collection: 'pages', // Create this collection in your CMS
+  });
+
+  if (!page) {
+    notFound();
+  }
+
+  return (
+    <div>
+      <h1>{page.title}</h1>
+      <ContentRenderer content={page.content} />
+    </div>
+  );
+}
+```
+
+{% alert type="default" title="Create the pages collection" %}
+This example assumes you've added a `pages` collection to your CMS configuration. By default, Makerkit includes `posts`, `documentation`, and `changelog` collections.
+{% /alert %}
+
+## Caching Strategies
+
+### React Cache
+
+Wrap CMS calls with React's `cache()` for request deduplication:
+
+```tsx
+import { createCmsClient } from '@kit/cms';
+import { cache } from 'react';
+
+export const getPost = cache(async (slug: string) => {
+  const client = await createCmsClient();
+
+  return client.getContentItemBySlug({
+    slug,
+    collection: 'posts',
+  });
+});
+```
+
+### Next.js Data Cache
+
+The CMS client respects Next.js caching. For static content, pages are cached at build time with `generateStaticParams()`.
+
+For dynamic content that should revalidate:
+
+```tsx
+import { unstable_cache } from 'next/cache';
+import { createCmsClient } from '@kit/cms';
+
+const getCachedPosts = unstable_cache(
+  async () => {
+    const client = await createCmsClient();
+    return client.getContentItems({ collection: 'posts', limit: 10 });
+  },
+  ['posts-list'],
+  { revalidate: 3600 } // Revalidate every hour
+);
+```
+
+## Provider-Specific Notes
+
+### Keystatic
+
+- Collections: `posts`, `documentation`, `changelog` (configurable in `keystatic.config.ts`)
+- Categories and tags are stored as arrays of strings
+- Content is Markdoc, rendered via `@kit/keystatic/renderer`
+
+### WordPress
+
+- Collections map to WordPress content types: use `posts` for posts, `pages` for pages
+- Categories and tags use WordPress's native taxonomy system
+- Language filtering uses tags (add `en`, `de`, etc. tags to posts)
+- Content is HTML, rendered via `@kit/wordpress/renderer`
+
+### Supabase
+
+- Uses the `content_items`, `categories`, and `tags` tables
+- Requires the Supabase CMS plugin installation
+- Content can be HTML or any format you store
+- Works with [Supamode](/supabase-cms) for admin UI
+
+## Next Steps
+
+- [Keystatic Setup](/docs/next-supabase-turbo/content/keystatic): Configure local or GitHub storage
+- [WordPress Setup](/docs/next-supabase-turbo/content/wordpress): Connect to WordPress REST API
+- [Supabase CMS Plugin](/docs/next-supabase-turbo/content/supabase): Store content in your database
+- [Custom CMS Client](/docs/next-supabase-turbo/content/creating-your-own-cms-client): Build integrations for Sanity, Contentful, etc.

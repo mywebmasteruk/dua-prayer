@@ -1,0 +1,236 @@
+---
+status: "published"
+label: "Tailwind CSS"
+title: "Tailwind CSS Configuration | Next.js Supabase SaaS Kit"
+order: -1
+description: "Configure Tailwind CSS 4, extend the design system, and customize styles across your Makerkit monorepo application."
+---
+
+Makerkit uses Tailwind CSS 4 with Shadcn UI for styling. All style configuration lives in `apps/web/styles/`, with the main entry point at `globals.css`. This guide covers how to customize Tailwind, add new packages to the content paths, and extend the design system.
+
+## Style File Structure
+
+The styling system uses these files in `apps/web/styles/`:
+
+```
+apps/web/styles/
+├── globals.css         # Main entry point, imports everything
+├── theme.css           # Theme color variables (light/dark mode, :root/.dark)
+├── shadcn-ui.css       # Maps CSS variables to Tailwind's @theme inline
+├── makerkit.css        # Makerkit-specific component styles
+└── markdoc.css         # Content/documentation styles
+```
+
+## Tailwind CSS 4 Configuration
+
+Tailwind CSS 4 uses CSS-based configuration instead of JavaScript. The `@theme inline` directive in `shadcn-ui.css` maps your CSS variables to Tailwind design tokens:
+
+```css title="apps/web/styles/shadcn-ui.css"
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  /* Border radius */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  /* Font families */
+  --font-sans: -apple-system, BlinkMacSystemFont, var(--font-sans-fallback);
+  --font-heading: var(--font-sans);
+}
+```
+
+The actual color values are defined in `theme.css` using oklch format (see [Theme Colors](/docs/next-supabase-turbo/customization/theme)).
+
+These tokens become available as Tailwind utilities: `bg-primary`, `text-foreground`, `rounded-lg`, etc.
+
+## Adding Content Paths for New Packages
+
+When you create a new package in the monorepo, Tailwind needs to know where to scan for class names. Add a `@source` directive in `apps/web/styles/globals.css`:
+
+```css title="apps/web/styles/globals.css"
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* local styles */
+@import './theme.css';
+@import './shadcn-ui.css';
+@import './markdoc.css';
+@import './makerkit.css';
+
+/* content sources - update the below if you add a new path */
+@source '../../../packages/*/src/**/*.{ts,tsx}';
+@source '../../../packages/features/*/src/**/*.{ts,tsx}';
+@source '../../../packages/billing/*/src/**/*.{ts,tsx}';
+@source '../../../packages/plugins/*/src/**/*.{ts,tsx}';
+@source '../../../packages/cms/*/src/**/*.{ts,tsx}';
+@source '../{app,components,config,lib}/**/*.{ts,tsx}';
+
+/* Add your new package here */
+@source '../../../packages/your-package/src/**/*.{ts,tsx}';
+```
+
+The `@source` directive is the Tailwind CSS 4 replacement for the `content` array in the old `tailwind.config.ts`.
+
+## Custom Utility Classes
+
+Add custom utilities using the `@utility` directive in `makerkit.css` or a new CSS file:
+
+```css title="apps/web/styles/makerkit.css"
+@utility container {
+  @apply mx-auto px-4 lg:px-8 xl:max-w-[80rem];
+}
+```
+
+Or add utilities in a `@layer`:
+
+```css
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .scrollbar-hidden {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+}
+```
+
+## Extending the Theme
+
+Add custom design tokens in `shadcn-ui.css` inside the `@theme inline` block:
+
+```css title="apps/web/styles/shadcn-ui.css"
+@theme inline {
+  /* ... existing tokens ... */
+
+  /* Custom colors */
+  --color-brand: var(--brand);
+  --color-brand-light: var(--brand-light);
+}
+```
+
+Then define the values in `theme.css`:
+
+```css title="apps/web/styles/theme.css"
+:root {
+  --brand: oklch(65% 0.2 250);
+  --brand-light: oklch(85% 0.1 250);
+}
+```
+
+Use these in your components:
+
+```tsx
+<div className="bg-brand text-brand-light">
+  Content
+</div>
+```
+
+## Component-Level Styles
+
+For complex component styles, use `@layer components` in `makerkit.css`:
+
+```css title="apps/web/styles/makerkit.css"
+@layer components {
+  .card-hover {
+    @apply transition-all duration-200;
+    @apply hover:shadow-lg hover:-translate-y-0.5;
+  }
+
+  .btn-gradient {
+    @apply bg-gradient-to-r from-primary to-accent;
+    @apply text-primary-foreground;
+    @apply hover:opacity-90 transition-opacity;
+  }
+}
+```
+
+## Shadcn UI Component Customization
+
+Override Shadcn component styles by targeting their classes:
+
+```css title="apps/web/styles/shadcn-ui.css"
+@layer components {
+  /* Custom button variants */
+  .btn-primary-gradient {
+    @apply bg-gradient-to-r from-blue-600 to-indigo-600;
+    @apply hover:from-blue-700 hover:to-indigo-700;
+  }
+}
+```
+
+## Dark Mode Utilities
+
+Create dark-mode-aware utilities using the `dark:` variant:
+
+```css
+@layer utilities {
+  .glass {
+    @apply bg-white/80 backdrop-blur-sm;
+    @apply dark:bg-neutral-900/80;
+  }
+
+  .surface-elevated {
+    @apply bg-white shadow-sm;
+    @apply dark:bg-neutral-800 dark:shadow-none;
+  }
+}
+```
+
+The dark variant is configured in `theme.css` as:
+
+```css
+@custom-variant dark (&:is(.dark *));
+```
+
+## Common Mistakes
+
+**Missing content paths**: New packages won't have their Tailwind classes compiled if you forget to add a `@source` directive. Styles will appear missing in production even if they work in development.
+
+**Using `@apply` excessively**: Reserve `@apply` for reusable component patterns. For one-off styles, use utility classes directly in JSX. Excessive `@apply` increases CSS bundle size.
+
+**Forgetting `@layer` directives**: Custom styles without `@layer` can have specificity issues. Always wrap custom styles in `@layer base`, `@layer components`, or `@layer utilities`.
+
+**Hardcoding colors**: Use theme variables (`bg-primary`, `text-foreground`) instead of hardcoded colors (`bg-blue-500`). This ensures consistency and makes theme changes easier.
+
+## Verification
+
+After modifying Tailwind configuration:
+
+1. Restart the dev server (Tailwind config changes require a restart)
+2. Run `pnpm build` to verify all classes compile correctly
+3. Check production build for missing styles: `pnpm build && pnpm start`
+4. Verify dark mode works for any new utilities
+
+```bash
+# Quick verification commands
+pnpm dev          # Development server
+pnpm build        # Production build (catches missing content paths)
+pnpm typecheck    # Type checking
+```
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Why are my Tailwind classes not working in production?", "answer": "The most common cause is missing @source directives in globals.css. Add your package path as a @source directive and rebuild. Classes must exist in scanned files to be included in the production CSS bundle."},
+     {"question": "How do I add a completely custom color?", "answer": "Define the CSS variable in theme.css (:root block), e.g. --brand: oklch(65% 0.2 250). Then map it in shadcn-ui.css inside @theme inline: --color-brand: var(--brand). Use it as bg-brand or text-brand in your components."},
+     {"question": "Should I use @apply or inline utilities?", "answer": "Prefer inline utilities for most cases. Use @apply only for frequently repeated patterns that need to stay in sync. Inline utilities are more explicit and easier to maintain."},
+     {"question": "How do I override Shadcn component styles?", "answer": "Add overrides in shadcn-ui.css within @layer components. Target the specific component classes or create variant classes. You can also pass className props to override individual instances."}
+   ]
+/%}
+
+## Next Steps
+
+- Back to [Customization Overview](/docs/next-supabase-turbo/customization)
+- Configure your [theme colors](/docs/next-supabase-turbo/customization/theme) for brand consistency
+- Set up [custom fonts](/docs/next-supabase-turbo/customization/fonts) for typography
+- Choose your [layout style](/docs/next-supabase-turbo/customization/layout-style) for navigation

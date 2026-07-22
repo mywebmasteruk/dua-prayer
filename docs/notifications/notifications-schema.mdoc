@@ -1,0 +1,246 @@
+---
+status: "published"
+title: "Notifications Database Schema"
+label: "Database Schema"
+description: "Understand the notifications table structure, Row Level Security policies, and how to extend the schema."
+order: 3
+---
+
+The notifications system uses a single table with Row Level Security. This page documents the schema, security policies, and extension patterns.
+
+## Table structure
+
+```sql
+create table if not exists public.notifications (
+  id bigint generated always as identity primary key,
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  type public.notification_type not null default 'info',
+  body varchar(5000) not null,
+  link varchar(255),
+  channel public.notification_channel not null default 'in_app',
+  dismissed boolean not null default false,
+  expires_at timestamptz default (now() + interval '1 month'),
+  created_at timestamptz not null default now()
+);
+```
+
+### Columns
+
+| Column | Type | Default | Description |
+|--------|------|---------|-------------|
+| `id` | `bigint` | Auto-generated | Primary key |
+| `account_id` | `uuid` | Required | Personal or team account ID |
+| `type` | `notification_type` | `'info'` | Severity: info, warning, error |
+| `body` | `varchar(5000)` | Required | Message text or translation key |
+| `link` | `varchar(255)` | `null` | Optional URL for clickable notifications |
+| `channel` | `notification_channel` | `'in_app'` | Delivery method |
+| `dismissed` | `boolean` | `false` | Has user dismissed this notification |
+| `expires_at` | `timestamptz` | Now + 1 month | Auto-expiration timestamp |
+| `created_at` | `timestamptz` | Now | Creation timestamp |
+
+### Enums
+
+```sql
+create type public.notification_type as enum('info', 'warning', 'error');
+create type public.notification_channel as enum('in_app', 'email');
+```
+
+## Row Level Security
+
+Three key security constraints:
+
+### 1. Read policy
+
+Users can read notifications for their personal account or any team account they belong to:
+
+```sql
+create policy notifications_read_self on public.notifications
+for select to authenticated using (
+  account_id = (select auth.uid())
+  or has_role_on_account(account_id)
+);
+```
+
+### 2. Update policy
+
+Users can update notifications they have access to:
+
+```sql
+create policy notifications_update_self on public.notifications
+for update to authenticated using (
+  account_id = (select auth.uid())
+  or has_role_on_account(account_id)
+);
+```
+
+### 3. Update trigger (dismissed only)
+
+A trigger prevents updating any field except `dismissed`:
+
+```sql
+create or replace function kit.update_notification_dismissed_status()
+returns trigger set search_path to '' as $$
+begin
+  old.dismissed := new.dismissed;
+
+  if (new is distinct from old) then
+    raise exception 'UPDATE of columns other than "dismissed" is forbidden';
+  end if;
+
+  return old;
+end;
+$$ language plpgsql;
+
+create trigger update_notification_dismissed_status
+before update on public.notifications
+for each row execute procedure kit.update_notification_dismissed_status();
+```
+
+This ensures users cannot modify notification content, type, or other fields after creation.
+
+### Insert permissions
+
+Only `service_role` can insert notifications:
+
+```sql
+revoke all on public.notifications from authenticated, service_role;
+grant select, update on table public.notifications to authenticated, service_role;
+grant insert on table public.notifications to service_role;
+```
+
+This is why you must use `getSupabaseServerAdminClient()` when creating notifications.
+
+## Indexes
+
+One composite index optimizes the common query pattern:
+
+```sql
+create index idx_notifications_account_dismissed
+on notifications (account_id, dismissed, expires_at);
+```
+
+This index supports queries that filter by account, dismissed status, and expiration.
+
+## Realtime
+
+The table is added to Supabase Realtime publication:
+
+```sql
+alter publication supabase_realtime add table public.notifications;
+```
+
+This enables the real-time subscription feature when `NEXT_PUBLIC_REALTIME_NOTIFICATIONS=true`.
+
+## Common modifications
+
+### Adding a read_at timestamp
+
+Track when notifications were first viewed (not just dismissed):
+
+```sql
+alter table public.notifications
+add column read_at timestamptz default null;
+```
+
+Update the trigger to allow `read_at` updates:
+
+```sql
+create or replace function kit.update_notification_status()
+returns trigger set search_path to '' as $$
+begin
+  old.dismissed := new.dismissed;
+  old.read_at := new.read_at;
+
+  if (new is distinct from old) then
+    raise exception 'UPDATE of columns other than "dismissed" and "read_at" is forbidden';
+  end if;
+
+  return old;
+end;
+$$ language plpgsql;
+```
+
+### Adding notification categories
+
+Extend with a category for filtering:
+
+```sql
+create type public.notification_category as enum(
+  'system',
+  'billing',
+  'team',
+  'content'
+);
+
+alter table public.notifications
+add column category public.notification_category default 'system';
+```
+
+### Batch deletion of old notifications
+
+Create a function to clean up expired notifications:
+
+```sql
+create or replace function kit.cleanup_expired_notifications()
+returns integer
+language plpgsql
+security definer
+set search_path to ''
+as $$
+declare
+  deleted_count integer;
+begin
+  with deleted as (
+    delete from public.notifications
+    where expires_at < now()
+    returning id
+  )
+  select count(*) into deleted_count from deleted;
+
+  return deleted_count;
+end;
+$$;
+```
+
+Call this from a cron job, Supabase Edge Function, or pg_cron extension.
+
+## Testing RLS policies
+
+The schema includes pgTAP tests in `apps/web/supabase/tests/database/notifications.test.sql`:
+
+```sql
+-- Users cannot insert notifications
+select throws_ok(
+  $$ insert into notifications (account_id, body) values ('...', 'test') $$,
+  'new row violates row-level security policy for table "notifications"'
+);
+
+-- Service role can insert
+set role service_role;
+select lives_ok(
+  $$ insert into notifications (account_id, body) values ('...', 'test') $$
+);
+```
+
+Run tests with:
+
+```bash
+pnpm --filter web supabase test db
+```
+
+Expected output on success:
+
+```
+# Running: notifications.test.sql
+ok 1 - Users cannot insert notifications
+ok 2 - Service role can insert notifications
+ok 3 - Users can read their own notifications
+...
+```
+
+## Related documentation
+
+- [Notifications overview](/docs/next-supabase-turbo/notifications): Feature overview and when to use notifications
+- [Configuration](/docs/next-supabase-turbo/notifications/notifications-configuration): Environment variables and feature flags
+- [Sending notifications](/docs/next-supabase-turbo/notifications/sending-notifications): Server-side API for creating notifications
+- [UI Components](/docs/next-supabase-turbo/notifications/notifications-components): Display notifications in your app

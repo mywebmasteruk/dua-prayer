@@ -1,0 +1,338 @@
+---
+status: "published"
+title: "Production Deployment Checklist for Next.js Supabase SaaS"
+label: "Checklist"
+description: "Complete checklist for deploying your MakerKit Next.js Supabase application to production. Follow these steps in order to ensure a successful deployment."
+order: 0
+---
+
+Deploy your MakerKit Next.js Supabase Turbo application to production by completing this checklist in order. This guide covers Supabase configuration, authentication setup, billing webhooks, and hosting deployment for Next.js 16 with React 19.
+
+{% alert type="warning" title="Complete all steps before testing" %}
+Your application will not function correctly if you skip steps. Budget 2-3 hours for your first deployment. The most common failure we see is missing environment variables, which MakerKit catches at build time with clear error messages.
+{% /alert %}
+
+## Quick Reference
+
+| Step | What | Where | Time |
+|------|------|-------|------|
+| 1 | Create Supabase project | [supabase.com](https://supabase.com) | 5 min |
+| 2 | Push database migrations | Terminal | 2 min |
+| 3 | Configure auth URLs | Supabase Dashboard | 5 min |
+| 4 | Set up OAuth providers | Supabase + Provider | 15-30 min |
+| 5 | Update auth email templates | Supabase Dashboard | 10 min |
+| 6 | Deploy to hosting provider | Vercel/Cloudflare/VPS | 10-20 min |
+| 7 | Set environment variables | Hosting provider | 10 min |
+| 8 | Configure database webhooks | Supabase Dashboard | 10 min |
+| 9 | Set up SMTP for emails | Supabase + Email provider | 15 min |
+| 10 | Configure billing provider | Stripe/Lemon Squeezy | 20-30 min |
+
+---
+
+## Pre-Deployment Requirements
+
+Before starting, ensure you have accounts and API keys for:
+
+- **Supabase**: Database, authentication, and storage
+- **Billing provider**: Stripe or Lemon Squeezy with API keys and webhook secrets
+- **Email provider**: Resend, SendGrid, Mailgun, or another SMTP service
+- **Hosting provider**: Vercel, Cloudflare, or a VPS
+
+---
+
+## Step 1: Create and Link Supabase Project
+
+Create a new project in the [Supabase Dashboard](https://supabase.com/dashboard). Save your database password securely as you will need it for the CLI.
+
+Link your local project to the remote Supabase instance:
+
+```bash
+pnpm --filter web supabase login
+pnpm --filter web supabase link
+```
+
+The CLI will prompt you to select your project and enter the database password.
+
+**Verification**: Run `supabase projects list` to confirm the link.
+
+---
+
+## Step 2: Push Database Migrations
+
+Push MakerKit's database schema to your production Supabase instance:
+
+```bash
+pnpm --filter web supabase db push
+```
+
+Review the migrations when prompted. You should see the core MakerKit tables (accounts, subscriptions, invitations, etc.).
+
+**Verification**: Check the Supabase Dashboard Table Editor to confirm tables exist.
+
+---
+
+## Step 3: Configure Authentication URLs
+
+In the Supabase Dashboard, navigate to **Authentication > URL Configuration**.
+
+Set these values:
+
+| Field | Value |
+|-------|-------|
+| Site URL | `https://yourdomain.com` |
+| Redirect URLs | `https://yourdomain.com/auth/callback**` |
+
+{% alert type="default" title="No URL yet?" %}
+If you haven't deployed yet, skip this step and return after deployment. Your first deploy will fail without these URLs, which is expected.
+{% /alert %}
+
+**Important**: The redirect URL must include the `**` wildcard to handle all callback paths.
+
+For detailed instructions, see the [Authentication Configuration](/docs/next-supabase-turbo/going-to-production/authentication) guide.
+
+---
+
+## Step 4: Set Up OAuth Providers (Optional)
+
+If you want social login (Google, GitHub, etc.), configure providers in **Authentication > Providers** in the Supabase Dashboard.
+
+Each provider requires:
+1. Creating an OAuth app in the provider's developer console
+2. Copying the Client ID and Secret to Supabase
+3. Setting the callback URL from Supabase in the provider's console
+
+MakerKit automatically displays configured providers in the login UI. No code changes needed.
+
+For Google Auth setup, see the [Supabase Google Auth guide](https://supabase.com/docs/guides/auth/social-login/auth-google).
+
+---
+
+## Step 5: Update Authentication Email Templates
+
+MakerKit provides custom email templates that fix PKCE flow issues when users click email links from different browsers or devices.
+
+{% alert type="warning" title="Required for reliable authentication" %}
+Using Supabase's default email templates will cause authentication failures when users open email links in a different browser.
+{% /alert %}
+
+Update your email templates in **Authentication > Email Templates** in the Supabase Dashboard. Use the templates from `apps/web/supabase/templates/` as your starting point.
+
+For detailed instructions, see the [Authentication Emails](/docs/next-supabase-turbo/going-to-production/authentication-emails) guide.
+
+---
+
+## Step 6: Deploy Your Application
+
+Choose your deployment platform:
+
+| Platform | Best For | Guide |
+|----------|----------|-------|
+| [Vercel](/docs/next-supabase-turbo/going-to-production/vercel) | Easiest setup, automatic deployments | Recommended |
+| [Cloudflare](/docs/next-supabase-turbo/going-to-production/cloudflare) | Edge runtime, lower costs | Requires config changes |
+| [sherpa.sh](/docs/next-supabase-turbo/going-to-production/sherpa) | Cost-effective alternative | Good support |
+| [Docker/VPS](/docs/next-supabase-turbo/going-to-production/docker) | Full control, self-hosted | More setup required |
+
+### Which platform should I choose?
+
+**Use Vercel when**: You want the simplest setup with preview deployments, need commercial use rights (Pro tier), or are new to deployment. Works out of the box with MakerKit.
+
+**Use Cloudflare when**: You need zero cold starts for global users, want lower costs at scale, or are comfortable making Edge runtime configuration changes.
+
+**Use VPS when**: You need full infrastructure control, want predictable costs regardless of traffic, or have compliance requirements for data location.
+
+**If unsure**: Start with Vercel. You can migrate later since MakerKit supports all platforms.
+
+**Expected**: Your first deployment will likely fail if you haven't set all environment variables. This is normal. Continue to the next step.
+
+---
+
+## Step 7: Set Environment Variables
+
+Generate your production environment variables using the built-in tool:
+
+```bash
+pnpm turbo gen env
+```
+
+This interactive command creates a `.env.local` file at `turbo/generators/templates/env/.env.local` with all required variables.
+
+Copy these variables to your hosting provider's environment settings.
+
+**Required variables include**:
+- `NEXT_PUBLIC_SITE_URL`: Your production URL
+- `NEXT_PUBLIC_SUPABASE_URL`: From Supabase Dashboard > Settings > API
+- `NEXT_PUBLIC_SUPABASE_PUBLIC_KEY`: Supabase anon key
+- `SUPABASE_SECRET_KEY`: Supabase service role key
+- Billing provider keys (Stripe or Lemon Squeezy)
+- Email provider configuration
+
+For the complete list, see [Environment Variables](/docs/next-supabase-turbo/going-to-production/production-environment-variables).
+
+After setting variables, redeploy your application.
+
+---
+
+## Step 8: Configure Database Webhooks
+
+MakerKit uses database webhooks to handle events like subscription cancellations when accounts are deleted.
+
+### Generate a Webhook Secret
+
+Create a strong, random secret for `SUPABASE_DB_WEBHOOK_SECRET`:
+
+```bash
+openssl rand -base64 32
+```
+
+Add this to your environment variables on your hosting provider.
+
+### Create the Webhook in Supabase
+
+In Supabase Dashboard, go to **Database > Webhooks**:
+
+1. Click **Enable Webhooks** if not already enabled
+2. Click **Create a new hook**
+3. Configure:
+   - **Table**: `public.subscriptions`
+   - **Events**: `DELETE`
+   - **URL**: `https://yourdomain.com/api/db/webhook`
+   - **Headers**: Add `X-Supabase-Event-Signature` with your webhook secret value
+   - **Timeout**: `5000`
+
+{% alert type="warning" title="Use a public URL" %}
+The webhook URL must be publicly accessible. Vercel preview URLs are private and will not receive webhooks.
+{% /alert %}
+
+For detailed webhook setup, see the [Supabase Deployment](/docs/next-supabase-turbo/going-to-production/supabase) guide.
+
+---
+
+## Step 9: Configure Email Service (SMTP)
+
+Supabase's built-in email service has low rate limits and poor deliverability. Configure a real SMTP provider for production.
+
+### In Your Environment Variables
+
+Set the mailer configuration:
+
+```bash
+MAILER_PROVIDER=resend  # or nodemailer
+EMAIL_SENDER=noreply@yourdomain.com
+RESEND_API_KEY=re_xxxxx  # if using Resend
+```
+
+### In Supabase Dashboard
+
+Navigate to **Project Settings > Authentication > SMTP Settings** and configure your provider's SMTP credentials.
+
+Recommended providers: [Resend](https://resend.com), [SendGrid](https://sendgrid.com), [Mailgun](https://mailgun.com)
+
+---
+
+## Step 10: Configure Billing Provider
+
+### Stripe Setup
+
+1. Create products and prices in the [Stripe Dashboard](https://dashboard.stripe.com)
+2. Set environment variables:
+   ```bash
+   NEXT_PUBLIC_BILLING_PROVIDER=stripe
+   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_xxx
+   STRIPE_SECRET_KEY=sk_live_xxx
+   STRIPE_WEBHOOK_SECRET=whsec_xxx
+   ```
+3. Create a webhook endpoint in Stripe pointing to `https://yourdomain.com/api/billing/webhook`
+4. Select events: `checkout.session.completed`, `customer.subscription.*`, `invoice.*`
+
+### Lemon Squeezy Setup
+
+1. Create products in [Lemon Squeezy](https://lemonsqueezy.com)
+2. Set environment variables:
+   ```bash
+   NEXT_PUBLIC_BILLING_PROVIDER=lemon-squeezy
+   LEMON_SQUEEZY_SECRET_KEY=xxx
+   LEMON_SQUEEZY_STORE_ID=xxx
+   LEMON_SQUEEZY_SIGNING_SECRET=xxx
+   ```
+3. Configure webhooks in Lemon Squeezy pointing to `https://yourdomain.com/api/billing/webhook`
+
+---
+
+## Post-Deployment Tasks
+
+After completing the main deployment:
+
+{% sequence title="Final Setup Tasks" description="Complete these tasks to finalize your production deployment." %}
+
+Update legal pages (Privacy Policy, Terms of Service) with your company information at `apps/web/app/[locale]/(marketing)/(legal)/`.
+
+Replace placeholder blog and documentation content in `apps/web/content/` with your own.
+
+Update favicon and logo in `apps/web/public/` with your branding.
+
+Review and update FAQ content on marketing pages.
+
+Set up monitoring with [Sentry](/docs/next-supabase-turbo/monitoring/sentry) or another error tracking service.
+
+Configure analytics with [PostHog](/docs/next-supabase-turbo/analytics/posthog-analytics-provider) or your preferred provider.
+
+{% /sequence %}
+
+---
+
+## Optional: Clear Expired OTPs
+
+MakerKit stores one-time passwords for various flows. Clean these up periodically by running:
+
+```sql
+SELECT kit.cleanup_expired_nonces();
+```
+
+You can run this manually from the Supabase SQL Editor or set up a [pg_cron](https://supabase.com/docs/guides/database/extensions/pg_cron) job to run it automatically.
+
+---
+
+## Troubleshooting
+
+### Build fails with missing environment variables
+
+MakerKit validates environment variables at build time using Zod. Check the build logs to see which variables are missing, then add them to your hosting provider.
+
+### Authentication redirects fail
+
+Ensure your Site URL and Redirect URLs in Supabase exactly match your domain, including `www` if you use it.
+
+### Webhooks not received
+
+1. Verify the URL is publicly accessible (test in incognito mode)
+2. Check the `X-Supabase-Event-Signature` header matches your secret
+3. Review webhook logs in Supabase Dashboard > Database > Webhooks
+
+### Emails not sending
+
+1. Confirm SMTP settings in both environment variables and Supabase Dashboard
+2. Check your email provider's logs for delivery issues
+3. Verify your domain's DNS records (SPF, DKIM) are configured
+
+---
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "How long does the full deployment process take?", "answer": "Plan for 2-3 hours for your first deployment. This includes setting up Supabase, configuring authentication, setting environment variables, and deploying to your hosting provider. Subsequent deployments are much faster since most configuration is one-time."},
+     {"question": "Can I deploy to multiple environments (staging, production)?", "answer": "Yes. Create separate Supabase projects for each environment, generate environment variables for each, and configure your hosting provider with environment-specific settings. Most providers like Vercel support automatic preview deployments for pull requests."},
+     {"question": "What if my first deployment fails?", "answer": "First deployments commonly fail due to missing environment variables. Check the build logs for specific error messages from Zod validation, add the missing variables in your hosting provider, and redeploy. MakerKit validates all required variables at build time."},
+     {"question": "Do I need to configure webhooks before the first deployment?", "answer": "Database webhooks require a publicly accessible URL, so you need to deploy first, then configure webhooks pointing to your production URL. Your app will work without webhooks initially, but subscription cancellation on account deletion won't function until webhooks are set up."},
+     {"question": "Can I use a different billing provider later?", "answer": "Yes. MakerKit supports Stripe and Lemon Squeezy. Switching requires updating environment variables and reconfiguring webhooks. Existing subscription data won't migrate automatically between providers."}
+   ]
+/%}
+
+---
+
+## Next Steps
+
+- [Supabase Production Setup](/docs/next-supabase-turbo/going-to-production/supabase): Configure your Supabase project with migrations, RLS policies, and webhooks
+- [Vercel Deployment](/docs/next-supabase-turbo/going-to-production/vercel): Deploy to Vercel with automatic CI/CD
+- [Cloudflare Deployment](/docs/next-supabase-turbo/going-to-production/cloudflare): Deploy to Cloudflare Pages with Edge runtime
+- [Docker Deployment](/docs/next-supabase-turbo/going-to-production/docker): Self-host with Docker containers
+- [Environment Variables](/docs/next-supabase-turbo/going-to-production/production-environment-variables): Complete variable reference with Zod validation

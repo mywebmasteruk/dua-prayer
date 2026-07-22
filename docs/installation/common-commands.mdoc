@@ -1,0 +1,177 @@
+---
+status: "published"
+title: 'Essential Commands for the Next.js Supabase SaaS Kit'
+label: 'Common Commands'
+order: 6
+description: 'Quick reference for development, database, testing, and code quality commands in the Next.js Supabase SaaS Kit.'
+---
+
+A quick reference for the commands you'll use daily. All commands run from the project root.
+
+## Daily Development
+
+| Command | What It Does |
+|---------|-------------|
+| `pnpm dev` | Start Next.js dev server + dev tools |
+| `pnpm run supabase:web:start` | Start local Supabase |
+| `pnpm run supabase:web:stop` | Stop local Supabase |
+| `pnpm run stripe:listen` | Forward Stripe webhooks locally |
+
+## Database Operations
+
+### Starting and Stopping
+
+```bash
+# Start Supabase (requires Docker running)
+pnpm run supabase:web:start
+
+# Stop Supabase
+pnpm run supabase:web:stop
+```
+
+### Migrations
+
+```bash
+# Reset database (re-run all migrations + seed)
+pnpm run supabase:web:reset
+
+# Generate types after schema changes
+pnpm run supabase:web:typegen
+
+# Run database tests
+pnpm run supabase:web:test
+```
+
+### Creating New Migrations
+
+After modifying tables in Supabase Studio, create a migration:
+
+```bash
+# See what changed
+pnpm --filter web supabase db diff
+
+# Create a named migration file
+pnpm --filter web supabase db diff -f add-projects-table
+```
+
+This creates a new file in `apps/web/supabase/migrations/`.
+
+### Running Supabase CLI Commands
+
+The Supabase CLI is scoped to `apps/web`. To run any Supabase command:
+
+```bash
+pnpm --filter web supabase <command>
+```
+
+Examples:
+
+```bash
+# Link to remote project
+pnpm --filter web supabase link --project-ref your-project-ref
+
+# Push migrations to production
+pnpm --filter web supabase db push
+
+# Pull remote schema
+pnpm --filter web supabase db pull
+```
+
+## Code Quality
+
+Run these before committing:
+
+```bash
+# Type checking
+pnpm typecheck
+
+# Lint and auto-fix
+pnpm lint:fix
+
+# Format code
+pnpm format:fix
+```
+
+Or run all three:
+
+```bash
+pnpm typecheck && pnpm lint:fix && pnpm format:fix
+```
+
+## Testing
+
+```bash
+# Run all tests
+pnpm test
+
+# Run E2E tests (requires app running)
+pnpm --filter e2e test
+```
+
+## Environment Variables
+
+```bash
+# Generate environment variables from template
+pnpm turbo gen env
+
+# Validate environment variables
+pnpm turbo gen validate-env
+```
+
+## Cleaning Up
+
+When dependencies get out of sync or caches cause issues:
+
+```bash
+# Clean all workspaces
+pnpm run clean:workspaces
+
+# Clean root
+pnpm run clean
+
+# Reinstall everything
+pnpm i
+```
+
+## Package Management
+
+```bash
+# Install dependencies
+pnpm i
+
+# Update all dependencies
+pnpm update -r
+
+# Check for version mismatches
+pnpm syncpack:list
+
+# Fix version mismatches
+pnpm syncpack:fix
+```
+
+## Building for Production
+
+```bash
+# Build all packages and apps
+pnpm build
+
+# Analyze bundle size
+pnpm --filter web analyze
+```
+
+## Quick Reference Card
+
+```bash
+# Start everything
+pnpm run supabase:web:start && pnpm dev
+
+# Database workflow
+pnpm run supabase:web:reset    # Reset to clean state
+pnpm run supabase:web:typegen  # Update TypeScript types
+
+# Before committing
+pnpm typecheck && pnpm lint:fix && pnpm format:fix
+
+# When things break
+pnpm run clean:workspaces && pnpm run clean && pnpm i
+```

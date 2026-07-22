@@ -1,0 +1,293 @@
+---
+status: "published"
+title: "WordPress CMS Integration for the Next.js Supabase SaaS Kit"
+label: "WordPress"
+description: "Connect your WordPress site to Makerkit using the REST API for blog posts, documentation, and dynamic pages."
+order: 3
+---
+
+WordPress integration lets you use an existing WordPress site as your content backend. Makerkit fetches content through the WordPress REST API, so you get the familiar WordPress admin while serving content from your Next.js app.
+
+This approach works well when you have a content team that knows WordPress, or you want to leverage WordPress plugins for SEO, forms, or other features.
+
+## Quick Setup
+
+### 1. Set Environment Variables
+
+```bash
+# .env
+CMS_CLIENT=wordpress
+WORDPRESS_API_URL=https://your-wordpress-site.com
+```
+
+### 2. Configure WordPress Permalinks
+
+WordPress REST API requires pretty permalinks. In your WordPress admin:
+
+1. Go to Settings → Permalinks
+2. Select "Post name" (`/%postname%/`) or any option except "Plain"
+3. Save changes
+
+Without this, the REST API won't resolve slugs correctly.
+
+## Content Mapping
+
+WordPress content types map to Makerkit collections:
+
+| WordPress Type | Makerkit Collection | Notes |
+|----------------|---------------------|-------|
+| Posts | `posts` | Standard WordPress posts |
+| Pages | `pages` | WordPress pages |
+
+### Blog Posts
+
+Create posts in WordPress with:
+- **Category**: Add a category named `blog` for blog posts
+- **Tags**: Use tags for filtering (including language codes like `en`, `de`)
+- **Featured Image**: Automatically used as the post image
+
+```tsx
+const { items } = await client.getContentItems({
+  collection: 'posts',
+  categories: ['blog'],
+  limit: 10,
+});
+```
+
+### Documentation Pages
+
+WordPress doesn't natively support hierarchical documentation. To build docs:
+
+1. Create pages (not posts) for documentation
+2. Enable categories for pages (see below)
+3. Add a category named `documentation`
+
+#### Enabling Categories for Pages
+
+Add this to your theme's `functions.php`:
+
+```php {% title="wp-content/themes/your-theme/functions.php" %}
+function add_categories_to_pages() {
+    register_taxonomy_for_object_type('category', 'page');
+}
+add_action('init', 'add_categories_to_pages');
+```
+
+Then fetch documentation:
+
+```tsx
+const { items } = await client.getContentItems({
+  collection: 'pages',
+  categories: ['documentation'],
+});
+```
+
+## Multi-Language Content
+
+WordPress doesn't have built-in multi-language support. Makerkit uses tags for language filtering:
+
+1. Create tags for each language: `en`, `de`, `fr`, etc.
+2. Add the appropriate language tag to each post
+3. Filter by language in your queries:
+
+```tsx
+const { items } = await client.getContentItems({
+  collection: 'posts',
+  language: 'en', // Filters by tag
+});
+```
+
+For full multi-language support, consider plugins like WPML or Polylang, then adapt the Makerkit WordPress client to use their APIs.
+
+## Local Development
+
+Makerkit includes a Docker Compose setup for local WordPress development:
+
+```bash
+# From packages/cms/wordpress/
+docker-compose up
+```
+
+Or from the root:
+
+```bash
+pnpm --filter @kit/wordpress run start
+```
+
+This starts WordPress at `http://localhost:8080`.
+
+### Default Credentials
+
+```
+Database Host: db
+Database Name: wordpress
+Database User: wordpress
+Database Password: wordpress
+```
+
+On first visit, WordPress prompts you to complete the installation.
+
+## Production Configuration
+
+### WordPress Hosting
+
+Host WordPress anywhere that exposes the REST API:
+- WordPress.com (Business plan or higher)
+- Self-hosted WordPress
+- Managed WordPress hosting (WP Engine, Kinsta, etc.)
+
+### CORS Configuration
+
+If your Next.js app and WordPress are on different domains, configure CORS in WordPress.
+
+Add to `wp-config.php`:
+
+```php {% title="wp-config.php" %}
+header("Access-Control-Allow-Origin: https://your-nextjs-app.com");
+header("Access-Control-Allow-Methods: GET, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type");
+```
+
+Or use a plugin like "WP CORS" for more control.
+
+### Caching
+
+The WordPress REST API can be slow. Consider:
+
+1. **WordPress caching plugins**: WP Super Cache, W3 Total Cache
+2. **CDN for the API**: Cloudflare, Fastly
+3. **Next.js caching**: Use `unstable_cache` or ISR
+
+```tsx
+import { unstable_cache } from 'next/cache';
+import { createCmsClient } from '@kit/cms';
+
+const getCachedPosts = unstable_cache(
+  async () => {
+    const client = await createCmsClient();
+    return client.getContentItems({ collection: 'posts', limit: 10 });
+  },
+  ['wordpress-posts'],
+  { revalidate: 300 } // 5 minutes
+);
+```
+
+## Content Structure
+
+### Post Fields
+
+WordPress posts return these fields through the Makerkit CMS interface:
+
+| Field | Source | Notes |
+|-------|--------|-------|
+| `title` | `title.rendered` | HTML-decoded |
+| `content` | `content.rendered` | Full HTML content |
+| `description` | `excerpt.rendered` | Post excerpt |
+| `image` | Featured media | Full URL |
+| `slug` | `slug` | URL slug |
+| `publishedAt` | `date` | ISO 8601 format |
+| `status` | `status` | Mapped to Makerkit statuses |
+| `categories` | Category taxonomy | Array of category objects |
+| `tags` | Tag taxonomy | Array of tag objects |
+| `order` | `menu_order` | For page ordering |
+| `parentId` | `parent` | For hierarchical pages |
+
+### Status Mapping
+
+| WordPress Status | Makerkit Status |
+|------------------|-----------------|
+| `publish` | `published` |
+| `draft` | `draft` |
+| `pending` | `pending` |
+| Other | `draft` |
+
+## Rendering WordPress Content
+
+WordPress content is HTML. Use the `ContentRenderer` component:
+
+```tsx
+import { createCmsClient, ContentRenderer } from '@kit/cms';
+import { notFound } from 'next/navigation';
+
+async function BlogPost({ slug }: { slug: string }) {
+  const client = await createCmsClient();
+
+  const post = await client.getContentItemBySlug({
+    slug,
+    collection: 'posts',
+  });
+
+  if (!post) {
+    notFound();
+  }
+
+  return (
+    <article>
+      <h1>{post.title}</h1>
+      {/* ContentRenderer handles HTML safely */}
+      <ContentRenderer content={post.content} />
+    </article>
+  );
+}
+```
+
+The WordPress renderer sanitizes HTML and applies appropriate styling.
+
+### Custom Styling
+
+WordPress content includes CSS classes. Add styles to your global CSS:
+
+```css {% title="apps/web/styles/globals.css" %}
+/* WordPress block styles */
+.wp-block-image {
+  margin: 2rem 0;
+}
+
+.wp-block-quote {
+  border-left: 4px solid var(--primary);
+  padding-left: 1rem;
+  font-style: italic;
+}
+
+/* Gutenberg alignment */
+.alignwide {
+  max-width: 100vw;
+  margin-left: calc(-50vw + 50%);
+  margin-right: calc(-50vw + 50%);
+}
+```
+
+## Environment Variables Reference
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CMS_CLIENT` | Yes | Set to `wordpress` |
+| `WORDPRESS_API_URL` | Yes | WordPress site URL (no trailing slash) |
+
+## Troubleshooting
+
+### REST API returns 404
+
+- Verify permalinks are set to something other than "Plain"
+- Check that the REST API is accessible: `curl https://your-site.com/wp-json/wp/v2/posts`
+- Some security plugins disable the REST API; check your plugins
+
+### Categories not working for pages
+
+Ensure you've added the `add_categories_to_pages()` function to your theme's `functions.php`.
+
+### Images not loading
+
+- Check that `WORDPRESS_API_URL` matches the site URL in WordPress settings
+- Verify featured images are set on posts
+- Check for mixed content issues (HTTP vs HTTPS)
+
+### CORS errors
+
+Add CORS headers to WordPress (see Production Configuration above) or use a proxy.
+
+## Next Steps
+
+- [CMS API Reference](/docs/next-supabase-turbo/content/cms-api): Full API documentation
+- [CMS Overview](/docs/next-supabase-turbo/content/cms): Compare CMS providers
+- [Custom CMS Client](/docs/next-supabase-turbo/content/creating-your-own-cms-client): Build custom integrations

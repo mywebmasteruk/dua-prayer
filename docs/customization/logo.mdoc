@@ -1,0 +1,201 @@
+---
+status: "published"
+label: "Updating the Logo"
+title: "Customize Your Application Logo | Next.js Supabase SaaS Kit"
+order: 0
+description: "Replace the default Makerkit logo with your own brand logo using SVG, image files, or custom React components."
+---
+
+Replace the default Makerkit logo by editing the `AppLogo` component at `apps/web/components/app-logo.tsx`. This single component controls the logo across your entire application: authentication pages, site header, footer, sidebar, and email templates.
+
+## Quick Start
+
+Open `apps/web/components/app-logo.tsx` and replace the existing SVG with your logo:
+
+```tsx title="apps/web/components/app-logo.tsx"
+import Link from 'next/link';
+import { cn } from '@kit/ui/utils';
+
+function LogoImage({ className }: { className?: string }) {
+  return (
+    <img
+      src="/images/logo.svg"
+      alt="Your Company Name"
+      className={cn('w-[80px] lg:w-[95px]', className)}
+    />
+  );
+}
+
+export function AppLogo({
+  href,
+  label,
+  className,
+}: {
+  href?: string | null;
+  className?: string;
+  label?: string;
+}) {
+  if (href === null) {
+    return <LogoImage className={className} />;
+  }
+
+  return (
+    <Link aria-label={label ?? 'Home Page'} href={href ?? '/'}>
+      <LogoImage className={className} />
+    </Link>
+  );
+}
+```
+
+Place your logo file in `apps/web/public/images/` and update the `src` path accordingly.
+
+## Logo Implementation Options
+
+### Option 1: SVG Component (Recommended)
+
+Inline SVGs provide the best performance and allow dynamic styling with Tailwind classes:
+
+```tsx title="apps/web/components/app-logo.tsx"
+function LogoImage({ className }: { className?: string }) {
+  return (
+    <svg
+      className={cn('w-[95px] h-auto', className)}
+      viewBox="0 0 100 32"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        className="fill-primary dark:fill-white"
+        d="M10 5h80v22H10z"
+      />
+      {/* Your SVG paths */}
+    </svg>
+  );
+}
+```
+
+**Benefits:**
+- Supports `fill-primary` for automatic theme color adaptation
+- Responds to dark mode with `dark:fill-white`
+- Scales without quality loss
+- No additional HTTP requests
+
+### Option 2: Next.js Image Component
+
+For PNG, JPG, or WebP logos, use `next/image` for automatic optimization:
+
+```tsx title="apps/web/components/app-logo.tsx"
+import Image from 'next/image';
+
+function LogoImage({ className }: { className?: string }) {
+  return (
+    <Image
+      src="/images/logo.png"
+      alt="Your Company Name"
+      width={95}
+      height={32}
+      className={cn('w-[80px] lg:w-[95px] h-auto', className)}
+      priority
+    />
+  );
+}
+```
+
+### Option 3: Dark Mode Variants
+
+When your logo needs different versions for light and dark modes:
+
+```tsx title="apps/web/components/app-logo.tsx"
+import Image from 'next/image';
+import { cn } from '@kit/ui/utils';
+
+function LogoImage({ className }: { className?: string }) {
+  return (
+    <>
+      <Image
+        src="/images/logo-dark.svg"
+        alt="Your Company Name"
+        width={95}
+        height={32}
+        className={cn('hidden dark:block w-[80px] lg:w-[95px]', className)}
+        priority
+      />
+      <Image
+        src="/images/logo-light.svg"
+        alt="Your Company Name"
+        width={95}
+        height={32}
+        className={cn('block dark:hidden w-[80px] lg:w-[95px]', className)}
+        priority
+      />
+    </>
+  );
+}
+```
+
+## Where the Logo Appears
+
+`AppLogo` is imported from `~/components/app-logo` and rendered at these call sites:
+
+| Location | File Path |
+|----------|-----------|
+| Marketing site header | `apps/web/app/[locale]/(marketing)/_components/site-header.tsx` |
+| Marketing site footer | `apps/web/app/[locale]/(marketing)/_components/site-footer.tsx` |
+| Auth pages | `apps/web/app/[locale]/auth/layout.tsx` |
+| Personal account sidebar | `apps/web/app/[locale]/home/(user)/layout.tsx` |
+| Team account sidebar | `apps/web/app/[locale]/home/[account]/layout.tsx` |
+| Admin sidebar | `apps/web/app/[locale]/admin/_components/admin-sidebar.tsx` |
+| `create-team`, `join`, `update-password`, `identities` pages | `apps/web/app/[locale]/...` |
+
+Editing `apps/web/components/app-logo.tsx` updates every call site at once.
+
+## Favicon and Social Images
+
+Favicon assets live in `apps/web/public/images/favicon/` and are wired up via the `icons` field in `apps/web/lib/root-metadata.ts`:
+
+```
+apps/web/public/images/favicon/
+├── favicon.ico              # Browser tab icon
+├── favicon-16x16.png
+├── favicon-32x32.png
+├── apple-touch-icon.png     # iOS home screen
+├── android-chrome-192x192.png
+├── android-chrome-512x512.png
+└── safari-pinned-tab.svg
+```
+
+To swap them, replace the files in place and update the paths in `apps/web/lib/root-metadata.ts` if the filenames change. Generate the set from your logo using tools like [RealFaviconGenerator](https://realfavicongenerator.net/) or [Favicon.io](https://favicon.io/).
+
+## Common Mistakes
+
+**Using low-resolution images**: Logos appear blurry on high-DPI displays. Always use SVG when possible, or provide 2x/3x image assets.
+
+**Forgetting alt text**: Screen readers need descriptive alt text. Use your company name, not "logo".
+
+**Hard-coded dimensions**: Use responsive classes like `w-[80px] lg:w-[95px]` instead of fixed pixel widths to ensure the logo scales appropriately on mobile.
+
+**Missing priority attribute**: Add `priority` to Next.js Image components for above-the-fold logos to prevent layout shift.
+
+## Verification
+
+After updating your logo:
+
+1. Check the marketing header at `http://localhost:3000`
+2. Verify the auth pages at `http://localhost:3000/auth/sign-in`
+3. Test dark mode toggle to confirm logo visibility
+4. Inspect mobile viewport (375px width) for proper sizing
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "How do I make my SVG logo change color with the theme?", "answer": "Use Tailwind's fill classes on your SVG paths: fill-primary for the default theme color, or dark:fill-white to change in dark mode. Remove any hardcoded fill attributes from the SVG."},
+     {"question": "What size should my logo be?", "answer": "Design for 95px width on desktop and 80px on mobile. SVGs scale automatically. For raster images, export at 2x resolution (190x64 pixels minimum) to support high-DPI displays."},
+     {"question": "Can I use different logos in different parts of the app?", "answer": "Yes. You can modify the AppLogo component to accept a variant prop or create separate components. However, maintaining brand consistency is recommended."},
+     {"question": "How do I update the logo in email templates?", "answer": "Email templates do not consume the AppLogo component — most clients require an absolute URL. Edit the email components directly under packages/email-templates/src/ to swap the image (for example, the team logo URL in invite.email.tsx)."}
+   ]
+/%}
+
+## Next Steps
+
+- Back to [Customization Overview](/docs/next-supabase-turbo/customization)
+- Configure your [brand colors and theme](/docs/next-supabase-turbo/customization/theme)
+- Customize your [application fonts](/docs/next-supabase-turbo/customization/fonts)

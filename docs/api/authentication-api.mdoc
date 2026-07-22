@@ -1,0 +1,531 @@
+---
+status: "published"
+label: "Authentication API"
+order: 2
+title: "Authentication API | Next.js Supabase SaaS Kit"
+description: "Complete reference for authentication in MakerKit. Use requireUser for server-side auth checks, handle MFA verification, and access user data in client components."
+---
+
+The Authentication API verifies user identity, handles MFA (Multi-Factor Authentication), and provides user data to your components. Use `requireUser` on the server for protected routes and `useUser` on the client for reactive user state.
+
+{% sequence title="Authentication API Reference" description="Learn how to authenticate users in MakerKit" %}
+
+[requireUser (Server)](#requireuser-server)
+
+[useUser (Client)](#useuser-client)
+
+[useSupabase (Client)](#usesupabase-client)
+
+[MFA handling](#mfa-handling)
+
+[Common patterns](#common-patterns)
+
+{% /sequence %}
+
+## requireUser (Server)
+
+The `requireUser` function checks authentication status in Server Components, Server Actions, and Route Handlers. It handles both standard auth and MFA verification in a single call.
+
+```tsx
+import { redirect } from 'next/navigation';
+import { requireUser } from '@kit/supabase/require-user';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+async function ProtectedPage() {
+  const client = getSupabaseServerClient();
+  const auth = await requireUser(client);
+
+  if (auth.error) {
+    redirect(auth.redirectTo);
+  }
+
+  const user = auth.data;
+
+  return <div>Welcome, {user.email}</div>;
+}
+```
+
+### Function signature
+
+```tsx
+function requireUser(
+  client: SupabaseClient,
+  options?: {
+    verifyMfa?: boolean;  // Default: true
+  }
+): Promise<RequireUserResponse>
+```
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `client` | `SupabaseClient` | required | Supabase server client |
+| `options.verifyMfa` | `boolean` | `true` | Check MFA status |
+
+### Response types
+
+**Success response:**
+
+```tsx
+{
+  data: {
+    id: string;               // User UUID
+    email: string;            // User email
+    phone: string;            // User phone (if set)
+    is_anonymous: boolean;    // Anonymous auth flag
+    aal: 'aal1' | 'aal2';    // Auth Assurance Level
+    app_metadata: Record<string, unknown>;
+    user_metadata: Record<string, unknown>;
+    amr: AMREntry[];          // Auth Methods Reference
+  };
+  error: null;
+}
+```
+
+**Error response:**
+
+```tsx
+{
+  data: null;
+  error: AuthenticationError | MultiFactorAuthError;
+  redirectTo: string;  // Where to redirect the user
+}
+```
+
+### Auth Assurance Levels (AAL)
+
+| Level | Meaning |
+|-------|---------|
+| `aal1` | Basic authentication (password, magic link, OAuth) |
+| `aal2` | MFA verified (TOTP app, etc.) |
+
+### Error types
+
+| Error | Cause | Redirect |
+|-------|-------|----------|
+| `AuthenticationError` | User not logged in | Sign-in page |
+| `MultiFactorAuthError` | MFA required but not verified | MFA verification page |
+
+### Usage in Server Components
+
+```tsx
+import { redirect } from 'next/navigation';
+import { requireUser } from '@kit/supabase/require-user';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export default async function DashboardPage() {
+  const client = getSupabaseServerClient();
+  const auth = await requireUser(client);
+
+  if (auth.error) {
+    redirect(auth.redirectTo);
+  }
+
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <p>Logged in as: {auth.data.email}</p>
+      <p>MFA status: {auth.data.aal === 'aal2' ? 'Verified' : 'Not verified'}</p>
+    </div>
+  );
+}
+```
+
+### Usage in Server Actions
+
+```tsx
+'use server';
+
+import { redirect } from 'next/navigation';
+import { requireUser } from '@kit/supabase/require-user';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export async function updateProfile(formData: FormData) {
+  const client = getSupabaseServerClient();
+  const auth = await requireUser(client);
+
+  if (auth.error) {
+    redirect(auth.redirectTo);
+  }
+
+  const name = formData.get('name') as string;
+
+  await client
+    .from('profiles')
+    .update({ name })
+    .eq('id', auth.data.id);
+
+  return { success: true };
+}
+```
+
+### Skipping MFA verification
+
+For pages that don't require full MFA verification:
+
+```tsx
+const auth = await requireUser(client, { verifyMfa: false });
+```
+
+{% callout type="warning" title="MFA security" %}
+Only disable MFA verification for non-sensitive pages. Always verify MFA for billing, account deletion, and other high-risk operations.
+{% /callout %}
+
+---
+
+## useUser (Client)
+
+The `useUser` hook provides reactive access to user data in client components. It reads from the auth context and updates automatically on auth state changes.
+
+```tsx
+'use client';
+
+import { useUser } from '@kit/supabase/hooks/use-user';
+
+function UserMenu() {
+  const user = useUser();
+
+  if (!user) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div>
+      <span>{user.email}</span>
+      <img src={user.user_metadata.avatar_url} alt="Avatar" />
+    </div>
+  );
+}
+```
+
+### Return type
+
+```tsx
+User | null
+```
+
+The `User` type from Supabase includes:
+
+```tsx
+{
+  id: string;
+  email: string;
+  phone: string;
+  created_at: string;
+  updated_at: string;
+  app_metadata: {
+    provider: string;
+    providers: string[];
+  };
+  user_metadata: {
+    avatar_url?: string;
+    full_name?: string;
+    // Custom metadata fields
+  };
+  aal?: 'aal1' | 'aal2';
+}
+```
+
+### Conditional rendering
+
+```tsx
+'use client';
+
+import { useUser } from '@kit/supabase/hooks/use-user';
+
+function ConditionalContent() {
+  const user = useUser();
+
+  // Show loading state
+  if (user === undefined) {
+    return <Skeleton />;
+  }
+
+  // Not authenticated
+  if (!user) {
+    return <LoginPrompt />;
+  }
+
+  // Authenticated
+  return <UserDashboard user={user} />;
+}
+```
+
+---
+
+## useSupabase (Client)
+
+The `useSupabase` hook provides the Supabase browser client for client-side operations.
+
+```tsx
+'use client';
+
+import { useSupabase } from '@kit/supabase/hooks/use-supabase';
+import { useQuery } from '@tanstack/react-query';
+
+function TaskList() {
+  const supabase = useSupabase();
+
+  const { data: tasks } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  return (
+    <ul>
+      {tasks?.map((task) => (
+        <li key={task.id}>{task.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+---
+
+## MFA handling
+
+MakerKit automatically handles MFA verification through the `requireUser` function.
+
+### How it works
+
+1. User logs in with password/OAuth (reaches `aal1`)
+2. If MFA is enabled, `requireUser` checks AAL
+3. If `aal1` but MFA required, redirects to MFA verification
+4. After TOTP verification, user reaches `aal2`
+5. Protected pages now accessible
+
+### MFA flow diagram
+
+```
+Login → aal1 → requireUser() → MFA enabled?
+                                   ↓
+                              Yes: redirect to /auth/verify
+                                   ↓
+                              User enters TOTP
+                                   ↓
+                              aal2 → Access granted
+```
+
+### Checking MFA status
+
+```tsx
+import { requireUser } from '@kit/supabase/require-user';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+async function checkMfaStatus() {
+  const client = getSupabaseServerClient();
+  const auth = await requireUser(client, { verifyMfa: false });
+
+  if (auth.error) {
+    return { authenticated: false };
+  }
+
+  return {
+    authenticated: true,
+    mfaEnabled: auth.data.aal === 'aal2',
+    authMethods: auth.data.amr.map((m) => m.method),
+  };
+}
+```
+
+---
+
+## Common patterns
+
+### Protected API Route Handler
+
+```tsx
+// app/api/user/route.ts
+import { NextResponse } from 'next/server';
+import { requireUser } from '@kit/supabase/require-user';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export async function GET() {
+  const client = getSupabaseServerClient();
+  const auth = await requireUser(client);
+
+  if (auth.error) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401 }
+    );
+  }
+
+  const { data: profile } = await client
+    .from('profiles')
+    .select('*')
+    .eq('id', auth.data.id)
+    .single();
+
+  return NextResponse.json({ user: auth.data, profile });
+}
+```
+
+### Using authActionClient (recommended)
+
+The `authActionClient` utility handles authentication automatically:
+
+```tsx
+'use server';
+
+import * as z from 'zod';
+import { authActionClient } from '@kit/next/safe-action';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+const UpdateProfileSchema = z.object({
+  name: z.string().min(2),
+});
+
+export const updateProfile = authActionClient
+  .inputSchema(UpdateProfileSchema)
+  .action(async ({ parsedInput: data, ctx: { user } }) => {
+    // user is automatically available and typed
+    const client = getSupabaseServerClient();
+
+    await client
+      .from('profiles')
+      .update({ name: data.name })
+      .eq('id', user.id);
+
+    return { success: true };
+  });
+```
+
+### Public actions (no auth)
+
+```tsx
+import { publicActionClient } from '@kit/next/safe-action';
+
+export const submitContactForm = publicActionClient
+  .inputSchema(ContactFormSchema)
+  .action(async ({ parsedInput: data }) => {
+    // No user context in public actions
+    await sendEmail(data);
+    return { success: true };
+  });
+```
+
+### Role-based access control
+
+Combine authentication with role checks:
+
+```tsx
+import { redirect } from 'next/navigation';
+import { requireUser } from '@kit/supabase/require-user';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import { isSuperAdmin } from '@kit/admin';
+
+async function AdminPage() {
+  const client = getSupabaseServerClient();
+  const auth = await requireUser(client);
+
+  if (auth.error) {
+    redirect(auth.redirectTo);
+  }
+
+  const isAdmin = await isSuperAdmin(client);
+
+  if (!isAdmin) {
+    redirect('/home');
+  }
+
+  return <AdminDashboard />;
+}
+```
+
+### Auth state listener (Client)
+
+For real-time auth state changes:
+
+```tsx
+'use client';
+
+import { useEffect } from 'react';
+import { useSupabase } from '@kit/supabase/hooks/use-supabase';
+
+function AuthStateListener({ onAuthChange }) {
+  const supabase = useSupabase();
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN') {
+        onAuthChange({ type: 'signed_in', user: session?.user });
+      } else if (event === 'SIGNED_OUT') {
+        onAuthChange({ type: 'signed_out' });
+      } else if (event === 'TOKEN_REFRESHED') {
+        onAuthChange({ type: 'token_refreshed' });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase, onAuthChange]);
+
+  return null;
+}
+```
+
+## Common mistakes
+
+### Creating client at module scope
+
+```tsx
+// WRONG: Client created at module scope
+const client = getSupabaseServerClient();
+
+export async function handler() {
+  const auth = await requireUser(client); // Won't work
+}
+
+// RIGHT: Client created in request context
+export async function handler() {
+  const client = getSupabaseServerClient();
+  const auth = await requireUser(client);
+}
+```
+
+### Ignoring the redirectTo property
+
+```tsx
+// WRONG: Not using redirectTo
+if (auth.error) {
+  redirect('/login'); // MFA users sent to wrong page
+}
+
+// RIGHT: Use the provided redirectTo
+if (auth.error) {
+  redirect(auth.redirectTo); // Correct handling for auth + MFA
+}
+```
+
+### Using useUser for server-side checks
+
+```tsx
+// WRONG: useUser is client-only
+export async function ServerComponent() {
+  const user = useUser(); // Won't work
+}
+
+// RIGHT: Use requireUser on server
+export async function ServerComponent() {
+  const client = getSupabaseServerClient();
+  const auth = await requireUser(client);
+}
+```
+
+## Related documentation
+
+- [Account API](/docs/next-supabase-turbo/api/account-api) - Personal account operations
+- [Server Actions](/docs/next-supabase-turbo/data-fetching/server-actions) - Using authActionClient
+- [Route Handlers](/docs/next-supabase-turbo/data-fetching/route-handlers) - API authentication

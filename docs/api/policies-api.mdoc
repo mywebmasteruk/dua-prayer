@@ -1,0 +1,551 @@
+---
+label: "Feature Policies API"
+title: "Feature Policies API | Next.js Supabase SaaS Kit"
+order: 7
+status: "published"
+description: "Build declarative business rules with MakerKit's Feature Policies API. Validate team invitations, enforce subscription limits, and create custom authorization flows."
+---
+
+The Feature Policy API isolates validation and authorization logic from application code so every feature can reuse consistent, auditable policies.
+
+**Makerkit is built for extensibility**: customers should expand features without patching internals unless they are opting into special cases. The Feature Policy API delivers that promise by turning customization into additive policies instead of edits to core flows.
+
+**Important**: Feature Policies operates at the API and application surface level. It orchestrates business logic, user experience flows, and feature access decisions. For data integrity and security enforcement, **continue using database constraints, Supabase RLS policies, and transactional safeguards as your source of truth**.
+
+## What It's For
+
+- **Application logic**: User flows, feature access, business rule validation
+- **API orchestration**: Request processing, workflow coordination, conditional routing
+- **User experience**: Dynamic UI behavior, progressive disclosure, personalization
+- **Integration patterns**: Third-party service coordination, webhook processing
+
+## What It's NOT For
+
+- **Data integrity**: Use database constraints and foreign keys
+- **Security enforcement**: Use Supabase RLS policies and authentication
+- **Performance-critical paths**: Use database indexes and query optimization
+- **Transactional consistency**: Use database transactions and ACID guarantees
+
+## Key Benefits
+
+- Apply nuanced rules without coupling them to route handlers or services
+- Share policy logic across server actions, mutations, and background jobs
+- Test policies in isolation while keeping runtime orchestration predictable
+- Layer customer-specific extensions on top of Makerkit defaults
+
+## How We Use It Today
+
+Makerkit currently uses the Feature Policy API for team invitation flows to validate **when a team can send invitations**. While supporting customers implement various flows for invitations, it was clear that the SaaS Starter Kit could not assume what rules you want to apply to invitations. 
+
+- Some customers wanted to validate the email address of the invited user (ex. validate they all shared the same domain)
+- A set of customers wanted only users on a specific plan to be able to invite users (ex. only Pro users can invite users)
+- Others simply wanted to limit how many invitations can be sent on a per-plan basis (ex. only 5 invitations can be sent on on a free plan, 20 on a paid plan, etc.)
+
+These rules required a more declarative approach - which is why we created the Policies API - so that users can layer their own requirements without the need to rewrite internals.
+
+Additional features can opt in to the same registry pattern to unlock the shared orchestration and extension tooling.
+
+## Why Feature Policies?
+
+A SaaS starter kit must adapt to **diverse customer requirements** without creating divergent forks. 
+
+Imperative checks embedded in controllers quickly become brittle: every variation requires new conditionals, feature flags, or early returns scattered across files.
+
+The Feature Policy API keeps the rule set declarative and centralized, **so product teams can swap, reorder, or extend policies without rewriting the baseline flow**. 
+
+Registries turn policy changes into configuration instead of refactors, making it safer for customers to customize logic while continuing to receive upstream updates from Makerkit.
+
+## Overview
+
+The Feature Policy API provides:
+
+- **Feature-specific registries** for organized policy management per feature
+- **Configuration support** so policies can accept typed configuration objects
+- **Stage-aware evaluation** enabling policies to be filtered by execution stage
+- **Immutable contexts** that keep policy execution safe and predictable
+- **Perfect DX** through a unified API that just works
+
+## Quick Start
+
+### 1. Create a Feature-Specific Registry
+
+```typescript
+import {
+  createPolicyRegistry,
+  definePolicy,
+  createPoliciesEvaluator,
+  allow,
+  deny,
+} from '@kit/policies';
+
+// Create feature-specific registry
+const invitationPolicyRegistry = createPolicyRegistry();
+
+// Register policies
+invitationPolicyRegistry.registerPolicy(
+  definePolicy({
+    id: 'email-validation',
+    stages: ['preliminary', 'submission'],
+    evaluate: async (context) => {
+      if (!context.invitations.some((inv) => inv.email?.includes('@'))) {
+        return deny({
+          code: 'INVALID_EMAIL_FORMAT',
+          message: 'Invalid email format',
+          remediation: 'Please provide a valid email address',
+        });
+      }
+
+      return allow();
+    },
+  }),
+);
+
+// Register configurable policy
+invitationPolicyRegistry.registerPolicy(
+  definePolicy({
+    id: 'max-invitations',
+    stages: ['preliminary', 'submission'],
+    configSchema: z.object({
+      maxInvitations: z.number().positive(),
+    }),
+    evaluate: async (context, config = { maxInvitations: 5 }) => {
+      if (context.invitations.length > config.maxInvitations) {
+        return deny({
+          code: 'MAX_INVITATIONS_EXCEEDED',
+          message: `Cannot invite more than ${config.maxInvitations} members`,
+          remediation: `Reduce invitations to ${config.maxInvitations} or fewer`,
+        });
+      }
+
+      return allow();
+    },
+  }),
+);
+```
+
+### 2. Create a Feature Policy Evaluator
+
+```typescript
+export function createInvitationsPolicyEvaluator() {
+  const evaluator = createPoliciesEvaluator();
+
+  return {
+    async hasPoliciesForStage(stage: 'preliminary' | 'submission') {
+      return evaluator.hasPoliciesForStage(invitationPolicyRegistry, stage);
+    },
+
+    async canInvite(context, stage: 'preliminary' | 'submission') {
+      return evaluator.evaluate(invitationPolicyRegistry, context, 'ALL', stage);
+    },
+  };
+}
+```
+
+### 3. Use the Policy Evaluator
+
+```typescript
+import { createInvitationsPolicyEvaluator } from './your-policies';
+
+async function validateInvitations(context) {
+  const evaluator = createInvitationsPolicyEvaluator();
+
+  // Performance optimization: only build context if policies exist
+  const hasPolicies = await evaluator.hasPoliciesForStage('submission');
+
+  if (!hasPolicies) {
+    return; // No policies to evaluate
+  }
+
+  const result = await evaluator.canInvite(context, 'submission');
+
+  if (!result.allowed) {
+    throw new Error(result.reasons.join(', '));
+  }
+}
+```
+
+## Error Handling
+
+The `deny()` helper supports both simple strings and structured errors.
+
+### String Errors (Simple)
+
+```typescript
+return deny('Email validation failed');
+```
+
+### Structured Errors (Enhanced)
+
+```typescript
+return deny({
+  code: 'INVALID_EMAIL_FORMAT',
+  message: 'Email validation failed',
+  remediation: 'Please provide a valid email address',
+  metadata: { fieldName: 'email' },
+});
+```
+
+### Accessing Error Details
+
+```typescript
+const result = await evaluator.canInvite(context, 'submission');
+
+if (!result.allowed) {
+  console.log('Reasons:', result.reasons);
+
+  result.results.forEach((policyResult) => {
+    if (!policyResult.allowed && policyResult.metadata) {
+      console.log('Error code:', policyResult.metadata.code);
+      console.log('Remediation:', policyResult.metadata.remediation);
+    }
+  });
+}
+```
+
+## Performance Optimizations
+
+### 1. Lazy Context Building
+
+Only build expensive context when policies exist:
+
+```typescript
+const hasPolicies = await evaluator.hasPoliciesForStage('submission');
+
+if (!hasPolicies) {
+  return; // Skip expensive operations
+}
+
+// Build context now that policies need to run
+const context = await buildExpensiveContext();
+const result = await evaluator.canInvite(context, 'submission');
+```
+
+### 2. Stage-Aware Evaluation
+
+Filter policies by execution stage:
+
+```typescript
+// Fast preliminary checks
+const prelimResult = await evaluator.canInvite(context, 'preliminary');
+
+// Full submission validation
+const submitResult = await evaluator.canInvite(context, 'submission');
+```
+
+### 3. AND/OR Logic
+
+Control evaluation behavior:
+
+```typescript
+// ALL: Every policy must pass (default)
+const result = await evaluator.evaluate(registry, context, 'ALL', stage);
+
+// ANY: At least one policy must pass
+const result = await evaluator.evaluate(registry, context, 'ANY', stage);
+```
+
+## Real-World Example: Team Invitations
+
+Makerkit uses the Feature Policy API to power team invitation rules.
+
+```typescript
+// packages/features/team-accounts/src/server/policies/invitation-policies.ts
+import { allow, definePolicy, deny } from '@kit/policies';
+import { createPolicyRegistry } from '@kit/policies';
+
+import { FeaturePolicyInvitationContext } from './feature-policy-invitation-context';
+
+/**
+ * Feature-specific registry for invitation policies
+ */
+export const invitationPolicyRegistry = createPolicyRegistry();
+
+/**
+ * Subscription required policy
+ * Checks if the account has an active subscription
+ */
+export const subscriptionRequiredInvitationsPolicy =
+  definePolicy<FeaturePolicyInvitationContext>({
+    id: 'subscription-required',
+    stages: ['preliminary', 'submission'],
+    evaluate: async ({ subscription }) => {
+      if (!subscription || !subscription.active) {
+        return deny({
+          code: 'SUBSCRIPTION_REQUIRED',
+          message: 'teams.policyErrors.subscriptionRequired',
+          remediation: 'teams.policyRemediation.subscriptionRequired',
+        });
+      }
+
+      return allow();
+    },
+  });
+
+/**
+ * Paddle billing policy
+ * Checks if the account has a paddle subscription and is in a trial period
+ */
+export const paddleBillingInvitationsPolicy =
+  definePolicy<FeaturePolicyInvitationContext>({
+    id: 'paddle-billing',
+    stages: ['preliminary', 'submission'],
+    evaluate: async ({ subscription }) => {
+      // combine with subscriptionRequiredPolicy if subscription must be required
+      if (!subscription) {
+        return allow();
+      }
+
+      // Paddle specific constraint: cannot update subscription items during trial
+      if (
+        subscription.provider === 'paddle' &&
+        subscription.status === 'trialing'
+      ) {
+        const hasPerSeatItems = subscription.items.some(
+          (item) => item.type === 'per_seat',
+        );
+
+        if (hasPerSeatItems) {
+          return deny({
+            code: 'PADDLE_TRIAL_RESTRICTION',
+            message: 'teams.policyErrors.paddleTrialRestriction',
+            remediation: 'teams.policyRemediation.paddleTrialRestriction',
+          });
+        }
+      }
+
+      return allow();
+    },
+  });
+
+// Register policies to apply them
+invitationPolicyRegistry.registerPolicy(subscriptionRequiredInvitationsPolicy);
+invitationPolicyRegistry.registerPolicy(paddleBillingInvitationsPolicy);
+
+export function createInvitationsPolicyEvaluator() {
+  const evaluator = createPoliciesEvaluator();
+
+  return {
+    async hasPoliciesForStage(stage: 'preliminary' | 'submission') {
+      return evaluator.hasPoliciesForStage(invitationPolicyRegistry, stage);
+    },
+
+    async canInvite(context, stage: 'preliminary' | 'submission') {
+      return evaluator.evaluate(invitationPolicyRegistry, context, 'ALL', stage);
+    },
+  };
+}
+```
+
+## Customer Extension Pattern
+
+Customers can extend policies by creating their own registries, adding to existing registries, or composing policy evaluators.
+
+### Method 1: Own Registry
+
+```typescript
+// customer-invitation-policies.ts
+import { createPolicyRegistry, definePolicy } from '@kit/policies';
+
+const customerInvitationRegistry = createPolicyRegistry();
+
+customerInvitationRegistry.registerPolicy(
+  definePolicy({
+    id: 'custom-domain-check',
+    stages: ['preliminary'],
+    evaluate: async (context) => {
+      const allowedDomains = ['company.com', 'partner.com'];
+
+      for (const invitation of context.invitations) {
+        const domain = invitation.email?.split('@')[1];
+        if (!allowedDomains.includes(domain)) {
+          return deny({
+            code: 'DOMAIN_NOT_ALLOWED',
+            message: `Email domain ${domain} is not allowed`,
+            remediation: 'Use an email from an approved domain',
+          });
+        }
+      }
+
+      return allow();
+    },
+  }),
+);
+
+export function createCustomInvitationPolicyEvaluator() {
+  const evaluator = createPoliciesEvaluator();
+
+  return {
+    async validateCustomRules(context, stage) {
+      return evaluator.evaluate(customerInvitationRegistry, context, 'ALL', stage);
+    },
+  };
+}
+```
+
+### Method 2: Compose Policy Evaluators
+
+```typescript
+// Use both built-in and custom policies
+import { createInvitationsPolicyEvaluator } from '@kit/team-accounts/policies';
+import { createCustomInvitationPolicyEvaluator } from './customer-policies';
+
+async function validateInvitations(context, stage) {
+  const builtinEvaluator = createInvitationsPolicyEvaluator();
+  const customEvaluator = createCustomInvitationPolicyEvaluator();
+
+  // Run built-in policies
+  const builtinResult = await builtinEvaluator.canInvite(context, stage);
+
+  if (!builtinResult.allowed) {
+    throw new Error(builtinResult.reasons.join(', '));
+  }
+
+  // Run custom policies
+  const customResult = await customEvaluator.validateCustomRules(context, stage);
+
+  if (!customResult.allowed) {
+    throw new Error(customResult.reasons.join(', '));
+  }
+}
+```
+
+## Complex Group Evaluation
+
+For advanced scenarios requiring complex business logic with multiple decision paths:
+
+### Example: Multi-Stage Enterprise Validation
+
+```typescript
+// Complex scenario: (Authentication AND Email) AND (Subscription OR Trial) AND Final Validation
+async function validateEnterpriseFeatureAccess(context: FeatureContext) {
+  const evaluator = createPoliciesEvaluator();
+
+  // Stage 1: Authentication Requirements (ALL must pass)
+  const authenticationGroup = {
+    operator: 'ALL' as const,
+    policies: [
+      createPolicy(async (ctx) =>
+        ctx.userId ? allow({ step: 'authenticated' }) : deny('Authentication required')
+      ),
+      createPolicy(async (ctx) =>
+        ctx.email?.includes('@') ? allow({ step: 'email-valid' }) : deny('Valid email required')
+      ),
+      createPolicy(async (ctx) =>
+        ctx.permissions.includes('enterprise-features')
+          ? allow({ step: 'permissions' })
+          : deny('Enterprise permissions required')
+      ),
+    ],
+  };
+
+  // Stage 2: Billing Validation (ANY sufficient - flexible payment options)
+  const billingGroup = {
+    operator: 'ANY' as const,
+    policies: [
+      createPolicy(async (ctx) =>
+        ctx.subscription?.plan === 'enterprise' && ctx.subscription.active
+          ? allow({ billing. 'enterprise-subscription' })
+          : deny('Enterprise subscription required')
+      ),
+      createPolicy(async (ctx) =>
+        ctx.trial?.type === 'enterprise' && ctx.trial.daysRemaining > 0
+          ? allow({ billing. 'enterprise-trial', daysLeft: ctx.trial.daysRemaining })
+          : deny('Active enterprise trial required')
+      ),
+      createPolicy(async (ctx) =>
+        ctx.adminOverride?.enabled && ctx.user.role === 'super-admin'
+          ? allow({ billing. 'admin-override' })
+          : deny('Admin override not available')
+      ),
+    ],
+  };
+
+  // Stage 3: Final Constraints (ALL must pass)
+  const constraintsGroup = {
+    operator: 'ALL' as const,
+    policies: [
+      createPolicy(async (ctx) =>
+        ctx.team.memberCount <= ctx.maxMembers
+          ? allow({ constraint: 'team-size-valid' })
+          : deny('Team size exceeds plan limits')
+      ),
+      createPolicy(async (ctx) =>
+        ctx.organization.complianceStatus === 'approved'
+          ? allow({ constraint: 'compliance-approved' })
+          : deny('Organization compliance approval required')
+      ),
+    ],
+  };
+
+  // Execute all groups sequentially - ALL groups must pass
+  const result = await evaluator.evaluateGroups([
+    authenticationGroup,
+    billingGroup,
+    constraintsGroup
+  ], context);
+
+  return {
+    allowed: result.allowed,
+    reasons: result.reasons,
+    metadata: {
+      authenticationPassed: result.results.some(r => r.metadata?.step === 'authenticated'),
+      billingMethod: result.results.find(r => r.metadata?.billing)?.metadata?.billing,
+      constraintsValidated: result.results.some(r => r.metadata?.constraint),
+    }
+  };
+}
+```
+
+### Group Evaluation Flow
+
+1. **Sequential Group Processing**: Groups are evaluated in order
+2. **All Groups Must Pass**: If any group fails, entire evaluation fails
+3. **Short-Circuiting**: Stops on first group failure for performance
+4. **Metadata Preservation**: All policy results and metadata are collected
+
+### Group Operators
+
+- **`ALL` (AND logic)**: All policies in the group must pass
+  - Short-circuits on first failure for performance
+  - Use for mandatory requirements where every condition must be met
+
+- **`ANY` (OR logic)**: At least one policy in the group must pass
+  - Short-circuits on first success for performance
+  - Use for flexible requirements where multiple options are acceptable
+
+### Performance Considerations
+
+- **Order groups by criticality**: Put fast, critical checks first
+- **Group by evaluation cost**: Separate expensive operations
+- **Monitor evaluation time**: Track performance for optimization
+
+## API Reference
+
+### Core Functions
+
+- `createPolicyRegistry()` — Create a feature-specific registry
+- `definePolicy(config)` — Define a policy with metadata and configuration
+- `createPoliciesEvaluator()` — Create a policy evaluator instance
+- `allow(metadata?)` — Return a success result with optional metadata
+- `deny(reason | error)` — Return a failure result (supports strings and structured errors)
+
+### Policy Evaluator Methods
+
+- `evaluator.evaluate(registry, context, operator, stage?)` — Evaluate registry policies
+- `evaluator.evaluateGroups(groups, context)` — Evaluate complex group logic
+- `evaluator.hasPoliciesForStage(registry, stage?)` — Check if policies exist for a stage
+
+### Types
+
+- `PolicyContext` — Base context interface
+- `PolicyResult` — Policy evaluation result
+- `PolicyStage` — Execution stage (`'preliminary' | 'submission' | string`)
+- `EvaluationResult` — Contains `allowed`, `reasons`, and `results` arrays
+- `PolicyGroup` — Group configuration with `operator` and `policies`
+
+## Related documentation
+
+- [Team Account API](/docs/next-supabase-turbo/api/team-account-api) - Team management operations
+- [Billing Configuration](/docs/next-supabase-turbo/billing/overview) - Payment provider setup
+- [Row Level Security](/docs/next-supabase-turbo/security/row-level-security) - Database-level security
+- [Per-seat Billing](/docs/next-supabase-turbo/billing/per-seat-billing) - Team-based pricing with seat limits

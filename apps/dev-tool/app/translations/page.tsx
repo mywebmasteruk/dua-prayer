@@ -1,0 +1,30 @@
+import { Metadata } from 'next';
+
+import { Page, PageBody, PageHeader } from '@kit/ui/page';
+
+import { TranslationsComparison } from './components/translations-comparison';
+import { loadTranslations } from './lib/translations-loader';
+
+export const metadata: Metadata = {
+  title: 'Translations Comparison',
+  description: 'Compare translations across different languages',
+};
+
+export default async function TranslationsPage() {
+  const translations = await loadTranslations();
+
+  return (
+    <Page style={'custom'}>
+      <PageBody>
+        <PageHeader
+          title={'Translations'}
+          description={
+            'Compare translations across different languages. Ensure consistency and accuracy in your translations.'
+          }
+        />
+
+        <TranslationsComparison translations={translations} />
+      </PageBody>
+    </Page>
+  );
+}

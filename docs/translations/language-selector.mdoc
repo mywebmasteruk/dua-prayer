@@ -1,0 +1,363 @@
+---
+status: "published"
+title: "Language Selector Component | Next.js Supabase SaaS Kit"
+label: "Language Selector"
+description: "Learn how to add and customize the language selector component to let users switch languages in your application."
+order: 2
+---
+
+The `LanguageSelector` component lets users switch between available languages. It automatically displays all languages registered in your i18n settings.
+
+## Using the Language Selector
+
+Import and render the component anywhere in your application:
+
+```tsx
+import { LanguageSelector } from '@kit/ui/language-selector';
+
+export function SettingsPage() {
+  return (
+    <div>
+      <h2>Language Settings</h2>
+      <LanguageSelector />
+    </div>
+  );
+}
+```
+
+The component:
+- Reads available languages from your i18n configuration
+- Displays language names in the user's current language using `Intl.DisplayNames`
+- Navigates to the equivalent URL with the new locale prefix
+- The new locale is persisted via URL-based routing
+
+## Default Placement
+
+The language selector is already included in the personal account settings page when more than one language is configured. You'll find it at:
+
+```
+/home/settings → Account Settings → Language
+```
+
+If only one locale is registered in `packages/i18n/src/locales.tsx`, the selector is hidden automatically.
+
+## Adding to Other Locations
+
+### Marketing Header
+
+Add the selector to your marketing site header:
+
+```tsx title="apps/web/app/[locale]/(marketing)/_components/site-header.tsx"
+import { LanguageSelector } from '@kit/ui/language-selector';
+
+import { routing } from '@kit/i18n/routing';
+
+export function SiteHeader() {
+  const showLanguageSelector = routing.locales.length > 1;
+
+  return (
+    <header>
+      <nav>
+        {/* Navigation items */}
+      </nav>
+
+      {showLanguageSelector && (
+        <LanguageSelector />
+      )}
+    </header>
+  );
+}
+```
+
+### Footer
+
+Add language selection to your footer:
+
+```tsx title="apps/web/app/[locale]/(marketing)/_components/site-footer.tsx"
+import { LanguageSelector } from '@kit/ui/language-selector';
+
+import { routing } from '@kit/i18n/routing';
+
+export function SiteFooter() {
+  return (
+    <footer>
+      <div>
+        {/* Footer content */}
+      </div>
+
+      {routing.locales.length > 1 && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Language:</span>
+          <LanguageSelector />
+        </div>
+      )}
+    </footer>
+  );
+}
+```
+
+### Dashboard Sidebar
+
+Include in the application sidebar:
+
+```tsx title="apps/web/components/sidebar.tsx"
+import { LanguageSelector } from '@kit/ui/language-selector';
+
+import { routing } from '@kit/i18n/routing';
+
+export function Sidebar() {
+  return (
+    <aside>
+      {/* Sidebar navigation */}
+
+      <div className="mt-auto p-4">
+        {routing.locales.length > 1 && (
+          <LanguageSelector />
+        )}
+      </div>
+    </aside>
+  );
+}
+```
+
+## Handling Language Changes
+
+The `onChange` prop lets you run custom logic when the language changes:
+
+```tsx
+import { LanguageSelector } from '@kit/ui/language-selector';
+
+export function LanguageSettings() {
+  const handleLanguageChange = (locale: string) => {
+    // Track analytics
+    analytics.track('language_changed', { locale });
+
+    // Update user preferences in database
+    updateUserPreferences({ language: locale });
+  };
+
+  return (
+    <LanguageSelector onChange={handleLanguageChange} />
+  );
+}
+```
+
+The `onChange` callback fires before navigation, so keep it synchronous or use a fire-and-forget pattern for async operations.
+
+## How Language Detection Works
+
+The system uses URL-based locale routing powered by `next-intl` middleware.
+
+### 1. URL Prefix
+
+The locale is determined by the URL path prefix:
+
+```
+/en/home     → English
+/es/home     → Spanish
+/de/home     → German
+```
+
+### 2. Browser Preference (New Visitors)
+
+When a user visits the root URL (`/`), the middleware checks the browser's `Accept-Language` header and redirects to the matching locale:
+
+```
+User visits /  →  Accept-Language: es  →  Redirect to /es/
+```
+
+### 3. Default Fallback
+
+If no matching locale is found, the system redirects to `NEXT_PUBLIC_DEFAULT_LOCALE`:
+
+```bash title=".env"
+NEXT_PUBLIC_DEFAULT_LOCALE=en
+```
+
+## Configuration Options
+
+### Adding Locales
+
+Register supported locales in your configuration:
+
+```tsx title="packages/i18n/src/locales.tsx"
+export const locales: string[] = ['en', 'es', 'de', 'fr'];
+```
+
+When only one locale is registered, the language selector is hidden automatically.
+
+## Styling the Selector
+
+The `LanguageSelector` uses Shadcn UI's `Select` component. Customize it through your Tailwind configuration or by wrapping it:
+
+```tsx title="components/custom-language-selector.tsx"
+import { LanguageSelector } from '@kit/ui/language-selector';
+
+export function CustomLanguageSelector() {
+  return (
+    <div className="[&_button]:w-[180px] [&_button]:bg-muted">
+      <LanguageSelector />
+    </div>
+  );
+}
+```
+
+For deeper customization, you can create your own selector using `next-intl` navigation utilities:
+
+```tsx title="components/language-dropdown.tsx"
+'use client';
+
+import { useCallback, useMemo } from 'react';
+
+import { useLocale } from 'next-intl';
+import { useRouter, usePathname } from '@kit/i18n/navigation';
+import { Globe } from 'lucide-react';
+
+import { routing } from '@kit/i18n/routing';
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@kit/ui/dropdown-menu';
+import { Button } from '@kit/ui/button';
+
+export function LanguageDropdown() {
+  const locale = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const languageNames = useMemo(() => {
+    return new Intl.DisplayNames([locale], { type: 'language' });
+  }, [locale]);
+
+  const handleLanguageChange = useCallback(
+    (newLocale: string) => {
+      router.replace(pathname, { locale: newLocale });
+    },
+    [router, pathname],
+  );
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <Globe className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="end">
+        {routing.locales.map((loc) => {
+          const label = languageNames.of(loc) ?? loc;
+          const isActive = loc === locale;
+
+          return (
+            <DropdownMenuItem
+              key={loc}
+              onClick={() => handleLanguageChange(loc)}
+              className={isActive ? 'bg-accent' : ''}
+            >
+              {label}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+```
+
+## SEO Considerations
+
+With URL-based locale routing, each language variant has its own URL, which is optimal for SEO. The `next-intl` middleware automatically handles `hreflang` alternate links.
+
+For additional control, you can add explicit alternates in your metadata:
+
+```tsx title="apps/web/app/[locale]/layout.tsx"
+import { routing } from '@kit/i18n/routing';
+
+export function generateMetadata() {
+  const baseUrl = 'https://yoursite.com';
+
+  return {
+    alternates: {
+      languages: Object.fromEntries(
+        routing.locales.map((lang) => [lang, `${baseUrl}/${lang}`])
+      ),
+    },
+  };
+}
+```
+
+## Testing Language Switching
+
+To test language switching during development:
+
+1. **URL method**:
+    - Navigate directly to a URL with the locale prefix (e.g., `/es/home`)
+    - Verify translations appear correctly
+2. **Component method**:
+    - Navigate to account settings or wherever you placed the selector
+    - Select a different language
+    - Verify the URL updates with the new locale prefix and translations change
+
+## Accessibility Considerations
+
+The default `LanguageSelector` uses Shadcn UI's `Select` component which provides:
+
+- Keyboard navigation (arrow keys, Enter, Escape)
+- Screen reader announcements
+- Focus management
+
+When creating custom language selectors, ensure you include:
+
+```tsx
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label="Change language"
+      aria-haspopup="listbox"
+    >
+      <Globe className="h-4 w-4" />
+      <span className="sr-only">
+        Current language: {languageNames.of(locale)}
+      </span>
+    </Button>
+  </DropdownMenuTrigger>
+  {/* ... */}
+</DropdownMenu>
+```
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Why does the page navigate when I change the language?", "answer": "Language switching works via URL-based routing. When you select a new language, the app navigates to the equivalent URL with the new locale prefix (e.g., /en/home to /es/home). This ensures all components render with the correct translations."},
+     {"question": "Can I change the language without navigation?", "answer": "URL-based locale routing requires navigation since the locale is part of the URL. This is the recommended approach as it provides better SEO, shareable URLs per language, and proper server-side rendering of translations."},
+     {"question": "How do I hide the language selector for single-language apps?", "answer": "The selector automatically hides when only one locale is in the locales array. You can also conditionally render it: {routing.locales.length > 1 && <LanguageSelector />}"},
+     {"question": "Can I save language preference to the user's profile?", "answer": "Yes. Use the onChange prop to save to your database when the language changes. On future visits, you can redirect users to their preferred locale server-side in middleware."},
+     {"question": "Does the language selector work with URL-based routing?", "answer": "Yes, v3 uses URL-based locale routing natively via next-intl middleware. Each locale has its own URL prefix (e.g., /en/about, /es/about). The language selector navigates between these URLs automatically."}
+   ]
+/%}
+
+## Upgrading from v2
+
+{% callout title="Differences with v2" %}
+In v2, language switching was cookie-based — changing language set a `lang` cookie and reloaded the page. In v3, language switching uses URL-based routing via `next-intl` middleware. Key differences:
+
+- Locale is determined by URL prefix (`/en/`, `/es/`) instead of a `lang` cookie
+- Language change navigates to a new URL instead of `i18n.changeLanguage()` + reload
+- `languages` from `~/lib/i18n/i18n.settings` is now `routing.locales` from `@kit/i18n/routing`
+- `useTranslation` from `react-i18next` is now `useTranslations`/`useLocale` from `next-intl`
+- No custom middleware needed — `next-intl` provides URL-based routing natively
+
+For the full migration guide, see [Upgrading from v2 to v3](/docs/next-supabase-turbo/installation/v3-migration).
+{% /callout %}
+
+## Related Documentation
+
+- [Using Translations](/docs/next-supabase-turbo/translations/using-translations) - Learn how to use translations
+- [Adding Translations](/docs/next-supabase-turbo/translations/adding-translations) - Add new languages
+- [Email Translations](/docs/next-supabase-turbo/translations/email-translations) - Translate email templates

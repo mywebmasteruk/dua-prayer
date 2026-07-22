@@ -1,0 +1,302 @@
+---
+title: "Monitoring and Error Tracking in Makerkit"
+status: "published"
+label: "How Monitoring Works"
+order: 0
+description: "Set up error tracking and performance monitoring in your Next.js Supabase SaaS app with Sentry, PostHog, or SigNoz."
+---
+
+{% sequence title="Steps to configure monitoring" description="Learn how to configure monitoring in the Next.js Supabase Starter Kit." %}
+
+[Understanding the monitoring architecture](#understanding-the-monitoring-architecture)
+
+[Supported monitoring providers](#supported-monitoring-providers)
+
+[Configuring your monitoring provider](#configuring-your-monitoring-provider)
+
+[What gets monitored automatically](#what-gets-monitored-automatically)
+
+[Manually capturing exceptions](#manually-capturing-exceptions)
+
+[Identifying users in error reports](#identifying-users-in-error-reports)
+
+{% /sequence %}
+
+## Understanding the Monitoring Architecture
+
+Makerkit's monitoring system uses a **provider-based architecture** that lets you swap monitoring services without changing your application code. The system lives in the `@kit/monitoring` package and handles:
+
+- **Error tracking**: Capture client-side and server-side exceptions
+- **Performance monitoring**: Track server response times via OpenTelemetry instrumentation
+- **User identification**: Associate errors with specific users for debugging
+
+The architecture follows a registry pattern. When you set `NEXT_PUBLIC_MONITORING_PROVIDER`, Makerkit loads the appropriate service implementation at runtime:
+
+```
+MonitoringProvider (React context)
+        │
+        ▼
+   Registry lookup
+        │
+        ▼
+┌───────┴───────┐
+│   sentry      │
+│   posthog     │
+│   signoz      │
+└───────────────┘
+```
+
+This means your components interact with a consistent `MonitoringService` interface regardless of which provider you choose.
+
+## Supported Monitoring Providers
+
+Makerkit provides first-class support for these monitoring providers:
+
+| Provider | Error Tracking | Performance | Self-Hostable | Notes |
+|----------|---------------|-------------|---------------|-------|
+| [Sentry](/docs/next-supabase-turbo/monitoring/sentry) | Yes | Yes | Yes | Built-in, recommended for most apps |
+| [PostHog](/docs/next-supabase-turbo/monitoring/posthog) | Yes | No | Yes | Plugin, doubles as analytics |
+| [SigNoz](/docs/next-supabase-turbo/monitoring/signoz) | Yes | Yes | Yes | Plugin, OpenTelemetry-native |
+
+**Sentry** is included out of the box. PostHog and SigNoz require installing plugins via the Makerkit CLI.
+
+{% alert type="default" title="Custom providers" %}
+You can add support for any monitoring service by implementing the `MonitoringService` interface and registering it in the provider registry. See [Adding a custom monitoring provider](#adding-a-custom-monitoring-provider) below.
+{% /alert %}
+
+## Configuring Your Monitoring Provider
+
+Set these environment variables to enable monitoring:
+
+```bash title=".env.local"
+# Required: Choose your provider (sentry, posthog, or signoz)
+NEXT_PUBLIC_MONITORING_PROVIDER=sentry
+
+# Provider-specific configuration
+# See the individual provider docs for required variables
+```
+
+The `NEXT_PUBLIC_MONITORING_PROVIDER` variable determines which service handles your errors. Leave it empty to disable monitoring entirely (errors still log to console in development).
+
+## What Gets Monitored Automatically
+
+Once configured, Makerkit captures errors without additional code:
+
+### Client-side exceptions
+
+The `MonitoringProvider` component wraps your app and captures uncaught exceptions in React components. This includes:
+
+- Runtime errors in components
+- Unhandled promise rejections
+- Errors thrown during rendering
+
+### Server-side exceptions
+
+Next.js exposes an instrumentation hook that fires for server errors. Makerkit hooks into it via `apps/web/instrumentation.ts`, which is a thin shim that forwards to the configured provider:
+
+```typescript title="apps/web/instrumentation.ts"
+import { type Instrumentation } from 'next';
+
+export async function register() {
+  const { registerMonitoringInstrumentation } = await import(
+    '@kit/monitoring/instrumentation'
+  );
+
+  await registerMonitoringInstrumentation();
+}
+
+export const onRequestError: Instrumentation.onRequestError = async (
+  error,
+  request,
+  context,
+) => {
+  const { onRequestError: handler } = await import(
+    '@kit/monitoring/instrumentation'
+  );
+
+  return handler(error, request, context);
+};
+```
+
+This captures errors from Server Components, Server Actions, Route Handlers, and Middleware.
+
+### Client-side exceptions
+
+The browser counterpart lives at `apps/web/instrumentation-client.ts`, a Next.js convention file that runs before hydration:
+
+```typescript title="apps/web/instrumentation-client.ts"
+import { registerClientMonitoringInstrumentation } from '@kit/monitoring/instrumentation-client';
+
+registerClientMonitoringInstrumentation();
+```
+
+`registerClientMonitoringInstrumentation` installs provider-agnostic `window.onerror` and `unhandledrejection` listeners, then lazily loads the configured provider in parallel with hydration. Errors that fire before the provider chunk is ready are buffered and replayed.
+
+### Avoiding duplicate reports
+
+A server error returned to the client carries a `digest` property. Because `onRequestError` already captured it, your `error.tsx` boundary should skip the client report when `digest` is present — pass `null` to `useCaptureException`:
+
+```tsx title="apps/web/app/[locale]/error.tsx"
+useCaptureException(error.digest ? null : error);
+```
+
+## Manually Capturing Exceptions
+
+For expected errors (like validation failures or API errors), capture them explicitly:
+
+### In Server Actions or Route Handlers
+
+```typescript
+import { getServerMonitoringService } from '@kit/monitoring/server';
+
+export async function createProject(data: FormData) {
+  try {
+    // ... your logic
+  } catch (error) {
+    const monitoring = await getServerMonitoringService();
+    await monitoring.ready();
+
+    monitoring.captureException(error, {
+      action: 'createProject',
+      userId: user.id,
+    });
+
+    throw error; // Re-throw or handle as needed
+  }
+}
+```
+
+### In React Components
+
+Use the `useMonitoring` hook for client-side error capture:
+
+```tsx
+'use client';
+
+import { useMonitoring } from '@kit/monitoring/hooks';
+
+export function DataLoader() {
+  const monitoring = useMonitoring();
+
+  async function loadData() {
+    try {
+      const response = await fetch('/api/data');
+
+      if (!response.ok) {
+        throw new Error(`Failed to load data: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      monitoring.captureException(error, {
+        component: 'DataLoader',
+      });
+
+      throw error;
+    }
+  }
+
+  // ...
+}
+```
+
+### The `useCaptureException` Hook
+
+For error boundaries or components that receive errors as props:
+
+```tsx
+'use client';
+
+import { useCaptureException } from '@kit/monitoring/hooks';
+
+export function ErrorDisplay({ error }: { error: Error }) {
+  // Automatically captures the error when the component mounts
+  useCaptureException(error);
+
+  return (
+    <div>
+      <h2>Something went wrong</h2>
+      <p>{error.message}</p>
+    </div>
+  );
+}
+```
+
+## Identifying Users in Error Reports
+
+Associate errors with users to debug issues faster. Makerkit's monitoring providers support user identification:
+
+```typescript
+const monitoring = useMonitoring();
+
+// After user signs in
+monitoring.identifyUser({
+  id: user.id,
+  email: user.email,
+  // Additional fields depend on your provider
+});
+```
+
+Makerkit automatically identifies users when they sign in if you've configured the analytics/events system. The `user.signedIn` event triggers user identification in both analytics and monitoring.
+
+## Adding a Custom Monitoring Provider
+
+Adding a provider involves five registration points — see the [Custom Provider guide](/docs/next-supabase-turbo/monitoring/custom-monitoring-provider) for the full walkthrough. The short version:
+
+1. Add the provider name to the `MONITORING_PROVIDERS` enum in `get-monitoring-provider.ts`.
+2. Register a server `MonitoringService` in `services/get-server-monitoring-service.ts`.
+3. Register a React `MonitoringProvider` component in `components/provider.tsx`.
+4. Register a server instrumentation entry in `instrumentation.ts` — both `register` (to init the SDK) and `onRequestError` (to forward Next.js request errors) are required.
+5. Register a client instrumentation entry in `instrumentation-client.ts` — `init` and `captureException`.
+
+{% alert type="warning" title="onRequestError is not optional" %}
+The client error boundary skips re-reporting any error that carries a `digest` because the server already captured it via `onRequestError`. A custom provider that omits this hook will silently drop every server error.
+{% /alert %}
+
+{% alert type="default" title="Telegram notifications" %}
+We wrote a tutorial showing how to add Telegram notifications for error monitoring: [Send SaaS errors to Telegram](/blog/tutorials/telegram-saas-error-monitoring).
+{% /alert %}
+
+## Best Practices
+
+### Do capture context with errors
+
+```typescript
+// Good: Includes debugging context
+monitoring.captureException(error, {
+  userId: user.id,
+  accountId: account.id,
+  action: 'updateBillingPlan',
+  planId: newPlanId,
+});
+
+// Less useful: No context
+monitoring.captureException(error);
+```
+
+### Don't capture expected validation errors
+
+```typescript
+// Avoid: This clutters your error dashboard
+if (!isValidEmail(email)) {
+  monitoring.captureException(new Error('Invalid email'));
+  return { error: 'Invalid email' };
+}
+
+// Better: Only capture unexpected failures
+try {
+  await sendEmail(email);
+} catch (error) {
+  monitoring.captureException(error, {
+    extra: { email: maskEmail(email) },
+  });
+}
+```
+
+## Next Steps
+
+Choose a monitoring provider and follow its setup guide:
+
+- [Configure Sentry](/docs/next-supabase-turbo/monitoring/sentry) (recommended for most apps)
+- [Configure PostHog](/docs/next-supabase-turbo/monitoring/posthog) (if you already use PostHog for analytics)
+- [Configure SigNoz](/docs/next-supabase-turbo/monitoring/signoz) (self-hosted, OpenTelemetry-native)

@@ -1,0 +1,466 @@
+---
+status: "published"
+label: "Handling Webhooks"
+title: "Handle Billing Webhooks in Next.js Supabase SaaS Kit"
+order: 9
+description: "Learn how to handle billing webhooks from Stripe, Lemon Squeezy, and Paddle. Extend the default webhook handler with custom logic for payment events, subscription changes, and more."
+---
+
+Webhooks let your billing provider notify your application about events like successful payments, subscription changes, and cancellations. Makerkit handles the core webhook processing, but you can extend it with custom logic.
+
+## Default Webhook Behavior
+
+Makerkit's webhook handler automatically:
+
+1. Verifies the webhook signature
+2. Processes the event based on type
+3. Updates the database (`subscriptions`, `subscription_items`, `orders`, `order_items`)
+4. Returns appropriate HTTP responses
+
+The webhook endpoint is: `/api/billing/webhook`
+
+## Extending the Webhook Handler
+
+Add custom logic by providing callbacks to `handleWebhookEvent`:
+
+```tsx {% title="apps/web/app/api/billing/webhook/route.ts" %}
+import { getBillingEventHandlerService } from '@kit/billing-gateway';
+import { getPlanTypesMap } from '@kit/billing';
+import { enhanceRouteHandler } from '@kit/next/routes';
+import { getLogger } from '@kit/shared/logger';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+
+import billingConfig from '~/config/billing.config';
+
+export const POST = enhanceRouteHandler(
+  async ({ request }) => {
+    const provider = billingConfig.provider;
+    const logger = await getLogger();
+
+    const ctx = { name: 'billing.webhook', provider };
+    logger.info(ctx, 'Received billing webhook');
+
+    const supabaseClientProvider = () => getSupabaseServerAdminClient();
+
+    const service = await getBillingEventHandlerService(
+      supabaseClientProvider,
+      provider,
+      getPlanTypesMap(billingConfig),
+    );
+
+    try {
+      await service.handleWebhookEvent(request, {
+        // Add your custom callbacks here
+        onCheckoutSessionCompleted: async (subscription, customerId) => {
+          logger.info({ customerId }, 'Checkout completed');
+          // Send welcome email, provision resources, etc.
+        },
+
+        onSubscriptionUpdated: async (subscription) => {
+          logger.info({ subscriptionId: subscription.id }, 'Subscription updated');
+          // Handle plan changes, sync with external systems
+        },
+
+        onSubscriptionDeleted: async (subscriptionId) => {
+          logger.info({ subscriptionId }, 'Subscription deleted');
+          // Clean up resources, send cancellation email
+        },
+
+        onPaymentSucceeded: async (sessionId) => {
+          logger.info({ sessionId }, 'Payment succeeded');
+          // Send receipt, update analytics
+        },
+
+        onPaymentFailed: async (sessionId) => {
+          logger.info({ sessionId }, 'Payment failed');
+          // Send payment failure notification
+        },
+
+        onInvoicePaid: async (data) => {
+          logger.info({ accountId: data.target_account_id }, 'Invoice paid');
+          // Recharge credits, send invoice email
+        },
+      });
+
+      logger.info(ctx, 'Successfully processed billing webhook');
+      return new Response('OK', { status: 200 });
+    } catch (error) {
+      logger.error({ ...ctx, error }, 'Failed to process billing webhook');
+      return new Response('Failed to process webhook', { status: 500 });
+    }
+  },
+  { auth: false }  // Webhooks don't require authentication
+);
+```
+
+## Available Callbacks
+
+### onCheckoutSessionCompleted
+
+Called when a checkout is successfully completed (new subscription or order).
+
+```tsx
+onCheckoutSessionCompleted: async (subscription, customerId) => {
+  // subscription: UpsertSubscriptionParams | UpsertOrderParams
+  // customerId: string
+
+  const accountId = subscription.target_account_id;
+
+  // Send welcome email
+  await sendEmail({
+    to: subscription.target_customer_email,
+    template: 'welcome',
+    data: { planName: subscription.line_items[0]?.product_id },
+  });
+
+  // Provision resources
+  await provisionResources(accountId);
+
+  // Track analytics
+  await analytics.track('subscription_created', {
+    accountId,
+    plan: subscription.line_items[0]?.variant_id,
+  });
+}
+```
+
+### onSubscriptionUpdated
+
+Called when a subscription is updated (plan change, renewal, etc.).
+
+```tsx
+onSubscriptionUpdated: async (subscription) => {
+  // subscription: UpsertSubscriptionParams
+
+  const accountId = subscription.target_account_id;
+  const status = subscription.status;
+
+  // Handle plan changes
+  if (subscription.line_items) {
+    await syncPlanFeatures(accountId, subscription.line_items);
+  }
+
+  // Handle status changes
+  if (status === 'past_due') {
+    await sendPaymentReminder(accountId);
+  }
+
+  if (status === 'canceled') {
+    await scheduleResourceCleanup(accountId);
+  }
+}
+```
+
+### onSubscriptionDeleted
+
+Called when a subscription is fully deleted/expired.
+
+```tsx
+onSubscriptionDeleted: async (subscriptionId) => {
+  // subscriptionId: string
+
+  // Look up the subscription in your database
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('account_id')
+    .eq('id', subscriptionId)
+    .single();
+
+  if (subscription) {
+    // Clean up resources
+    await cleanupResources(subscription.account_id);
+
+    // Send cancellation email
+    await sendCancellationEmail(subscription.account_id);
+
+    // Update analytics
+    await analytics.track('subscription_canceled', {
+      accountId: subscription.account_id,
+    });
+  }
+}
+```
+
+### onPaymentSucceeded
+
+Called when a payment succeeds (for async payment methods like bank transfers).
+
+```tsx
+onPaymentSucceeded: async (sessionId) => {
+  // sessionId: string (checkout session ID)
+
+  // Look up the session details
+  const session = await billingService.retrieveCheckoutSession({ sessionId });
+
+  // Send receipt
+  await sendReceipt(session.customer.email);
+}
+```
+
+### onPaymentFailed
+
+Called when a payment fails.
+
+```tsx
+onPaymentFailed: async (sessionId) => {
+  // sessionId: string
+
+  // Notify the customer
+  await sendPaymentFailedEmail(sessionId);
+
+  // Log for monitoring
+  logger.warn({ sessionId }, 'Payment failed');
+}
+```
+
+### onInvoicePaid
+
+Called when an invoice is paid (subscriptions only, useful for credit recharges).
+
+```tsx
+onInvoicePaid: async (data) => {
+  // data: {
+  //   target_account_id: string,
+  //   target_customer_id: string,
+  //   target_customer_email: string,
+  //   line_items: SubscriptionLineItem[],
+  // }
+
+  const accountId = data.target_account_id;
+  const variantId = data.line_items[0]?.variant_id;
+
+  // Recharge credits based on plan
+  await rechargeCredits(accountId, variantId);
+
+  // Send invoice email
+  await sendInvoiceEmail(data.target_customer_email);
+}
+```
+
+### onEvent (Catch-All)
+
+Handle any event not covered by the specific callbacks.
+
+```tsx
+onEvent: async (event) => {
+  // event: unknown (provider-specific event object)
+
+  // Example: Handle Stripe-specific events
+  if (event.type === 'invoice.payment_succeeded') {
+    const invoice = event.data.object as Stripe.Invoice;
+    // Custom handling
+  }
+
+  // Example: Handle Lemon Squeezy events
+  if (event.event_name === 'license_key_created') {
+    // Handle license key creation
+  }
+}
+```
+
+## Provider-Specific Events
+
+### Stripe Events
+
+| Event | Callback | Description |
+|-------|----------|-------------|
+| `checkout.session.completed` | `onCheckoutSessionCompleted` | Checkout completed |
+| `customer.subscription.updated` | `onSubscriptionUpdated` | Subscription changed |
+| `customer.subscription.deleted` | `onSubscriptionDeleted` | Subscription ended |
+| `checkout.session.async_payment_succeeded` | `onPaymentSucceeded` | Async payment succeeded |
+| `checkout.session.async_payment_failed` | `onPaymentFailed` | Async payment failed |
+| `invoice.paid` | `onInvoicePaid` | Invoice paid |
+
+### Lemon Squeezy Events
+
+| Event | Callback | Description |
+|-------|----------|-------------|
+| `order_created` | `onCheckoutSessionCompleted` | Order created |
+| `subscription_created` | `onCheckoutSessionCompleted` | Subscription created |
+| `subscription_updated` | `onSubscriptionUpdated` | Subscription updated |
+| `subscription_expired` | `onSubscriptionDeleted` | Subscription expired |
+
+### Paddle Events
+
+| Event | Callback | Description |
+|-------|----------|-------------|
+| `transaction.completed` | `onCheckoutSessionCompleted` | Transaction completed |
+| `subscription.activated` | `onSubscriptionUpdated` | Subscription activated |
+| `subscription.updated` | `onSubscriptionUpdated` | Subscription updated |
+| `subscription.canceled` | `onSubscriptionDeleted` | Subscription canceled |
+
+## Example: Credit Recharge System
+
+Here's a complete example of recharging credits when an invoice is paid:
+
+```tsx {% title="apps/web/app/api/billing/webhook/route.ts" %}
+import { getBillingEventHandlerService } from '@kit/billing-gateway';
+import { getPlanTypesMap } from '@kit/billing';
+import { enhanceRouteHandler } from '@kit/next/routes';
+import { getLogger } from '@kit/shared/logger';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+
+import billingConfig from '~/config/billing.config';
+
+export const POST = enhanceRouteHandler(
+  async ({ request }) => {
+    const provider = billingConfig.provider;
+    const logger = await getLogger();
+    const adminClient = getSupabaseServerAdminClient();
+
+    const service = await getBillingEventHandlerService(
+      () => adminClient,
+      provider,
+      getPlanTypesMap(billingConfig),
+    );
+
+    try {
+      await service.handleWebhookEvent(request, {
+        onInvoicePaid: async (data) => {
+          const accountId = data.target_account_id;
+          const variantId = data.line_items[0]?.variant_id;
+
+          if (!variantId) {
+            logger.error({ accountId }, 'No variant ID in invoice');
+            return;
+          }
+
+          // Get credits for this plan from your plans table
+          const { data: plan } = await adminClient
+            .from('plans')
+            .select('tokens')
+            .eq('variant_id', variantId)
+            .single();
+
+          if (!plan) {
+            logger.error({ variantId }, 'Plan not found');
+            return;
+          }
+
+          // Reset credits for the account
+          const { error } = await adminClient
+            .from('credits')
+            .upsert({
+              account_id: accountId,
+              tokens: plan.tokens,
+            });
+
+          if (error) {
+            logger.error({ accountId, error }, 'Failed to update credits');
+            throw error;
+          }
+
+          logger.info({ accountId, tokens: plan.tokens }, 'Credits recharged');
+        },
+      });
+
+      return new Response('OK', { status: 200 });
+    } catch (error) {
+      logger.error({ error }, 'Webhook processing failed');
+      return new Response('Failed', { status: 500 });
+    }
+  },
+  { auth: false }
+);
+```
+
+## Webhook Security
+
+### Signature Verification
+
+Makerkit automatically verifies webhook signatures. Never disable this in production.
+
+The verification uses:
+- **Stripe:** `STRIPE_WEBHOOK_SECRET`
+- **Lemon Squeezy:** `LEMON_SQUEEZY_SIGNING_SECRET`
+- **Paddle:** `PADDLE_WEBHOOK_SECRET_KEY`
+
+### Idempotency
+
+Webhooks can be delivered multiple times. Make your handlers idempotent:
+
+```tsx
+onCheckoutSessionCompleted: async (subscription) => {
+  // Check if already processed
+  const { data: existing } = await supabase
+    .from('processed_webhooks')
+    .select('id')
+    .eq('subscription_id', subscription.id)
+    .single();
+
+  if (existing) {
+    logger.info({ id: subscription.id }, 'Already processed, skipping');
+    return;
+  }
+
+  // Process the webhook
+  await processSubscription(subscription);
+
+  // Mark as processed
+  await supabase
+    .from('processed_webhooks')
+    .insert({ subscription_id: subscription.id });
+}
+```
+
+### Error Handling
+
+Return appropriate HTTP status codes:
+
+- **200:** Success (even if you skip processing)
+- **500:** Temporary failure (provider will retry)
+- **400:** Invalid request (provider won't retry)
+
+```tsx
+try {
+  await service.handleWebhookEvent(request, callbacks);
+  return new Response('OK', { status: 200 });
+} catch (error) {
+  if (isTemporaryError(error)) {
+    // Provider will retry
+    return new Response('Temporary failure', { status: 500 });
+  }
+  // Don't retry invalid requests
+  return new Response('Invalid request', { status: 400 });
+}
+```
+
+## Debugging Webhooks
+
+### Local Development
+
+Use the Stripe CLI or ngrok to test webhooks locally:
+
+```bash
+# Stripe CLI
+stripe listen --forward-to localhost:3000/api/billing/webhook
+
+# ngrok (for Lemon Squeezy/Paddle)
+ngrok http 3000
+```
+
+### Logging
+
+Add detailed logging to track webhook processing:
+
+```tsx
+const logger = await getLogger();
+
+logger.info({ eventType: event.type }, 'Processing webhook');
+logger.debug({ payload: event }, 'Webhook payload');
+logger.error({ error }, 'Webhook failed');
+```
+
+### Webhook Logs in Provider Dashboards
+
+Check webhook delivery status:
+- **Stripe:** Dashboard → Developers → Webhooks → Recent events
+- **Lemon Squeezy:** Settings → Webhooks → View logs
+- **Paddle:** Developer Tools → Notifications → View logs
+
+## Related Documentation
+
+- [Billing Overview](/docs/next-supabase-turbo/billing/overview) - Architecture and concepts
+- [Stripe Setup](/docs/next-supabase-turbo/billing/stripe) - Configure Stripe webhooks
+- [Lemon Squeezy Setup](/docs/next-supabase-turbo/billing/lemon-squeezy) - Configure LS webhooks
+- [Credit-Based Billing](/docs/next-supabase-turbo/billing/credit-based-billing) - Recharge credits on payment

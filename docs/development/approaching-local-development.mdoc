@@ -1,0 +1,215 @@
+---
+status: "published"
+label: "Getting Started with Development"
+order: 0
+title: "Local Development Guide for the Next.js Supabase Starter Kit"
+description: "Set up your development environment, understand Makerkit's architecture patterns, and navigate the development guides."
+---
+
+Start local development by running `pnpm dev` to launch the Next.js app and Supabase services. Makerkit uses a security-first, account-centric architecture where all business data belongs to accounts (personal or team), protected by Row Level Security (RLS) policies enforced at the database level.
+
+{% sequence title="Development Setup" description="Get started with local development" %}
+
+[Start development services](#development-environment)
+
+[Understand the architecture](#development-philosophy)
+
+[Navigate the guides](#development-guides-overview)
+
+[Follow common patterns](#common-development-patterns)
+
+{% /sequence %}
+
+## Development Environment
+
+### Starting Services
+
+```bash
+# Start all services (Next.js app + Supabase)
+pnpm dev
+
+# Or start individually
+pnpm --filter web dev          # Next.js app (port 3000)
+pnpm run supabase:web:start    # Local Supabase
+```
+
+### Key URLs
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| Main app | http://localhost:3000 | Your application |
+| Supabase Studio | http://localhost:54323 | Database admin UI |
+| Inbucket (email) | http://localhost:54324 | Local email testing |
+
+### Common Commands
+
+```bash
+# Database
+pnpm run supabase:web:reset        # Reset database to clean state
+pnpm --filter web supabase:typegen # Regenerate TypeScript types
+
+# Development
+pnpm typecheck                     # Type check all packages
+pnpm lint:fix                      # Fix linting issues
+pnpm format:fix                    # Format code
+```
+
+## Development Philosophy
+
+Makerkit is built around three core principles that guide all development decisions:
+
+### Security by Default
+
+Every feature leverages Row Level Security (RLS) and the permission system. Access controls are built into the database layer, not application code. When you add a new table, you also add RLS policies that enforce who can read, write, and delete data.
+
+### Multi-Tenant from Day One
+
+All business data belongs to accounts (personal or team). This design enables both B2C and B2B use cases while ensuring proper data isolation. Every table that holds user-generated data includes an `account_id` foreign key.
+
+### Type-Safe Development
+
+TypeScript types are auto-generated from your database schema. When you modify the database, run `pnpm --filter web supabase:typegen` to update types. This ensures end-to-end type safety from database to UI.
+
+## Development Guides Overview
+
+### Database & Data Layer
+
+Start here to understand the foundation:
+
+| Guide | Description |
+|-------|-------------|
+| [Database Architecture](/docs/next-supabase-turbo/development/database-architecture) | Multi-tenant data model, security patterns, core tables |
+| [Database Schema](/docs/next-supabase-turbo/development/database-schema) | Add tables, RLS policies, triggers, and relationships |
+| [Migrations](/docs/next-supabase-turbo/development/migrations) | Create and apply schema changes |
+| [Database Functions](/docs/next-supabase-turbo/development/database-functions) | Built-in functions for permissions, roles, subscriptions |
+| [Database Tests](/docs/next-supabase-turbo/development/database-tests) | Test RLS policies with pgTAP |
+| [Database Webhooks](/docs/next-supabase-turbo/development/database-webhooks) | React to database changes |
+
+### Application Development
+
+| Guide | Description |
+|-------|-------------|
+| [Loading Data](/docs/next-supabase-turbo/development/loading-data-from-database) | Fetch data in Server Components and Client Components |
+| [Writing Data](/docs/next-supabase-turbo/development/writing-data-to-database) | Server Actions, forms, and mutations |
+| [Permissions and Roles](/docs/next-supabase-turbo/development/permissions-and-roles) | RBAC implementation and permission checks |
+
+### Frontend & Marketing
+
+| Guide | Description |
+|-------|-------------|
+| [Marketing Pages](/docs/next-supabase-turbo/development/marketing-pages) | Landing pages, pricing, FAQ |
+| [Legal Pages](/docs/next-supabase-turbo/development/legal-pages) | Privacy policy, terms of service |
+| [SEO](/docs/next-supabase-turbo/development/seo) | Metadata, sitemap, structured data |
+| [External Marketing Website](/docs/next-supabase-turbo/development/external-marketing-website) | Redirect to Framer, Webflow, etc. |
+
+### Architecture & Testing
+
+| Guide | Description |
+|-------|-------------|
+| [Application Tests (E2E)](/docs/next-supabase-turbo/development/application-tests) | Playwright E2E testing patterns |
+| [Adding Turborepo Apps](/docs/next-supabase-turbo/development/adding-turborepo-app) | Add new applications to the monorepo |
+| [Adding Turborepo Packages](/docs/next-supabase-turbo/development/adding-turborepo-package) | Create shared packages |
+
+## Common Development Patterns
+
+### The Account-Centric Pattern
+
+Every business entity references an `account_id`:
+
+```sql
+create table public.projects (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now()
+);
+```
+
+### The Security-First Pattern
+
+Every table has RLS enabled with explicit policies:
+
+```sql
+alter table public.projects enable row level security;
+
+create policy "Members can view their projects"
+  on public.projects
+  for select
+  to authenticated
+  using (public.has_role_on_account(account_id));
+
+create policy "Users with write permission can create projects"
+  on public.projects
+  for insert
+  to authenticated
+  with check (public.has_permission(auth.uid(), account_id, 'projects.write'::app_permissions));
+```
+
+### The Type-Safe Pattern
+
+Database types are auto-generated:
+
+```typescript
+import type { Database } from '@kit/supabase/database';
+
+type Project = Database['public']['Tables']['projects']['Row'];
+type NewProject = Database['public']['Tables']['projects']['Insert'];
+```
+
+### The Server Action Pattern
+
+Use `authActionClient` for validated, authenticated server actions:
+
+```typescript
+import { authActionClient } from '@kit/next/safe-action';
+import * as z from 'zod';
+
+const schema = z.object({
+  name: z.string().min(1),
+  accountId: z.string().uuid(),
+});
+
+export const createProject = authActionClient
+  .inputSchema(schema)
+  .action(async ({ parsedInput: data, ctx: { user } }) => {
+    // data is validated, user is authenticated
+    const supabase = getSupabaseServerClient();
+
+    const { data: project } = await supabase
+      .from('projects')
+      .insert({ name: data.name, account_id: data.accountId })
+      .select()
+      .single();
+
+    return project;
+  });
+```
+
+## Recommended Learning Path
+
+### 1. Foundation (Start Here)
+
+1. [Database Architecture](/docs/next-supabase-turbo/development/database-architecture) - Understand the multi-tenant model
+2. [Permissions and Roles](/docs/next-supabase-turbo/development/permissions-and-roles) - Learn RBAC implementation
+3. [Database Schema](/docs/next-supabase-turbo/development/database-schema) - Build your first feature
+
+### 2. Core Development
+
+4. [Loading Data](/docs/next-supabase-turbo/development/loading-data-from-database) - Data fetching patterns
+5. [Writing Data](/docs/next-supabase-turbo/development/writing-data-to-database) - Forms and mutations
+6. [Migrations](/docs/next-supabase-turbo/development/migrations) - Schema change workflow
+
+### 3. Advanced (As Needed)
+
+- [Database Functions](/docs/next-supabase-turbo/development/database-functions) - Custom database logic
+- [Database Webhooks](/docs/next-supabase-turbo/development/database-webhooks) - Event-driven features
+- [Database Tests](/docs/next-supabase-turbo/development/database-tests) - Test RLS policies
+
+## Next Steps
+
+1. **Read [Database Architecture](/docs/next-supabase-turbo/development/database-architecture)** to understand the foundation
+2. **Plan your first feature** - define entities, relationships, and access rules
+3. **Implement step-by-step** following the [Database Schema](/docs/next-supabase-turbo/development/database-schema) guide
+4. **Test your RLS policies** using [Database Tests](/docs/next-supabase-turbo/development/database-tests)
+
+The guides are designed to be practical and production-ready. Each builds on knowledge from previous ones, developing your expertise with Makerkit's architecture and patterns.

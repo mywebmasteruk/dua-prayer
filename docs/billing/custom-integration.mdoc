@@ -1,0 +1,638 @@
+---
+status: "published"
+label: "Custom Integration"
+title: "How to create a custom billing integration in Makerkit"
+order: 11
+description: "Learn how to create a custom billing integration in Makerkit"
+---
+
+This guide explains how to create billing integration plugins for the Makerkit SaaS platform to allow you to use a custom billing provider.
+
+{% sequence title="How to create a custom billing integration in Makerkit" description="Learn how to create a custom billing integration in Makerkit" %}
+
+[Architecture Overview](#architecture-overview)
+
+[Package Structure](#package-structure)
+
+[Core Interface Implementation](#core-interface-implementation)
+
+[Environment Configuration](#environment-configuration)
+
+[Billing Strategy Service](#billing-strategy-service)
+
+[Webhook Handler Service](#webhook-handler-service)
+
+[Client-Side Components](#client-side-components)
+
+[Registration and Integration](#registration-and-integration)
+
+[Testing Strategy](#testing-strategy)
+
+[Security Best Practices](#security-best-practices)
+
+[Example Implementation](#example-implementation)
+{% /sequence %}
+
+## Architecture Overview
+
+The Makerkit billing system uses a plugin-based architecture that allows multiple billing providers to coexist. The system consists of:
+
+### Core Components
+
+1. **Billing Strategy Provider Service** - Abstract interface for billing operations
+2. **Billing Webhook Handler Service** - Abstract interface for webhook processing
+3. **Registry System** - Dynamic loading and management of providers
+4. **Schema Validation** - Type-safe configuration and data validation
+
+### Provider Structure
+
+Each billing provider is implemented as a separate package under `packages/{provider-name}/` with:
+
+- **Server-side services** - Billing operations and webhook handling
+- **Client-side components** - Checkout flows and UI integration
+- **Configuration schemas** - Environment variable validation
+- **SDK abstractions** - Provider-specific API integrations
+
+### Data Flow
+
+```
+Client Request → Registry → Provider Service → External API → Webhook → Handler → Database
+```
+
+## Creating a package
+
+You can create a new package for your billing provider by running the following command:
+
+```bash
+pnpm turbo gen package
+```
+
+This will create a new package in the packages directory, ready to use. You can move this anywhere in the `packages` directory, but we recommend keeping it in the `packages/billing` directory.
+
+## Package Structure
+
+Once we finalize the package structure, your structure should look like this:
+
+```
+packages/{provider-name}/
+├── package.json
+├── tsconfig.json
+├── index.ts
+└── src/
+    ├── index.ts
+    ├── components/
+    │   ├── index.ts
+    │   └── {provider}-checkout.tsx
+    ├── constants/
+    │   └── {provider}-events.ts
+    ├── schema/
+    │   ├── {provider}-client-env.schema.ts
+    │   └── {provider}-server-env.schema.ts
+    └── services/
+        ├── {provider}-billing-strategy.service.ts
+        ├── {provider}-webhook-handler.service.ts
+        ├── {provider}-sdk.ts
+        └── create-{provider}-billing-portal-session.ts
+```
+
+### package.json Template
+
+```json
+{
+  "name": "@kit/{provider-name}",
+  "private": true,
+  "version": "0.1.0",
+  "exports": {
+    ".": "./src/index.ts",
+    "./components": "./src/components/index.ts"
+  },
+  "typesVersions": {
+    "*": {
+      "*": ["src/*"]
+    }
+  },
+  "dependencies": {
+    "{provider-sdk}": "^x.x.x"
+  },
+  "devDependencies": {
+    "@kit/billing": "workspace:*",
+    "@kit/eslint-config": "workspace:*",
+    "@kit/prettier-config": "workspace:*",
+    "@kit/shared": "workspace:*",
+    "@kit/supabase": "workspace:*",
+    "@kit/tsconfig": "workspace:*",
+    "@kit/ui": "workspace:*",
+    "@types/react": "19.1.13",
+    "next": "16.0.0",
+    "react": "19.1.1",
+    "zod": "^3.25.74"
+  }
+}
+```
+
+## Core Interface Implementation
+
+### BillingStrategyProviderService
+
+This abstract class defines the contract for all billing operations:
+
+```typescript {% title="packages/{provider}/src/services/{provider}-billing-strategy.service.ts" %}
+import { BillingStrategyProviderService } from '@kit/billing';
+
+export class YourProviderBillingStrategyService
+  implements BillingStrategyProviderService
+{
+  private readonly namespace = 'billing.{provider}';
+
+  async createCheckoutSession(params) {
+    // Implementation
+  }
+
+  async createBillingPortalSession(params) {
+    // Implementation
+  }
+
+  async cancelSubscription(params) {
+    // Implementation
+  }
+
+  async retrieveCheckoutSession(params) {
+    // Implementation
+  }
+
+  async reportUsage(params) {
+    // Implementation (if supported)
+  }
+
+  async queryUsage(params) {
+    // Implementation (if supported)
+  }
+
+  async updateSubscriptionItem(params) {
+    // Implementation
+  }
+
+  async getPlanById(planId: string) {
+    // Implementation
+  }
+
+  async getSubscription(subscriptionId: string) {
+    // Implementation
+  }
+}
+```
+
+### BillingWebhookHandlerService
+
+This abstract class handles webhook events from the billing provider:
+
+```typescript {% title="packages/{provider}/src/services/{provider}-webhook-handler.service.ts" %}
+import { BillingWebhookHandlerService } from '@kit/billing';
+
+export class YourProviderWebhookHandlerService
+  implements BillingWebhookHandlerService
+{
+  private readonly provider = '{provider}' as const;
+  private readonly namespace = 'billing.{provider}';
+
+  async verifyWebhookSignature(request: Request) {
+    // Verify signature using provider's SDK
+    // Throw error if invalid
+  }
+
+  async handleWebhookEvent(event: unknown, params) {
+    // Route events to appropriate handlers
+    switch (event.type) {
+      case 'subscription.created':
+        return this.handleSubscriptionCreated(event, params);
+
+      case 'subscription.updated':
+        return this.handleSubscriptionUpdated(event, params);
+      // ... other events
+    }
+  }
+}
+```
+
+## Environment Configuration
+
+### Server Environment Schema
+
+Create schemas for server-side configuration:
+
+```typescript {% title="packages/{provider}/src/schema/{provider}-server-env.schema.ts" %}
+// src/schema/{provider}-server-env.schema.ts
+import * as z from 'zod';
+
+export const YourProviderServerEnvSchema = z.object({
+  apiKey: z.string({
+    description: '{Provider} API key for server-side operations',
+    required_error: '{PROVIDER}_API_KEY is required',
+  }),
+  webhooksSecret: z.string({
+    description: '{Provider} webhook secret for verifying signatures',
+    required_error: '{PROVIDER}_WEBHOOK_SECRET is required',
+  }),
+});
+
+export type YourProviderServerEnv = z.infer<typeof YourProviderServerEnvSchema>;
+```
+
+### Client Environment Schema
+
+Create schemas for client-side configuration:
+
+```typescript {% title="packages/{provider}/src/schema/{provider}-client-env.schema.ts" %}
+// src/schema/{provider}-client-env.schema.ts
+import * as z from 'zod';
+
+export const YourProviderClientEnvSchema = z.object({
+  publicKey: z.string({
+    description: '{Provider} public key for client-side operations',
+    required_error: 'NEXT_PUBLIC_{PROVIDER}_PUBLIC_KEY is required',
+  }),
+});
+
+export type YourProviderClientEnv = z.infer<typeof YourProviderClientEnvSchema>;
+```
+
+## Billing Strategy Service
+
+### Implementation Example
+
+{% alert type="warning" title="This is an abstract example" %}
+The "client" class in the example below is not a real class, it's just an example of how to implement the BillingStrategyProviderService interface. You should refer to the SDK of your billing provider to implement the actual methods.
+{% /alert %}
+
+Here's a detailed implementation pattern based on the Paddle service:
+
+```typescript
+import 'server-only';
+import * as z from 'zod';
+import { BillingStrategyProviderService } from '@kit/billing';
+import { getLogger } from '@kit/shared/logger';
+import { createYourProviderClient } from './your-provider-sdk';
+
+export class YourProviderBillingStrategyService
+  implements BillingStrategyProviderService
+{
+  private readonly namespace = 'billing.{provider}';
+
+  async createCheckoutSession(
+    params: z.infer<typeof CreateBillingCheckoutSchema>,
+  ) {
+    const logger = await getLogger();
+    const client = await createYourProviderClient();
+
+    const ctx = {
+      name: this.namespace,
+      customerId: params.customerId,
+      accountId: params.accountId,
+    };
+
+    logger.info(ctx, 'Creating checkout session...');
+
+    try {
+      const response = await client.checkout.create({
+        customer: {
+          id: params.customerId,
+          email: params.customerEmail,
+        },
+        lineItems: params.plan.lineItems.map((item) => ({
+          priceId: item.id,
+          quantity: 1,
+        })),
+        successUrl: params.returnUrl,
+        metadata: {
+          accountId: params.accountId,
+        },
+      });
+
+      logger.info(ctx, 'Checkout session created successfully');
+
+      return {
+        checkoutToken: response.id,
+      };
+    } catch (error) {
+      logger.error({ ...ctx, error }, 'Failed to create checkout session');
+      throw new Error('Failed to create checkout session');
+    }
+  }
+
+  async cancelSubscription(
+    params: z.infer<typeof CancelSubscriptionParamsSchema>,
+  ) {
+    const logger = await getLogger();
+    const client = await createYourProviderClient();
+
+    const ctx = {
+      name: this.namespace,
+      subscriptionId: params.subscriptionId,
+    };
+
+    logger.info(ctx, 'Cancelling subscription...');
+
+    try {
+      await client.subscriptions.cancel(params.subscriptionId, {
+        immediate: params.invoiceNow ?? true,
+      });
+
+      logger.info(ctx, 'Subscription cancelled successfully');
+
+      return { success: true };
+    } catch (error) {
+      logger.error({ ...ctx, error }, 'Failed to cancel subscription');
+      throw new Error('Failed to cancel subscription');
+    }
+  }
+
+  // Implement other required methods...
+}
+```
+
+### SDK Client Wrapper
+
+Create a reusable SDK client:
+
+```typescript
+// src/services/{provider}-sdk.ts
+import 'server-only';
+import { YourProviderServerEnvSchema } from '../schema/{provider}-server-env.schema';
+
+export async function createYourProviderClient() {
+  // parse the environment variables
+  const config = YourProviderServerEnvSchema.parse({
+    apiKey: process.env.{PROVIDER}_API_KEY,
+    webhooksSecret: process.env.{PROVIDER}_WEBHOOK_SECRET,
+  });
+
+  return new YourProviderSDK({
+    apiKey: config.apiKey,
+  });
+}
+```
+
+## Webhook Handler Service
+
+### Implementation Pattern
+
+```typescript
+import { BillingWebhookHandlerService, PlanTypeMap } from '@kit/billing';
+import { getLogger } from '@kit/shared/logger';
+import { createYourProviderClient } from './your-provider-sdk';
+
+export class YourProviderWebhookHandlerService
+  implements BillingWebhookHandlerService
+{
+  constructor(private readonly planTypesMap: PlanTypeMap) {}
+
+  private readonly provider = '{provider}' as const;
+  private readonly namespace = 'billing.{provider}';
+
+  async verifyWebhookSignature(request: Request) {
+    const body = await request.clone().text();
+    const signature = request.headers.get('{provider}-signature');
+
+    if (!signature) {
+      throw new Error('Missing {provider} signature');
+    }
+
+    const { webhooksSecret } = YourProviderServerEnvSchema.parse({
+      apiKey: process.env.{PROVIDER}_API_KEY,
+      webhooksSecret: process.env.{PROVIDER}_WEBHOOK_SECRET,
+      environment: process.env.{PROVIDER}_ENVIRONMENT || 'sandbox',
+    });
+
+    const client = await createYourProviderClient();
+
+    try {
+      const eventData = await client.webhooks.verify(body, signature, webhooksSecret);
+
+      if (!eventData) {
+        throw new Error('Invalid signature');
+      }
+
+      return eventData;
+    } catch (error) {
+      throw new Error(`Webhook signature verification failed: ${error}`);
+    }
+  }
+
+  async handleWebhookEvent(event: unknown, params) {
+    const logger = await getLogger();
+
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        return this.handleCheckoutCompleted(event, params.onCheckoutSessionCompleted);
+      }
+
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        return this.handleSubscriptionUpdated(event, params.onSubscriptionUpdated);
+      }
+
+      case 'customer.subscription.deleted': {
+        return this.handleSubscriptionDeleted(event, params.onSubscriptionDeleted);
+      }
+
+      default: {
+        logger.info(
+          {
+            name: this.namespace,
+            eventType: event.type,
+          },
+          'Unhandled webhook event type',
+        );
+
+        if (params.onEvent) {
+          await params.onEvent(event);
+        }
+      }
+    }
+  }
+
+  private async handleCheckoutCompleted(event, onCheckoutSessionCompleted) {
+    // Extract subscription/order data from event
+    // Transform to standard format
+    // Call onCheckoutSessionCompleted with normalized data
+  }
+
+  // Implement other event handlers...
+}
+```
+
+## Client-Side Components
+
+### Checkout Component
+
+Create a React component for the checkout flow:
+
+```typescript
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { YourProviderClientEnvSchema } from '../schema/{provider}-client-env.schema';
+
+interface YourProviderCheckoutProps {
+  onClose?: () => void;
+  checkoutToken: string;
+}
+
+const config = YourProviderClientEnvSchema.parse({
+  publicKey: process.env.NEXT_PUBLIC_{PROVIDER}_PUBLIC_KEY,
+  environment: process.env.NEXT_PUBLIC_{PROVIDER}_ENVIRONMENT || 'sandbox',
+});
+
+export function YourProviderCheckout({
+  onClose,
+  checkoutToken,
+}: YourProviderCheckoutProps) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function initializeCheckout() {
+      try {
+        // Initialize provider's JavaScript SDK
+        const { YourProviderSDK } = await import('{provider}-js-sdk');
+
+        const sdk = new YourProviderSDK({
+          publicKey: config.publicKey,
+          environment: config.environment,
+        });
+
+        // Open checkout
+        await sdk.redirectToCheckout({
+          sessionId: checkoutToken,
+          successUrl: window.location.href,
+          cancelUrl: window.location.href,
+        });
+
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Checkout failed';
+        setError(errorMessage);
+        onClose?.();
+      }
+    }
+
+    void initializeCheckout();
+  }, [checkoutToken, onClose]);
+
+  if (error) {
+    throw new Error(error);
+  }
+
+  return null; // Provider handles the UI
+}
+```
+
+## Registration and Integration
+
+### Register Billing Strategy
+
+Add your provider to the billing strategy registry:
+
+```typescript
+// packages/billing/gateway/src/server/services/billing-gateway/billing-gateway-registry.ts
+
+// Register {Provider} billing strategy
+billingStrategyRegistry.register('{provider}', async () => {
+  const { YourProviderBillingStrategyService } = await import('@kit/{provider}');
+  return new YourProviderBillingStrategyService();
+});
+```
+
+### Register Webhook Handler
+
+Add your provider to the webhook handler factory:
+
+```typescript
+// packages/billing/gateway/src/server/services/billing-event-handler/billing-event-handler-factory.service.ts
+
+// Register {Provider} webhook handler
+billingWebhookHandlerRegistry.register('{provider}', async () => {
+  const { YourProviderWebhookHandlerService } = await import('@kit/{provider}');
+  return new YourProviderWebhookHandlerService(planTypesMap);
+});
+```
+
+### Update Package Exports
+
+Export your services from the main index file:
+
+```typescript
+// packages/{provider}/src/index.ts
+export { YourProviderBillingStrategyService } from './services/{provider}-billing-strategy.service';
+export { YourProviderWebhookHandlerService } from './services/{provider}-webhook-handler.service';
+export * from './components';
+export * from './constants/{provider}-events';
+export {
+  YourProviderClientEnvSchema,
+  type YourProviderClientEnv,
+} from './schema/{provider}-client-env.schema';
+export {
+  YourProviderServerEnvSchema,
+  type YourProviderServerEnv,
+} from './schema/{provider}-server-env.schema';
+```
+
+## Security Best Practices
+
+### Environment Variables
+
+1. **Never expose secrets in client-side code**
+2. **Use different credentials for sandbox and production**
+3. **Validate all environment variables with Zod schemas**
+4. **Store secrets securely (e.g., in environment variables or secret managers)**
+
+### Webhook Security
+
+1. **Always verify webhook signatures**
+2. **Use HTTPS endpoints for webhooks**
+3. **Log security events for monitoring**
+
+### Data Handling
+
+1. **Validate all incoming data with Zod schemas**
+2. **Sanitize user inputs**
+3. **Never log sensitive information (API keys, customer data)**
+4. **Use structured logging with appropriate log levels**
+
+### Error Handling
+
+1. **Don't expose internal errors to users**
+2. **Log errors with sufficient context for debugging**
+3. **Implement proper error boundaries in React components**
+4. **Handle rate limiting and API errors gracefully**
+
+## Example Implementation
+
+For a complete reference implementation, see the Stripe integration at `packages/billing/stripe/`. Key files to study:
+
+- `src/services/stripe-billing-strategy.service.ts` - Complete billing strategy implementation
+- `src/services/stripe-webhook-handler.service.ts` - Webhook handling patterns
+- `src/components/stripe-embedded-checkout.tsx` - Client-side checkout component
+- `src/schema/` - Environment configuration schemas
+
+Also take a look at the Lemon Squeezy integration at `packages/billing/lemon-squeezy/` or the Paddle integration at `packages/plugins/paddle/` (in the plugins repository)
+
+## Conclusion
+
+**Important:** Different providers have different APIs, so the implementation will be different for each provider.
+
+Following this guide, you should be able to create a robust billing integration that:
+
+- Implements all required interfaces correctly
+- Handles errors gracefully and securely
+- Provides a good user experience
+- Follows established patterns and best practices
+- Integrates seamlessly with the existing billing system
+
+Remember to:
+
+1. Test thoroughly with the provider's sandbox environment
+2. Follow security best practices throughout development
+3. Document any provider-specific requirements or limitations
+4. Consider edge cases and error scenarios
+5. Validate your implementation against the existing test suite

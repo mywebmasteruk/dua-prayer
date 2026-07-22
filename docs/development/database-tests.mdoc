@@ -1,0 +1,961 @@
+---
+status: "published"
+label: "Database tests"
+title: "Database Testing with pgTAP"
+description: "Learn how to write comprehensive database tests using pgTAP to secure your application against common vulnerabilities"
+order: 12
+---
+
+Database testing is critical for ensuring your application's security and data integrity. This guide covers how to write comprehensive database tests using **pgTAP** and **Basejump utilities** to protect against common vulnerabilities.
+
+## Why Database Testing Matters
+
+Database tests verify that your **Row Level Security (RLS)** policies work correctly and protect against:
+
+- **Unauthorized data access** - Users reading data they shouldn't see
+- **Data modification attacks** - Users updating/deleting records they don't own
+- **Privilege escalation** - Users gaining higher permissions than intended
+- **Cross-account data leaks** - Team members accessing other teams' data
+- **Storage security bypasses** - Unauthorized file access
+
+## Test Infrastructure
+
+### Required Extensions
+
+Makerkit uses these extensions for database testing:
+
+```sql
+-- Install Basejump test helpers
+create extension "basejump-supabase_test_helpers" version '0.0.6';
+
+-- The extension provides authentication simulation
+-- and user management utilities
+```
+
+### Makerkit Test Helpers
+
+The `/apps/web/supabase/tests/database/00000-makerkit-helpers.sql` file provides essential utilities:
+
+```sql
+-- Authenticate as a test user
+select makerkit.authenticate_as('user_identifier');
+
+-- Get account by slug
+select makerkit.get_account_by_slug('team-slug');
+
+-- Get account ID by slug
+select makerkit.get_account_id_by_slug('team-slug');
+
+-- Set user as super admin
+select makerkit.set_super_admin();
+
+-- Set MFA level
+select makerkit.set_session_aal('aal1'); -- or 'aal2'
+```
+
+## Test Structure
+
+Every pgTAP test follows this structure:
+
+```sql
+begin;
+create extension "basejump-supabase_test_helpers" version '0.0.6';
+
+select no_plan(); -- or select plan(N) for exact test count
+
+-- Test setup
+select makerkit.set_identifier('user1', 'user1@example.com');
+select makerkit.set_identifier('user2', 'user2@example.com');
+
+-- Your tests here
+select is(
+  actual_result,
+  expected_result,
+  'Test description'
+);
+
+select * from finish();
+rollback;
+```
+
+## Bypassing RLS in Tests
+
+When you need to set up test data or verify data exists independently of RLS policies, use role switching:
+
+### Role Types for Testing
+
+```sql
+-- postgres: Full superuser access, bypasses all RLS
+set local role postgres;
+
+-- service_role: Service-level access, bypasses RLS
+set local role service_role;
+
+-- authenticated: Normal user with RLS enforced (default for makerkit.authenticate_as)
+-- No need to set this explicitly - makerkit.authenticate_as() handles it
+```
+
+### Common Patterns for Role Switching
+
+#### Pattern 1: Setup Test Data
+```sql
+-- Use postgres role to insert test data that bypasses RLS
+set local role postgres;
+insert into accounts_memberships (account_id, user_id, account_role)
+values (team_id, user_id, 'member');
+
+-- Test as normal user (RLS enforced)
+select makerkit.authenticate_as('member');
+select isnt_empty($$ select * from team_data $$, 'Member can see team data');
+```
+
+#### Pattern 2: Verify Data Exists
+```sql
+-- Test that unauthorized user cannot see data
+select makerkit.authenticate_as('unauthorized_user');
+select is_empty($$ select * from private_data $$, 'Unauthorized user sees nothing');
+
+-- Use postgres role to verify data actually exists
+set local role postgres;
+select isnt_empty($$ select * from private_data $$, 'Data exists (confirms RLS filtering)');
+```
+
+#### Pattern 3: Grant Permissions for Testing
+```sql
+-- Use postgres role to grant permissions
+set local role postgres;
+insert into role_permissions (role, permission)
+values ('custom-role', 'invites.manage');
+
+-- Test as user with the role
+select makerkit.authenticate_as('custom_role_user');
+select lives_ok($$ select create_invitation(...) $$, 'User with permission can invite');
+```
+
+### When to Use Each Role
+
+#### Use `postgres` role when:
+- Setting up complex test data with foreign key relationships
+- Inserting data that would normally be restricted by RLS
+- Verifying data exists independently of user permissions
+- Modifying system tables (roles, permissions, etc.)
+
+#### Use `service_role` when:
+- You need RLS bypass but want to stay closer to application-level permissions
+- Testing service-level operations
+- Working with data that should be accessible to services but not users
+
+#### Use `makerkit.authenticate_as()` when:
+- Testing normal user operations (automatically sets `authenticated` role)
+- Verifying RLS policies work correctly
+- Testing user-specific access patterns
+
+### Complete Test Example
+
+```sql
+begin;
+create extension "basejump-supabase_test_helpers" version '0.0.6';
+select no_plan();
+
+-- Setup test users
+select makerkit.set_identifier('owner', 'owner@example.com');
+select makerkit.set_identifier('member', 'member@example.com');
+select makerkit.set_identifier('stranger', 'stranger@example.com');
+
+-- Create team (as owner)
+select makerkit.authenticate_as('owner');
+select public.create_team_account('TestTeam');
+
+-- Add member using postgres role (bypasses RLS)
+set local role postgres;
+insert into accounts_memberships (account_id, user_id, account_role)
+values (
+  (select id from accounts where slug = 'testteam'),
+  tests.get_supabase_uid('member'),
+  'member'
+);
+
+-- Test member access (RLS enforced)
+select makerkit.authenticate_as('member');
+select isnt_empty(
+  $$ select * from accounts where slug = 'testteam' $$,
+  'Member can see their team'
+);
+
+-- Test stranger cannot see team (RLS enforced)
+select makerkit.authenticate_as('stranger');
+select is_empty(
+  $$ select * from accounts where slug = 'testteam' $$,
+  'Stranger cannot see team due to RLS'
+);
+
+-- Verify team actually exists (bypass RLS)
+set local role postgres;
+select isnt_empty(
+  $$ select * from accounts where slug = 'testteam' $$,
+  'Team exists in database (confirms RLS is working, not missing data)'
+);
+
+select * from finish();
+rollback;
+```
+
+### Key Principles
+
+1. **Use `postgres` role for test setup**, then switch back to test actual user permissions
+2. **Always verify data exists** using `postgres` role when testing that users cannot see data
+3. **Never test application logic as `postgres`** - it bypasses all security
+4. **Use role switching to confirm RLS is filtering**, not that data is missing
+
+## Basic Security Testing Patterns
+
+### 1. Testing Data Isolation
+
+Verify users can only access their own data:
+
+```sql
+-- Create test users
+select makerkit.set_identifier('owner', 'owner@example.com');
+select tests.create_supabase_user('stranger', 'stranger@example.com');
+
+-- Owner creates a record
+select makerkit.authenticate_as('owner');
+insert into notes (title, content, user_id)
+values ('Secret Note', 'Private content', auth.uid());
+
+-- Stranger cannot see the record
+select makerkit.authenticate_as('stranger');
+select is_empty(
+  $$ select * from notes where title = 'Secret Note' $$,
+  'Strangers cannot see other users notes'
+);
+```
+
+### 2. Testing Write Protection
+
+Ensure users cannot modify others' data:
+
+```sql
+-- Owner creates a record
+select makerkit.authenticate_as('owner');
+insert into posts (title, user_id)
+values ('My Post', auth.uid()) returning id;
+
+-- Store the post ID for testing
+\set post_id (select id from posts where title = 'My Post')
+
+-- Stranger cannot update the record
+select makerkit.authenticate_as('stranger');
+select throws_ok(
+  $$ update posts set title = 'Hacked!' where id = :post_id $$,
+  'update or delete on table "posts" violates row-level security policy',
+  'Strangers cannot update other users posts'
+);
+```
+
+### 3. Testing Permission Systems
+
+Verify role-based access control:
+
+```sql
+-- Test that only users with 'posts.manage' permission can create posts
+select makerkit.authenticate_as('member');
+
+select throws_ok(
+  $$ insert into admin_posts (title, content) values ('Test', 'Content') $$,
+  'new row violates row-level security policy',
+  'Members without permission cannot create admin posts'
+);
+
+-- Grant permission and test again
+set local role postgres;
+insert into user_permissions (user_id, permission)
+values (tests.get_supabase_uid('member'), 'posts.manage');
+
+select makerkit.authenticate_as('member');
+select lives_ok(
+  $$ insert into admin_posts (title, content) values ('Test', 'Content') $$,
+  'Members with permission can create admin posts'
+);
+```
+
+## Team Account Security Testing
+
+### Testing Team Membership Access
+
+```sql
+-- Setup team and members
+select makerkit.authenticate_as('owner');
+select public.create_team_account('TestTeam');
+
+-- Add member to team
+set local role postgres;
+insert into accounts_memberships (account_id, user_id, account_role)
+values (
+  makerkit.get_account_id_by_slug('testteam'),
+  tests.get_supabase_uid('member'),
+  'member'
+);
+
+-- Test member can see team data
+select makerkit.authenticate_as('member');
+select isnt_empty(
+  $$ select * from team_posts where account_id = makerkit.get_account_id_by_slug('testteam') $$,
+  'Team members can see team posts'
+);
+
+-- Test non-members cannot see team data
+select makerkit.authenticate_as('stranger');
+select is_empty(
+  $$ select * from team_posts where account_id = makerkit.get_account_id_by_slug('testteam') $$,
+  'Non-members cannot see team posts'
+);
+```
+
+### Testing Role Hierarchy
+
+```sql
+-- Test that members cannot promote themselves
+select makerkit.authenticate_as('member');
+
+select throws_ok(
+  $$ update accounts_memberships
+     set account_role = 'owner'
+     where user_id = auth.uid() $$,
+  'Only the account_role can be updated',
+  'Members cannot promote themselves to owner'
+);
+
+-- Test that members cannot remove the owner
+select throws_ok(
+  $$ delete from accounts_memberships
+     where user_id = tests.get_supabase_uid('owner')
+     and account_id = makerkit.get_account_id_by_slug('testteam') $$,
+  'The primary account owner cannot be removed from the account membership list',
+  'Members cannot remove the account owner'
+);
+```
+
+## Storage Security Testing
+
+```sql
+-- Test file access control
+select makerkit.authenticate_as('user1');
+
+-- User can upload to their own folder
+select lives_ok(
+  $$ insert into storage.objects (bucket_id, name, owner, owner_id)
+     values ('avatars', auth.uid()::text, auth.uid(), auth.uid()) $$,
+  'Users can upload files with their own UUID as filename'
+);
+
+-- User cannot upload using another user's UUID as filename
+select makerkit.authenticate_as('user2');
+select throws_ok(
+  $$ insert into storage.objects (bucket_id, name, owner, owner_id)
+     values ('avatars', tests.get_supabase_uid('user1')::text, auth.uid(), auth.uid()) $$,
+  'new row violates row-level security policy',
+  'Users cannot upload files with other users UUIDs as filename'
+);
+```
+
+## Common Testing Patterns
+
+### 1. Cross-Account Data Isolation
+
+```sql
+-- Verify team A members cannot access team B data
+select makerkit.authenticate_as('team_a_member');
+insert into documents (title, team_id)
+values ('Secret Doc', makerkit.get_account_id_by_slug('team-a'));
+
+select makerkit.authenticate_as('team_b_member');
+select is_empty(
+  $$ select * from documents where title = 'Secret Doc' $$,
+  'Team B members cannot see Team A documents'
+);
+```
+
+### 2. Function Security Testing
+
+```sql
+-- Test that protected functions check permissions
+select makerkit.authenticate_as('regular_user');
+
+select throws_ok(
+  $$ select admin_delete_all_posts() $$,
+  'permission denied for function admin_delete_all_posts',
+  'Regular users cannot call admin functions'
+);
+
+-- Test with proper permissions
+select makerkit.set_super_admin();
+select lives_ok(
+  $$ select admin_delete_all_posts() $$,
+  'Super admins can call admin functions'
+);
+```
+
+### 3. Invitation Security Testing
+
+```sql
+-- Test invitation creation permissions
+select makerkit.authenticate_as('member');
+
+-- Members can invite to same or lower roles
+select lives_ok(
+  $$ insert into invitations (email, account_id, role, invite_token)
+     values ('new@example.com', makerkit.get_account_id_by_slug('team'), 'member', gen_random_uuid()) $$,
+  'Members can invite other members'
+);
+
+-- Members cannot invite to higher roles
+select throws_ok(
+  $$ insert into invitations (email, account_id, role, invite_token)
+     values ('admin@example.com', makerkit.get_account_id_by_slug('team'), 'owner', gen_random_uuid()) $$,
+  'new row violates row-level security policy',
+  'Members cannot invite owners'
+);
+```
+
+## Advanced Testing Techniques
+
+### 1. Testing Edge Cases
+
+```sql
+-- Test NULL handling in RLS policies
+select lives_ok(
+  $$ select * from posts where user_id IS NULL $$,
+  'Queries with NULL filters should not crash'
+);
+
+-- Test empty result sets
+select is_empty(
+  $$ select * from posts where user_id = '00000000-0000-0000-0000-000000000000'::uuid $$,
+  'Invalid UUIDs should return empty results'
+);
+```
+
+### 2. Performance Testing
+
+```sql
+-- Test that RLS policies don't create N+1 queries
+select makerkit.authenticate_as('team_owner');
+
+-- This should be efficient even with many team members
+select isnt_empty(
+  $$ select p.*, u.name from posts p join users u on p.user_id = u.id
+     where p.team_id = makerkit.get_account_id_by_slug('large-team') $$,
+  'Joined queries with RLS should perform well'
+);
+```
+
+### 3. Testing Trigger Security
+
+```sql
+-- Test that triggers properly validate permissions
+select makerkit.authenticate_as('regular_user');
+
+select throws_ok(
+  $$ update sensitive_settings set admin_only_field = 'hacked' $$,
+  'You do not have permission to update this field',
+  'Triggers should prevent unauthorized field updates'
+);
+```
+
+## Best Practices
+
+### 1. Always Test Both Positive and Negative Cases
+- Verify authorized users CAN access data
+- Verify unauthorized users CANNOT access data
+
+### 2. Test All CRUD Operations
+- CREATE: Can users insert the records they should?
+- READ: Can users only see their authorized data?
+- UPDATE: Can users only modify records they own?
+- DELETE: Can users only remove their own records?
+
+### 3. Use Descriptive Test Names
+```sql
+select is(
+  actual_result,
+  expected_result,
+  'Team members should be able to read team posts but not modify other teams data'
+);
+```
+
+### 4. Test Permission Boundaries
+- Test the minimum permission level that grants access
+- Test that one level below is denied
+- Test that users with higher permissions can also access
+
+### 5. Clean Up After Tests
+Always use transactions that rollback:
+```sql
+begin;
+-- Your tests here
+rollback; -- This cleans up all test data
+```
+
+## Common Anti-Patterns to Avoid
+
+❌ **Don't test only happy paths**
+```sql
+-- Bad: Only testing that authorized access works
+select isnt_empty($$ select * from posts $$, 'User can see posts');
+```
+
+✅ **Test both authorized and unauthorized access**
+```sql
+-- Good: Test both positive and negative cases
+select makerkit.authenticate_as('owner');
+select isnt_empty($$ select * from posts where user_id = auth.uid() $$, 'Owner can see own posts');
+
+select makerkit.authenticate_as('stranger');
+select is_empty($$ select * from posts where user_id != auth.uid() $$, 'Stranger cannot see others posts');
+```
+
+❌ **Don't forget to test cross-account scenarios**
+```sql
+-- Bad: Only testing within same account
+select lives_ok($$ insert into team_docs (title) values ('Doc') $$, 'Can create doc');
+```
+
+✅ **Test cross-account isolation**
+```sql
+-- Good: Test that team A cannot access team B data
+select makerkit.authenticate_as('team_a_member');
+insert into team_docs (title, team_id) values ('Secret', team_a_id);
+
+select makerkit.authenticate_as('team_b_member');
+select is_empty($$ select * from team_docs where title = 'Secret' $$, 'Team B cannot see Team A docs');
+```
+
+## Testing Silent RLS Failures
+
+**Critical Understanding**: RLS policies often fail **silently**. They don't throw errors - they just filter out data or prevent operations. This makes testing RLS policies tricky because you need to verify what **didn't** happen, not just what did.
+
+### Why RLS Failures Are Silent
+
+```sql
+-- RLS policies work by:
+-- 1. INSERT/UPDATE: If the policy check fails, the operation is ignored (no error)
+-- 2. SELECT: If the policy fails, rows are filtered out (no error)
+-- 3. DELETE: If the policy fails, nothing is deleted (no error)
+```
+
+### Testing Silent SELECT Filtering
+
+When RLS policies prevent users from seeing data, queries return empty results instead of errors:
+
+```sql
+-- Setup: Create posts for different users
+select makerkit.authenticate_as('user_a');
+insert into posts (title, content, user_id)
+values ('User A Post', 'Content A', auth.uid());
+
+select makerkit.authenticate_as('user_b');
+insert into posts (title, content, user_id)
+values ('User B Post', 'Content B', auth.uid());
+
+-- Test: User A cannot see User B's posts (silent filtering)
+select makerkit.authenticate_as('user_a');
+select is_empty(
+  $$ select * from posts where title = 'User B Post' $$,
+  'User A cannot see User B posts due to RLS filtering'
+);
+
+-- Test: User A can still see their own posts
+select isnt_empty(
+  $$ select * from posts where title = 'User A Post' $$,
+  'User A can see their own posts'
+);
+
+-- Critical: Verify the post actually exists by switching context
+select makerkit.authenticate_as('user_b');
+select isnt_empty(
+  $$ select * from posts where title = 'User B Post' $$,
+  'User B post actually exists (not a test data issue)'
+);
+```
+
+### Testing Silent UPDATE/DELETE Prevention
+
+RLS policies can silently prevent modifications without throwing errors:
+
+```sql
+-- Setup: User A creates a post
+select makerkit.authenticate_as('user_a');
+insert into posts (title, content, user_id)
+values ('Original Title', 'Original Content', auth.uid())
+returning id;
+
+-- Store the post ID for testing
+\set post_id (select id from posts where title = 'Original Title')
+
+-- Test: User B attempts to modify User A's post (silently fails)
+select makerkit.authenticate_as('user_b');
+update posts set title = 'Hacked Title' where id = :post_id;
+
+-- Verify the update was silently ignored
+select makerkit.authenticate_as('user_a');
+select is(
+  (select title from posts where id = :post_id),
+  'Original Title',
+  'User B update attempt was silently ignored by RLS'
+);
+
+-- Test: User B attempts to delete User A's post (silently fails)
+select makerkit.authenticate_as('user_b');
+delete from posts where id = :post_id;
+
+-- Verify the delete was silently ignored
+select makerkit.authenticate_as('user_a');
+select isnt_empty(
+  $$ select * from posts where title = 'Original Title' $$,
+  'User B delete attempt was silently ignored by RLS'
+);
+```
+
+### Testing Silent INSERT Prevention
+
+INSERT operations can also fail silently with restrictive RLS policies:
+
+```sql
+-- Test: Non-admin tries to insert into admin_settings table
+select makerkit.authenticate_as('regular_user');
+
+-- Attempt to insert (may succeed but be silently filtered on read)
+insert into admin_settings (key, value) values ('test_key', 'test_value');
+
+-- Critical: Don't just check for errors - verify the data isn't there
+select is_empty(
+  $$ select * from admin_settings where key = 'test_key' $$,
+  'Regular user cannot insert admin settings (silent prevention)'
+);
+
+-- Verify an admin can actually insert this data
+set local role postgres;
+insert into admin_settings (key, value) values ('admin_key', 'admin_value');
+
+select makerkit.set_super_admin();
+select isnt_empty(
+  $$ select * from admin_settings where key = 'admin_key' $$,
+  'Admins can insert admin settings (confirms table works)'
+);
+```
+
+### Testing Row-Level Filtering with Counts
+
+Use count comparisons to detect silent filtering:
+
+```sql
+-- Setup: Create team data
+select makerkit.authenticate_as('team_owner');
+insert into team_documents (title, team_id) values
+  ('Doc 1', (select id from accounts where slug = 'team-a')),
+  ('Doc 2', (select id from accounts where slug = 'team-a')),
+  ('Doc 3', (select id from accounts where slug = 'team-a'));
+
+-- Test: Team member sees all team docs
+select makerkit.authenticate_as('team_member_a');
+select is(
+  (select count(*) from team_documents where team_id = (select id from accounts where slug = 'team-a')),
+  3::bigint,
+  'Team member can see all team documents'
+);
+
+-- Test: Non-member sees no team docs (silent filtering)
+select makerkit.authenticate_as('external_user');
+select is(
+  (select count(*) from team_documents where team_id = (select id from accounts where slug = 'team-a')),
+  0::bigint,
+  'External user cannot see any team documents due to RLS filtering'
+);
+```
+
+### Testing Partial Data Exposure
+
+Sometimes RLS policies expose some fields but not others:
+
+```sql
+-- Test: Public can see user profiles but not sensitive data
+select tests.create_supabase_user('public_user', 'public@example.com');
+
+-- Create user profile with sensitive data
+select makerkit.authenticate_as('profile_owner');
+insert into user_profiles (user_id, name, email, phone, ssn) values
+  (auth.uid(), 'John Doe', 'john@example.com', '555-1234', '123-45-6789');
+
+-- Test: Public can see basic info but not sensitive fields
+select makerkit.authenticate_as('public_user');
+
+select is(
+  (select name from user_profiles where user_id = tests.get_supabase_uid('profile_owner')),
+  'John Doe',
+  'Public can see user name'
+);
+
+-- Critical: Test that sensitive fields are silently filtered
+select is(
+  (select ssn from user_profiles where user_id = tests.get_supabase_uid('profile_owner')),
+  null,
+  'Public cannot see SSN (silently filtered by RLS)'
+);
+
+select is(
+  (select phone from user_profiles where user_id = tests.get_supabase_uid('profile_owner')),
+  null,
+  'Public cannot see phone number (silently filtered by RLS)'
+);
+```
+
+### Testing Cross-Account Data Isolation
+
+Verify users cannot access other accounts' data:
+
+```sql
+-- Setup: Create data for multiple teams
+select makerkit.authenticate_as('team_a_owner');
+insert into billing_info (team_id, subscription_id) values
+  ((select id from accounts where slug = 'team-a'), 'sub_123');
+
+select makerkit.authenticate_as('team_b_owner');
+insert into billing_info (team_id, subscription_id) values
+  ((select id from accounts where slug = 'team-b'), 'sub_456');
+
+-- Test: Team A members cannot see Team B billing (silent filtering)
+select makerkit.authenticate_as('team_a_member');
+select is_empty(
+  $$ select * from billing_info where subscription_id = 'sub_456' $$,
+  'Team A members cannot see Team B billing info'
+);
+
+-- Test: Team A members can see their own billing
+select isnt_empty(
+  $$ select * from billing_info where subscription_id = 'sub_123' $$,
+  'Team A members can see their own billing info'
+);
+
+-- Verify both billing records actually exist
+set local role postgres;
+select is(
+  (select count(*) from billing_info),
+  2::bigint,
+  'Both billing records exist in database (not a test data issue)'
+);
+```
+
+### Testing Permission Boundary Edge Cases
+
+Test the exact boundaries where permissions change:
+
+```sql
+-- Setup users with different permission levels
+select makerkit.authenticate_as('admin_user');
+select makerkit.authenticate_as('editor_user');
+select makerkit.authenticate_as('viewer_user');
+
+-- Test: Admins can see all data
+select makerkit.authenticate_as('admin_user');
+select isnt_empty(
+  $$ select * from sensitive_documents $$,
+  'Admins can see sensitive documents'
+);
+
+-- Test: Editors cannot see sensitive docs (silent filtering)
+select makerkit.authenticate_as('editor_user');
+select is_empty(
+  $$ select * from sensitive_documents $$,
+  'Editors cannot see sensitive documents due to RLS'
+);
+
+-- Test: Viewers cannot see sensitive docs (silent filtering)
+select makerkit.authenticate_as('viewer_user');
+select is_empty(
+  $$ select * from sensitive_documents $$,
+  'Viewers cannot see sensitive documents due to RLS'
+);
+```
+
+### Testing Multi-Condition RLS Policies
+
+When RLS policies have multiple conditions, test each condition:
+
+```sql
+-- Policy example: Users can only see posts if they are:
+-- 1. The author, OR
+-- 2. A team member of the author's team, AND
+-- 3. The post is published
+
+-- Test condition 1: Author can see unpublished posts
+select makerkit.authenticate_as('author');
+insert into posts (title, published, user_id) values
+  ('Draft Post', false, auth.uid());
+
+select isnt_empty(
+  $$ select * from posts where title = 'Draft Post' $$,
+  'Authors can see their own unpublished posts'
+);
+
+-- Test condition 2: Team members cannot see unpublished posts (silent filtering)
+select makerkit.authenticate_as('team_member');
+select is_empty(
+  $$ select * from posts where title = 'Draft Post' $$,
+  'Team members cannot see unpublished posts from teammates'
+);
+
+-- Test condition 3: Team members can see published posts
+select makerkit.authenticate_as('author');
+update posts set published = true where title = 'Draft Post';
+
+select makerkit.authenticate_as('team_member');
+select isnt_empty(
+  $$ select * from posts where title = 'Draft Post' $$,
+  'Team members can see published posts from teammates'
+);
+
+-- Test condition boundary: Non-team members cannot see any posts
+select makerkit.authenticate_as('external_user');
+select is_empty(
+  $$ select * from posts where title = 'Draft Post' $$,
+  'External users cannot see any posts (even published ones)'
+);
+```
+
+### Common Silent Failure Patterns to Test
+
+#### 1. The "Empty Result" Pattern
+```sql
+-- Always test that restricted queries return empty results, not errors
+select is_empty(
+  $$ select * from restricted_table where condition = true $$,
+  'Unauthorized users see empty results, not errors'
+);
+```
+
+#### 2. The "No-Effect" Pattern
+```sql
+-- Test that unauthorized modifications have no effect
+update restricted_table set field = 'hacked' where id = target_id;
+select is(
+  (select field from restricted_table where id = target_id),
+  'original_value',
+  'Unauthorized updates are silently ignored'
+);
+```
+
+#### 3. The "Partial Visibility" Pattern
+```sql
+-- Test that only authorized fields are visible
+select is(
+  (select public_field from mixed_table where id = target_id),
+  'visible_value',
+  'Public fields are visible'
+);
+
+select is(
+  (select private_field from mixed_table where id = target_id),
+  null,
+  'Private fields are silently filtered out'
+);
+```
+
+#### 4. The "Context Switch" Verification Pattern
+```sql
+-- Always verify data exists by switching to authorized context
+select makerkit.authenticate_as('unauthorized_user');
+select is_empty(
+  $$ select * from protected_data $$,
+  'Unauthorized user sees no data'
+);
+
+-- Switch to authorized user to prove data exists
+select makerkit.authenticate_as('authorized_user');
+select isnt_empty(
+  $$ select * from protected_data $$,
+  'Data actually exists (confirms RLS filtering, not missing data)'
+);
+```
+
+### Best Practices for Silent Failure Testing
+
+#### ✅ Do: Test Both Positive and Negative Cases
+```sql
+-- Test that authorized users CAN access data
+select makerkit.authenticate_as('authorized_user');
+select isnt_empty($$ select * from protected_data $$, 'Authorized access works');
+
+-- Test that unauthorized users CANNOT access data (silent filtering)
+select makerkit.authenticate_as('unauthorized_user');
+select is_empty($$ select * from protected_data $$, 'Unauthorized access silently filtered');
+```
+
+#### ✅ Do: Verify Data Exists in Different Context
+```sql
+-- Don't just test that unauthorized users see nothing
+-- Verify the data actually exists by checking as an authorized user
+select makerkit.authenticate_as('data_owner');
+select isnt_empty($$ select * from my_data $$, 'Data exists');
+
+select makerkit.authenticate_as('unauthorized_user');
+select is_empty($$ select * from my_data $$, 'But unauthorized user cannot see it');
+```
+
+#### ✅ Do: Test Modification Boundaries
+```sql
+-- Test that unauthorized modifications are ignored
+update sensitive_table set value = 'hacked';
+select is(
+  (select value from sensitive_table),
+  'original_value',
+  'Unauthorized updates silently ignored'
+);
+```
+
+#### ❌ Don't: Expect Errors from RLS Violations
+```sql
+-- Bad: RLS violations usually don't throw errors
+select throws_ok(
+  $$ select * from protected_data $$,
+  'permission denied'
+);
+
+-- Good: RLS violations return empty results
+select is_empty(
+  $$ select * from protected_data $$,
+  'Unauthorized users see no data due to RLS filtering'
+);
+```
+
+#### ❌ Don't: Test Only Happy Paths
+```sql
+-- Bad: Only testing authorized access
+select isnt_empty($$ select * from my_data $$, 'I can see my data');
+
+-- Good: Test both authorized and unauthorized access
+select makerkit.authenticate_as('owner');
+select isnt_empty($$ select * from my_data $$, 'Owner can see data');
+
+select makerkit.authenticate_as('stranger');
+select is_empty($$ select * from my_data $$, 'Stranger cannot see data');
+```
+
+Remember: **RLS is designed to be invisible to attackers**. Your tests must verify this invisibility by checking for empty results and unchanged data, not for error messages.
+
+## Running Tests
+
+To run your database tests:
+
+```bash
+# Start Supabase locally
+pnpm supabase:web:start
+
+# Run all database tests
+pnpm supabase:web:test
+
+# Run specific test file
+pnpm supabase test ./tests/database/your-test.test.sql
+```
+
+Your tests will help ensure your application is secure against common database vulnerabilities and that your RLS policies work as expected.

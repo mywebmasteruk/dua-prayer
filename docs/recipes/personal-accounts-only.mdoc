@@ -1,0 +1,18 @@
+---
+status: "published"
+title: 'Disabling Team Accounts in Next.js Supabase'
+label: 'Disabling Team Accounts'
+order: 
+description: 'Learn how to disable team accounts in the Next.js Supabase Turbo SaaS kit and only allow personal accounts'
+---
+
+Disabling team accounts and only allowing personal accounts is a common requirement for B2C SaaS applications.
+
+To do so, you can tweak the following environment variables:
+
+```bash
+NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS=false
+NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_BILLING=false
+```
+
+That's it! Team account UI components will be hidden, and users will only be able to access their personal account.

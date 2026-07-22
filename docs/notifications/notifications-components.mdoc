@@ -1,0 +1,294 @@
+---
+status: "published"
+title: "Notification UI Components"
+label: "UI Components"
+description: "Use the NotificationsPopover component or build custom notification UIs with the provided React hooks."
+order: 2
+---
+
+MakerKit provides a ready-to-use `NotificationsPopover` component and React hooks for building custom notification interfaces.
+
+## NotificationsPopover
+
+The default notification UI: a bell icon with badge that opens a dropdown list.
+
+```tsx
+import { NotificationsPopover } from '@kit/notifications/components';
+
+function AppHeader({ accountId }: { accountId: string }) {
+  return (
+    <header>
+      <NotificationsPopover
+        accountIds={[accountId]}
+        realtime={false}
+      />
+    </header>
+  );
+}
+```
+
+### Props
+
+| Prop | Type | Required | Description |
+|------|------|----------|-------------|
+| `accountIds` | `string[]` | Yes | Account IDs to fetch notifications for |
+| `realtime` | `boolean` | Yes | Enable Supabase Realtime subscriptions |
+| `onClick` | `(notification) => void` | No | Custom click handler |
+
+### How accountIds works
+
+Pass all account IDs the user has access to. For a user with a personal account and team memberships:
+
+```tsx
+import { useUserWorkspace } from '@kit/accounts/hooks/use-user-workspace';
+
+function NotificationsWithAllAccounts() {
+  const { account, accounts } = useUserWorkspace();
+
+  // Include personal account + all team accounts
+  const accountIds = [
+    account.id,
+    ...accounts.filter(a => !a.is_personal_account).map(a => a.id)
+  ];
+
+  return (
+    <NotificationsPopover
+      accountIds={accountIds}
+      realtime={false}
+    />
+  );
+}
+```
+
+The built-in layouts handle this automatically. You only need to configure `accountIds` for custom implementations.
+
+### Custom click handling
+
+By default, clicking a notification with a `link` navigates using an anchor tag. Override this with `onClick`:
+
+```tsx
+import { useRouter } from 'next/navigation';
+
+function CustomNotifications({ accountId }: { accountId: string }) {
+  const router = useRouter();
+
+  return (
+    <NotificationsPopover
+      accountIds={[accountId]}
+      realtime={false}
+      onClick={(notification) => {
+        if (notification.link) {
+          // Custom navigation logic
+          router.push(notification.link);
+        }
+      }}
+    />
+  );
+}
+```
+
+### What the component renders
+
+- **Bell icon** with red badge showing unread count
+- **Popover dropdown** with notification list on click
+- **Each notification** shows:
+  - Type icon (info/warning/error with color coding)
+  - Message body (truncated at 100 characters)
+  - Relative timestamp ("2 minutes ago", "Yesterday")
+  - Dismiss button (X icon)
+- **Empty state** when no notifications
+
+The component uses Shadcn UI's Popover, Button, and Separator components with Lucide icons.
+
+## React hooks
+
+Build custom notification UIs using these hooks from `@kit/notifications/hooks`.
+
+### useFetchNotifications
+
+Fetches initial notifications and optionally subscribes to real-time updates.
+
+```tsx
+'use client';
+
+import { useState, useCallback } from 'react';
+import { useFetchNotifications } from '@kit/notifications/hooks';
+
+type Notification = {
+  id: number;
+  body: string;
+  dismissed: boolean;
+  type: 'info' | 'warning' | 'error';
+  created_at: string;
+  link: string | null;
+};
+
+function CustomNotificationList({ accountIds }: { accountIds: string[] }) {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  const onNotifications = useCallback((newNotifications: Notification[]) => {
+    setNotifications(prev => {
+      // Deduplicate by ID
+      const existingIds = new Set(prev.map(n => n.id));
+      const unique = newNotifications.filter(n => !existingIds.has(n.id));
+      return [...unique, ...prev];
+    });
+  }, []);
+
+  useFetchNotifications({
+    accountIds,
+    realtime: false,
+    onNotifications,
+  });
+
+  return (
+    <ul>
+      {notifications.map(notification => (
+        <li key={notification.id}>{notification.body}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `accountIds` | `string[]` | Account IDs to fetch for |
+| `realtime` | `boolean` | Subscribe to real-time updates |
+| `onNotifications` | `(notifications: Notification[]) => void` | Callback when notifications arrive |
+
+**Behavior:**
+
+- Fetches up to 10 most recent non-dismissed, non-expired notifications
+- Uses React Query with `refetchOnMount: false` and `refetchOnWindowFocus: false`
+- Calls `onNotifications` with initial data and any real-time updates
+
+### useDismissNotification
+
+Returns a function to dismiss (mark as read) a notification.
+
+```tsx
+'use client';
+
+import { useDismissNotification } from '@kit/notifications/hooks';
+
+function NotificationItem({ notification }) {
+  const dismiss = useDismissNotification();
+
+  const handleDismiss = async () => {
+    await dismiss(notification.id);
+    // Update local state after dismissing
+  };
+
+  return (
+    <div>
+      <span>{notification.body}</span>
+      <button onClick={handleDismiss}>Dismiss</button>
+    </div>
+  );
+}
+```
+
+The function updates the `dismissed` field to `true` in the database. RLS ensures users can only dismiss their own notifications.
+
+## Notification type
+
+All hooks work with this type:
+
+```typescript
+type Notification = {
+  id: number;
+  body: string;
+  dismissed: boolean;
+  type: 'info' | 'warning' | 'error';
+  created_at: string;
+  link: string | null;
+};
+```
+
+## Building a custom notification center
+
+Full example combining the hooks:
+
+```tsx
+'use client';
+
+import { useState, useCallback } from 'react';
+import {
+  useFetchNotifications,
+  useDismissNotification,
+} from '@kit/notifications/hooks';
+
+type Notification = {
+  id: number;
+  body: string;
+  dismissed: boolean;
+  type: 'info' | 'warning' | 'error';
+  created_at: string;
+  link: string | null;
+};
+
+export function NotificationCenter({ accountIds }: { accountIds: string[] }) {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const dismiss = useDismissNotification();
+
+  const onNotifications = useCallback((incoming: Notification[]) => {
+    setNotifications(prev => {
+      const ids = new Set(prev.map(n => n.id));
+      const newOnes = incoming.filter(n => !ids.has(n.id));
+      return [...newOnes, ...prev];
+    });
+  }, []);
+
+  useFetchNotifications({
+    accountIds,
+    realtime: true, // Enable real-time
+    onNotifications,
+  });
+
+  const handleDismiss = async (id: number) => {
+    await dismiss(id);
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  if (notifications.length === 0) {
+    return <p>No notifications</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {notifications.map(notification => (
+        <div
+          key={notification.id}
+          className="flex items-center justify-between p-3 border rounded"
+        >
+          <div>
+            <span className={`badge badge-${notification.type}`}>
+              {notification.type}
+            </span>
+            {notification.link ? (
+              <a href={notification.link}>{notification.body}</a>
+            ) : (
+              <span>{notification.body}</span>
+            )}
+          </div>
+          <button onClick={() => handleDismiss(notification.id)}>
+            Dismiss
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+This gives you full control over styling and behavior while leveraging the built-in data fetching and real-time infrastructure.
+
+## Related documentation
+
+- [Notifications overview](/docs/next-supabase-turbo/notifications): Feature overview and architecture
+- [Configuration](/docs/next-supabase-turbo/notifications/notifications-configuration): Enable/disable notifications and real-time
+- [Sending notifications](/docs/next-supabase-turbo/notifications/sending-notifications): Create notifications from server code
+- [Database schema](/docs/next-supabase-turbo/notifications/notifications-schema): Table structure and RLS policies

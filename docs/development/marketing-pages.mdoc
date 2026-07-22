@@ -1,0 +1,409 @@
+---
+status: "published"
+label: "Marketing Pages"
+title: "Customize Marketing Pages in the Next.js Supabase Turbo Starter Kit"
+description: "Build and customize landing pages, pricing pages, FAQ, and other marketing content using Next.js App Router and Tailwind CSS."
+order: 7
+---
+
+Marketing pages in Makerkit live at `apps/web/app/[locale]/(marketing)/` and include landing pages, pricing, FAQ, blog, documentation, and contact forms. These pages use Next.js App Router with React Server Components for fast initial loads and SEO optimization.
+
+{% sequence title="Marketing Pages Development" description="Customize and extend your marketing pages" %}
+
+[Understand the structure](#marketing-pages-structure)
+
+[Customize existing pages](#customizing-existing-pages)
+
+[Create new marketing pages](#creating-new-marketing-pages)
+
+[Configure navigation and footer](#navigation-and-footer)
+
+{% /sequence %}
+
+## Marketing Pages Structure
+
+The marketing pages follow Next.js App Router conventions with a route group:
+
+```
+apps/web/app/[locale]/(marketing)/
+├── layout.tsx              # Shared layout with header/footer
+├── page.tsx                # Home page (/)
+├── (legal)/                # Legal pages group
+│   ├── cookie-policy/
+│   ├── privacy-policy/
+│   └── terms-of-service/
+├── blog/                   # Blog listing and posts
+├── changelog/              # Product changelog
+├── contact/                # Contact form
+├── docs/                   # Documentation
+├── faq/                    # FAQ page
+├── pricing/                # Pricing page
+└── _components/            # Shared marketing components
+    ├── header.tsx
+    ├── footer.tsx
+    └── site-navigation.tsx
+```
+
+### Route Groups Explained
+
+The `(marketing)` folder is a route group that shares a layout without affecting the URL structure. Pages inside render at the root level:
+
+| File Path | URL |
+|-----------|-----|
+| `app/[locale]/(marketing)/page.tsx` | `/` |
+| `app/[locale]/(marketing)/pricing/page.tsx` | `/pricing` |
+| `app/[locale]/(marketing)/blog/page.tsx` | `/blog` |
+
+## Customizing Existing Pages
+
+### Home Page
+
+The home page at `apps/web/app/[locale]/(marketing)/page.tsx` typically includes:
+
+```tsx {% title="apps/web/app/[locale]/(marketing)/page.tsx" %}
+import { Hero } from './_components/hero';
+import { Features } from './_components/features';
+import { Testimonials } from './_components/testimonials';
+import { Pricing } from './_components/pricing-section';
+import { CallToAction } from './_components/call-to-action';
+
+export default function HomePage() {
+  return (
+    <>
+      <Hero />
+      <Features />
+      <Testimonials />
+      <Pricing />
+      <CallToAction />
+    </>
+  );
+}
+```
+
+Each section is a separate component in `_components/` for easy customization.
+
+### Pricing Page
+
+The pricing page displays your billing plans. It reads configuration from `apps/web/config/billing.config.ts`:
+
+```tsx {% title="apps/web/app/[locale]/(marketing)/pricing/page.tsx" %}
+import { PricingTable } from '@kit/billing-gateway/marketing';
+import billingConfig from '~/config/billing.config';
+
+export default function PricingPage() {
+  return (
+    <div className="container py-16">
+      <h1 className="text-4xl font-bold text-center mb-4">
+        Simple, Transparent Pricing
+      </h1>
+      <p className="text-muted-foreground text-center mb-12">
+        Choose the plan that fits your needs
+      </p>
+
+      <PricingTable config={billingConfig} />
+    </div>
+  );
+}
+```
+
+See [Billing Configuration](/docs/next-supabase-turbo/billing/overview) for customizing plans and pricing.
+
+### FAQ Page
+
+The FAQ page uses an accordion component with content from a configuration file or CMS:
+
+```tsx {% title="apps/web/app/[locale]/(marketing)/faq/page.tsx" %}
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@kit/ui/accordion';
+
+const faqs = [
+  {
+    question: 'How do I get started?',
+    answer: 'Sign up for a free account and follow our getting started guide.',
+  },
+  {
+    question: 'Can I cancel anytime?',
+    answer: 'Yes, you can cancel your subscription at any time with no penalties.',
+  },
+  // ... more FAQs
+];
+
+export default function FAQPage() {
+  return (
+    <div className="container max-w-3xl py-16">
+      <h1 className="text-4xl font-bold text-center mb-12">
+        Frequently Asked Questions
+      </h1>
+
+      <Accordion type="single" collapsible>
+        {faqs.map((faq, index) => (
+          <AccordionItem key={index} value={`item-${index}`}>
+            <AccordionTrigger>{faq.question}</AccordionTrigger>
+            <AccordionContent>{faq.answer}</AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    </div>
+  );
+}
+```
+
+### Contact Page
+
+The contact page includes a form that sends emails via your configured mailer:
+
+```tsx {% title="apps/web/app/[locale]/(marketing)/contact/page.tsx" %}
+import { ContactForm } from './_components/contact-form';
+
+export default function ContactPage() {
+  return (
+    <div className="container max-w-xl py-16">
+      <h1 className="text-4xl font-bold text-center mb-4">
+        Contact Us
+      </h1>
+      <p className="text-muted-foreground text-center mb-8">
+        Have a question? We'd love to hear from you.
+      </p>
+
+      <ContactForm />
+    </div>
+  );
+}
+```
+
+#### Contact Form Configuration
+
+Configure the recipient email address in your environment:
+
+```bash {% title=".env.local" %}
+CONTACT_EMAIL=support@yourdomain.com
+```
+
+The form submission uses your [email configuration](/docs/next-supabase-turbo/emails/email-configuration). Ensure your mailer is configured before the contact form will work.
+
+## Creating New Marketing Pages
+
+### Basic Page Structure
+
+Create a new page with proper metadata:
+
+```tsx {% title="apps/web/app/[locale]/(marketing)/about/page.tsx" %}
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'About Us | Your SaaS Name',
+  description: 'Learn about our mission, team, and the story behind our product.',
+};
+
+export default function AboutPage() {
+  return (
+    <div className="container py-16">
+      <h1 className="text-4xl font-bold mb-8">About Us</h1>
+
+      <div className="prose prose-gray max-w-none">
+        <p>Your company story goes here...</p>
+      </div>
+    </div>
+  );
+}
+```
+
+### MDX Pages for Content-Heavy Pages
+
+For content-heavy pages, use MDX:
+
+```bash
+# Create an MDX page
+mkdir -p apps/web/app/\(marketing\)/about
+touch apps/web/app/\(marketing\)/about/page.mdx
+```
+
+```mdx {% title="apps/web/app/[locale]/(marketing)/about/page.mdx" %}
+---
+title: "About Us"
+description: "Learn about our mission and team"
+---
+
+# About Us
+
+We started this company because...
+
+## Our Mission
+
+To help developers ship faster...
+
+## The Team
+
+Meet the people behind the product...
+```
+
+### Dynamic Pages with Data
+
+For pages that need dynamic data, combine Server Components with data fetching:
+
+```tsx {% title="apps/web/app/[locale]/(marketing)/customers/page.tsx" %}
+import { createCmsClient } from '@kit/cms';
+
+export default async function CustomersPage() {
+  const cms = await createCmsClient();
+
+  const caseStudies = await cms.getContentItems({
+    collection: 'case-studies',
+    limit: 10,
+  });
+
+  return (
+    <div className="container py-16">
+      <h1 className="text-4xl font-bold mb-12">Customer Stories</h1>
+
+      <div className="grid md:grid-cols-2 gap-8">
+        {caseStudies.map((study) => (
+          <CaseStudyCard key={study.slug} {...study} />
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+## Navigation and Footer
+
+### Header Navigation
+
+Configure navigation links in the header component:
+
+```tsx {% title="apps/web/app/[locale]/(marketing)/_components/site-navigation.tsx" %}
+const navigationItems = [
+  { label: 'Features', href: '/#features' },
+  { label: 'Pricing', href: '/pricing' },
+  { label: 'Blog', href: '/blog' },
+  { label: 'Docs', href: '/docs' },
+  { label: 'Contact', href: '/contact' },
+];
+```
+
+### Footer Links
+
+The footer typically includes multiple link sections:
+
+```tsx {% title="apps/web/app/[locale]/(marketing)/_components/footer.tsx" %}
+const footerSections = [
+  {
+    title: 'Product',
+    links: [
+      { label: 'Features', href: '/#features' },
+      { label: 'Pricing', href: '/pricing' },
+      { label: 'Changelog', href: '/changelog' },
+    ],
+  },
+  {
+    title: 'Resources',
+    links: [
+      { label: 'Documentation', href: '/docs' },
+      { label: 'Blog', href: '/blog' },
+      { label: 'FAQ', href: '/faq' },
+    ],
+  },
+  {
+    title: 'Legal',
+    links: [
+      { label: 'Privacy Policy', href: '/privacy-policy' },
+      { label: 'Terms of Service', href: '/terms-of-service' },
+      { label: 'Cookie Policy', href: '/cookie-policy' },
+    ],
+  },
+];
+```
+
+### Customizing the Layout
+
+All marketing pages inherit from `apps/web/app/[locale]/(marketing)/layout.tsx`. This layout includes:
+
+- Header with navigation
+- Footer with links
+- Common metadata
+- Analytics scripts
+
+Edit this file to change the shared structure across all marketing pages.
+
+## SEO for Marketing Pages
+
+### Metadata API
+
+Use Next.js Metadata API for SEO:
+
+```tsx {% title="apps/web/app/[locale]/(marketing)/pricing/page.tsx" %}
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Pricing | Your SaaS Name',
+  description: 'Choose from flexible pricing plans. Start free, upgrade when ready.',
+  openGraph: {
+    title: 'Pricing | Your SaaS Name',
+    description: 'Choose from flexible pricing plans.',
+    images: ['/images/og/pricing.png'],
+  },
+};
+```
+
+### Structured Data
+
+Add JSON-LD structured data for rich search results. See the [Next.js JSON-LD guide](https://nextjs.org/docs/app/guides/json-ld) for more details:
+
+```tsx
+// JSON-LD structured data using Next.js metadata
+
+export default function PricingPage() {
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Product',
+            name: 'Your SaaS Name',
+            offers: {
+              '@type': 'AggregateOffer',
+              lowPrice: '0',
+              highPrice: '99',
+              priceCurrency: 'USD',
+            },
+          }),
+        }}
+      />
+      {/* Page content */}
+    </>
+  );
+}
+```
+
+### Sitemap
+
+Add new marketing pages to your sitemap at `apps/web/app/sitemap.xml/route.ts`:
+
+```typescript
+function getPaths() {
+  return [
+    '/',
+    '/pricing',
+    '/faq',
+    '/blog',
+    '/docs',
+    '/contact',
+    '/about',  // Add new pages here
+  ];
+}
+```
+
+## Related Resources
+
+- [SEO Configuration](/docs/next-supabase-turbo/development/seo) for detailed SEO setup
+- [Legal Pages](/docs/next-supabase-turbo/development/legal-pages) for privacy policy and terms
+- [External Marketing Website](/docs/next-supabase-turbo/development/external-marketing-website) for using Framer or Webflow
+- [CMS Setup](/docs/next-supabase-turbo/content/cms) for blog configuration
+- [Email Configuration](/docs/next-supabase-turbo/emails/email-configuration) for contact form setup

@@ -1,0 +1,348 @@
+---
+status: "published"
+title: "Deploy Supabase to Production"
+label: "Deploy Supabase"
+order: 1
+description: "Complete guide to configuring your Supabase project for production deployment with MakerKit. Covers project setup, migrations, authentication, SMTP, and database webhooks."
+---
+
+Configure your Supabase project for production with Postgres database, Row Level Security (RLS) policies, authentication, and webhooks. This guide covers the complete setup for your MakerKit Next.js Supabase Turbo application.
+
+{% alert type="warning" title="Complete all steps" %}
+Skipping steps will cause authentication failures, missing data, or broken webhooks. Follow this guide completely before testing your application.
+{% /alert %}
+
+## Overview
+
+| Task | Purpose |
+|------|---------|
+| Create project | Set up cloud database and auth |
+| Push migrations | Create MakerKit database schema |
+| Configure auth URLs | Enable OAuth redirects |
+| Set up SMTP | Reliable email delivery |
+| Update email templates | Fix PKCE authentication issues |
+| Link project locally | Enable CLI deployments |
+| Configure webhooks | Handle database events |
+
+---
+
+## Create a Supabase Project
+
+If you're not self-hosting Supabase, create a project at [supabase.com](https://supabase.com).
+
+1. Sign in to the [Supabase Dashboard](https://supabase.com/dashboard)
+2. Click **New Project**
+3. Choose your organization
+4. Enter a project name and generate a database password
+5. Select a region close to your users
+
+{% alert type="default" title="Save your database password" %}
+Copy the database password immediately. You cannot retrieve it later and will need it to link your local project.
+{% /alert %}
+
+---
+
+## Retrieve API Credentials
+
+Navigate to **Project Settings > API** to find your credentials:
+
+| Credential | Environment Variable | Usage |
+|------------|---------------------|-------|
+| Project URL | `NEXT_PUBLIC_SUPABASE_URL` | Client and server connections |
+| Anon (public) key | `NEXT_PUBLIC_SUPABASE_PUBLIC_KEY` | Client-side requests |
+| Service role key | `SUPABASE_SECRET_KEY` | Server-side admin operations |
+
+{% img src="/assets/courses/next-turbo/supabase-api-settings.webp" width="2500" height="1262" /%}
+
+{% alert type="warning" title="Keep the service role key secret" %}
+The service role key bypasses Row Level Security. Never expose it in client-side code or commit it to version control.
+{% /alert %}
+
+---
+
+## Configure Authentication URLs
+
+Set up redirect URLs so authentication flows work correctly.
+
+Navigate to **Authentication > URL Configuration** and configure:
+
+### Site URL
+
+Your production domain:
+
+```
+https://yourdomain.com
+```
+
+### Redirect URLs
+
+Add this pattern to allow all auth callbacks:
+
+```
+https://yourdomain.com/auth/callback**
+```
+
+The `**` wildcard matches any path after `/auth/callback`, which MakerKit uses for different auth flows.
+
+{% alert type="default" title="Domain matching" %}
+If your production URL includes `www`, use `www` in both the Site URL and Redirect URLs. Mismatched domains cause authentication failures.
+{% /alert %}
+
+---
+
+## Configure SMTP
+
+Supabase's built-in email service has strict rate limits (4 emails per hour) and low deliverability. Configure a real SMTP provider for production.
+
+Navigate to **Project Settings > Authentication > SMTP Settings**:
+
+1. Toggle **Enable Custom SMTP**
+2. Enter your provider's credentials:
+
+| Field | Example (Resend) |
+|-------|------------------|
+| Host | `smtp.resend.com` |
+| Port | `465` |
+| Username | `resend` |
+| Password | Your API key |
+| Sender email | `noreply@yourdomain.com` |
+| Sender name | Your App Name |
+
+Recommended SMTP providers:
+
+- [Resend](https://resend.com): MakerKit has native integration, simple setup
+- [SendGrid](https://sendgrid.com): High volume, good deliverability
+- [Mailgun](https://mailgun.com): Developer-friendly, detailed analytics
+- [Postmark](https://postmarkapp.com): Excellent deliverability, transactional focus
+
+---
+
+## Update Email Templates
+
+MakerKit provides custom email templates that solve a common Supabase authentication issue.
+
+### The Problem
+
+Supabase uses PKCE (Proof Key for Code Exchange) for authentication. When a user clicks a confirmation link in their email and opens it in a different browser than where they signed up, authentication fails because the PKCE verifier is stored in the original browser.
+
+### The Solution
+
+MakerKit's templates use token hash URLs instead of PKCE, which work regardless of which browser opens the link.
+
+### How to Update
+
+1. Find the templates in your project at `apps/web/supabase/templates/`
+2. In Supabase Dashboard, go to **Authentication > Email Templates**
+3. For each email type (Confirm signup, Magic Link, etc.), replace the default template with MakerKit's version
+4. Customize the templates with your branding
+
+For detailed instructions, see the [Authentication Emails](/docs/next-supabase-turbo/going-to-production/authentication-emails) guide.
+
+---
+
+## Link Your Local Project
+
+Connect your local development environment to your Supabase project using the CLI.
+
+### Login to Supabase
+
+```bash
+pnpm --filter web supabase login
+```
+
+Follow the browser prompts to authenticate.
+
+### Link the Project
+
+```bash
+pnpm --filter web supabase link
+```
+
+Select your project from the list and enter your database password when prompted.
+
+**Verification**: Run `supabase projects list` to confirm the connection.
+
+---
+
+## Push Database Migrations
+
+Deploy MakerKit's database schema to your production Supabase instance:
+
+```bash
+pnpm --filter web supabase db push
+```
+
+The CLI displays a list of migrations to apply. Review them and confirm.
+
+**Expected tables**: After pushing, you should see these tables in your Supabase Dashboard Table Editor:
+
+- `accounts`: Team and personal accounts
+- `accounts_memberships`: User-account relationships
+- `subscriptions`: Billing subscriptions
+- `subscription_items`: Line items for subscriptions
+- `invitations`: Team invitations
+- `roles`: Custom role definitions
+- `role_permissions`: Permission assignments
+
+{% img src="/assets/courses/next-turbo/supabase-webhooks.webp" width="2062" height="876" /%}
+
+---
+
+## Configure Database Webhooks
+
+MakerKit uses database webhooks to respond to data changes. The primary webhook handles subscription cleanup when accounts are deleted.
+
+### Generate a Webhook Secret
+
+Create a strong secret for authenticating webhook requests:
+
+```bash
+openssl rand -base64 32
+```
+
+Save this as `SUPABASE_DB_WEBHOOK_SECRET` in your hosting provider's environment variables.
+
+### Why Webhooks Matter
+
+When a user deletes their account, MakerKit needs to:
+1. Cancel their subscription with the billing provider
+2. Clean up related data
+
+The webhook triggers this cleanup automatically by calling your application's `/api/db/webhook` endpoint.
+
+### Create the Webhook
+
+In Supabase Dashboard, navigate to **Database > Webhooks**:
+
+1. Click **Enable Webhooks** if prompted
+2. Click **Create a new hook**
+3. Configure the webhook:
+
+| Setting | Value |
+|---------|-------|
+| Name | `subscriptions_delete` |
+| Table | `public.subscriptions` |
+| Events | `DELETE` |
+| Type | `HTTP Request` |
+| Method | `POST` |
+| URL | `https://yourdomain.com/api/db/webhook` |
+| Timeout | `5000` |
+
+4. Add a header for authentication:
+   - **Name**: `X-Supabase-Event-Signature`
+   - **Value**: Your `SUPABASE_DB_WEBHOOK_SECRET` value
+
+{% alert type="warning" title="Use your production URL" %}
+The webhook URL must be publicly accessible. Do not use:
+- `localhost` or `127.0.0.1`
+- Vercel preview URLs (they require authentication)
+- Private network addresses
+
+Test accessibility by visiting the URL in an incognito browser window.
+{% /alert %}
+
+### Webhook Configuration Reference
+
+For reference, this is equivalent to the SQL trigger used in local development (from `seed.sql`):
+
+```sql
+create trigger "subscriptions_delete"
+    after delete
+    on "public"."subscriptions"
+    for each row
+execute function "supabase_functions"."http_request"(
+    'https://yourdomain.com/api/db/webhook',
+    'POST',
+    '{"Content-Type":"application/json", "X-Supabase-Event-Signature":"YOUR_SECRET"}',
+    '{}',
+    '5000'
+);
+```
+
+### Webhooks for Older Versions
+
+If you're using MakerKit version 2.17.1 or earlier, you need additional webhooks:
+
+| Table | Event | Purpose |
+|-------|-------|---------|
+| `public.accounts` | `DELETE` | Clean up account data |
+| `public.subscriptions` | `DELETE` | Cancel billing subscription |
+| `public.invitations` | `INSERT` | Send invitation emails |
+
+Version 2.17.2+ handles invitations through server actions, so only the subscriptions webhook is required.
+
+---
+
+## Set Up Google Auth (Optional)
+
+If you want Google login, configure it in both Google Cloud and Supabase.
+
+### In Google Cloud Console
+
+1. Create a project at [console.cloud.google.com](https://console.cloud.google.com)
+2. Navigate to **APIs & Services > Credentials**
+3. Click **Create Credentials > OAuth client ID**
+4. Select **Web application**
+5. Add authorized redirect URI from Supabase (found in **Authentication > Providers > Google**)
+
+### In Supabase Dashboard
+
+1. Go to **Authentication > Providers**
+2. Enable **Google**
+3. Enter your Client ID and Client Secret from Google Cloud
+
+For detailed setup, see the [Supabase Google Auth documentation](https://supabase.com/docs/guides/auth/social-login/auth-google).
+
+MakerKit automatically shows Google login when you enable it in Supabase. No code changes needed.
+
+---
+
+## Troubleshooting
+
+### "Invalid PKCE verifier" error
+
+Users see this when clicking email links from a different browser. Update your email templates to use MakerKit's token hash approach. See [Authentication Emails](/docs/next-supabase-turbo/going-to-production/authentication-emails).
+
+### Webhooks not triggering
+
+1. Verify the URL is publicly accessible
+2. Check the `X-Supabase-Event-Signature` header matches your environment variable
+3. Review logs in **Database > Webhooks** for error messages
+4. Ensure your application is deployed and running
+
+### Authentication redirect fails
+
+1. Confirm Site URL matches your exact domain (including `www` if used)
+2. Verify Redirect URL includes the `**` wildcard
+3. Check browser console for specific error messages
+
+### Emails not delivered
+
+1. Verify SMTP settings in Supabase Dashboard
+2. Check your email provider's dashboard for delivery logs
+3. Confirm your sending domain has proper DNS records (SPF, DKIM, DMARC)
+
+### Database password lost
+
+If you forgot your database password, reset it in **Project Settings > Database > Database Password**. You'll need to re-link your local project after resetting.
+
+---
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Can I use Supabase's free tier for production?", "answer": "The free tier works for early-stage apps with low traffic. It includes 500MB database storage, 1GB bandwidth, and 2GB file storage. For production apps expecting traffic, upgrade to the Pro plan ($25/month) for better performance, daily backups, and no pausing after inactivity."},
+     {"question": "How do I migrate from local development to production Supabase?", "answer": "Run 'pnpm --filter web supabase link' to connect your local project to the production instance, then 'pnpm --filter web supabase db push' to apply migrations. The CLI handles schema differences and shows you exactly what will change before applying."},
+     {"question": "Do I need to manually create RLS policies?", "answer": "No. MakerKit's migrations include all necessary RLS policies for the core tables (accounts, subscriptions, invitations, etc.). The policies are applied automatically when you push migrations. You only need to add policies for custom tables you create."},
+     {"question": "Why do I need database webhooks?", "answer": "Webhooks notify your application when database events occur. MakerKit uses them to cancel billing subscriptions when accounts are deleted."},
+     {"question": "Can I self-host Supabase instead of using their cloud?", "answer": "Yes. Supabase is open source and can be self-hosted. See the Supabase self-hosting documentation for Docker and Kubernetes options. You'll need to manage backups, updates, and infrastructure yourself."}
+   ]
+/%}
+
+---
+
+## Next Steps
+
+- [Environment Variables](/docs/next-supabase-turbo/going-to-production/production-environment-variables): Complete variable reference with Zod schemas
+- [Vercel Deployment](/docs/next-supabase-turbo/going-to-production/vercel): Deploy your Next.js application to Vercel
+- [Authentication Configuration](/docs/next-supabase-turbo/going-to-production/authentication): Configure OAuth providers and SMTP

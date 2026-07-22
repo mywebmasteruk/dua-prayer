@@ -1,0 +1,27 @@
+---
+status: "published"
+title: 'Installing Plugins in the Next.js Supabase SaaS Starter kit'
+label: 'Installing Plugins'
+order: 0
+description: 'Learn how to install plugins in the Next.js Supabase SaaS Starter kit.'
+---
+
+Plugins are placed into a separate repository that mirrors the original repository structure. This allows us to build the plugins using the same files and structure as the main repository.
+
+You may wonder why we don't include the plugins in the main repository. The reason is that plugins are optional and may not be needed by all users. 
+
+By keeping them separate, we can keep the main repository clean and focused on the core functionality. Instead you can install the plugins you need when you need them.
+
+## Installing Plugins
+
+To install a plugin, you can use the Makerkit CLI:
+
+```bash
+npx @makerkit/cli@latest plugins add
+```
+
+This command will prompt you to select a plugin to install. Once selected, the plugin will be installed in your project.
+
+## How Makerkit installs plugins in your project
+
+We use the Shadcn CLI to create a registry of plugins that are available for your variant. The Makerkit CLI uses the registry to download the plugin files and install them in your project. We also use [Codemod](https://codemod.com) to wire up the plugin in your project, so you don't have to do anything manually.
