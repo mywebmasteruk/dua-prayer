@@ -13,7 +13,8 @@
     "./api": "./src/server/api.ts",
     "./components": "./src/components/index.ts",
     "./server/actions": "./src/server/server-actions.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./posting-settings": "./src/posting-settings.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .turbo node_modules",

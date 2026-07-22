@@ -1,14 +1,21 @@
 'use client';
 
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
-import { HandHeart } from 'lucide-react';
+import { Bookmark, Flag, HandHeart } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@kit/ui/button';
 import { cn } from '@kit/ui/utils';
 
-import { prayForDuaAction } from '../server/server-actions';
+import {
+  flagDuaAction,
+  prayForDuaAction,
+  toggleBookmarkAction,
+  unflagMyFlagAction,
+} from '../server/server-actions';
 import type { Dua } from '../types';
 
 interface DuaListProps {
@@ -20,9 +27,7 @@ interface DuaListProps {
 function formatDateTime(value: string) {
   const created = new Date(value);
 
-  if (Number.isNaN(created.getTime())) {
-    return '';
-  }
+  if (Number.isNaN(created.getTime())) return '';
 
   const sameYear = created.getFullYear() === new Date().getFullYear();
 
@@ -40,6 +45,7 @@ export function DuaList({
   emptyTitle = 'No duas yet',
   emptyDescription = 'Be the first to share a dua with the community.',
 }: DuaListProps) {
+  const router = useRouter();
   const [duas, setDuas] = useState(initialDuas);
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -66,12 +72,21 @@ export function DuaList({
                 {dua.category_name}
               </span>
             ) : null}
+            {dua.channel_handle ? (
+              <Link
+                href={`/channels/${dua.channel_handle}`}
+                className="hover:text-foreground underline-offset-2 hover:underline"
+              >
+                @{dua.channel_handle}
+                {dua.channel_is_verified ? ' ✓' : ''}
+              </Link>
+            ) : null}
             <time dateTime={dua.created_at}>{formatDateTime(dua.created_at)}</time>
           </div>
 
           <p className="whitespace-pre-wrap text-base leading-relaxed">{dua.text}</p>
 
-          <div className="mt-4 flex items-center gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-1">
             <Button
               type="button"
               variant="ghost"
@@ -111,9 +126,7 @@ export function DuaList({
                       ),
                     );
 
-                    if (data.counted) {
-                      toast.success('Ameen recorded');
-                    }
+                    if (data.counted) toast.success('Ameen recorded');
                   } catch (error) {
                     toast.error(
                       error instanceof Error
@@ -129,6 +142,101 @@ export function DuaList({
               <HandHeart className="h-4 w-4" />
               <span>Ameen</span>
               <span className="tabular-nums">{dua.likes}</span>
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn(
+                'text-muted-foreground gap-1.5 rounded-full',
+                dua.user_has_bookmarked && 'text-primary',
+              )}
+              onClick={() => {
+                startTransition(async () => {
+                  try {
+                    const result = await toggleBookmarkAction({ id: dua.id });
+
+                    if (result?.serverError) {
+                      toast.error(result.serverError);
+                      router.push('/auth/sign-in');
+                      return;
+                    }
+
+                    const bookmarked = result?.data?.bookmarked;
+
+                    if (typeof bookmarked !== 'boolean') return;
+
+                    setDuas((current) =>
+                      current.map((item) =>
+                        item.id === dua.id
+                          ? { ...item, user_has_bookmarked: bookmarked }
+                          : item,
+                      ),
+                    );
+                  } catch {
+                    router.push('/auth/sign-in');
+                  }
+                });
+              }}
+            >
+              <Bookmark className="h-4 w-4" />
+              <span>Save</span>
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn(
+                'text-muted-foreground gap-1.5 rounded-full',
+                dua.user_has_flagged && 'text-destructive',
+              )}
+              onClick={() => {
+                startTransition(async () => {
+                  try {
+                    if (dua.user_has_flagged) {
+                      const result = await unflagMyFlagAction({ id: dua.id });
+
+                      if (result?.serverError) {
+                        toast.error(result.serverError);
+                        return;
+                      }
+
+                      setDuas((current) =>
+                        current.map((item) =>
+                          item.id === dua.id
+                            ? { ...item, user_has_flagged: false }
+                            : item,
+                        ),
+                      );
+                      return;
+                    }
+
+                    const result = await flagDuaAction({ id: dua.id });
+
+                    if (result?.serverError) {
+                      toast.error(result.serverError);
+                      router.push('/auth/sign-in');
+                      return;
+                    }
+
+                    setDuas((current) =>
+                      current.map((item) =>
+                        item.id === dua.id
+                          ? { ...item, user_has_flagged: true }
+                          : item,
+                      ),
+                    );
+                    toast.success('Flagged for review');
+                  } catch {
+                    router.push('/auth/sign-in');
+                  }
+                });
+              }}
+            >
+              <Flag className="h-4 w-4" />
+              <span>Flag</span>
             </Button>
           </div>
         </li>

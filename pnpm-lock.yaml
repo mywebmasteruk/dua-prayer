@@ -510,6 +510,9 @@ importers:
       sanitize-html:
         specifier: 'catalog:'
         version: 2.17.6
+      stripe:
+        specifier: 'catalog:'
+        version: 22.3.2(@types/node@26.1.1)
       tailwind-merge:
         specifier: 'catalog:'
         version: 3.6.0

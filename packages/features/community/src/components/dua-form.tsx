@@ -15,18 +15,34 @@ import {
 } from '@kit/ui/select';
 import { Textarea } from '@kit/ui/textarea';
 
+import type { PostingMode } from '../posting-settings';
 import { createDuaAction } from '../server/server-actions';
 import type { Category } from '../types';
 
 interface DuaFormProps {
   categories: Category[];
+  channelId?: number | null;
+  postingMode?: PostingMode;
   onCreated?: () => void;
 }
 
-export function DuaForm({ categories, onCreated }: DuaFormProps) {
+export function DuaForm({
+  categories,
+  channelId = null,
+  postingMode = 'public',
+  onCreated,
+}: DuaFormProps) {
   const [text, setText] = useState('');
   const [categoryId, setCategoryId] = useState<string>('none');
   const [isPending, startTransition] = useTransition();
+
+  if (postingMode === 'closed') {
+    return (
+      <div className="rounded-xl border border-dashed p-4 text-sm">
+        Public dua submissions are currently closed.
+      </div>
+    );
+  }
 
   const remaining = 1200 - text.trim().length;
   const tooShort = text.trim().length > 0 && text.trim().length < 15;
@@ -43,6 +59,7 @@ export function DuaForm({ categories, onCreated }: DuaFormProps) {
               text,
               categoryId:
                 categoryId === 'none' ? null : Number.parseInt(categoryId, 10),
+              channelId,
               website: '',
             });
 
@@ -58,7 +75,11 @@ export function DuaForm({ categories, onCreated }: DuaFormProps) {
 
             setText('');
             setCategoryId('none');
-            toast.success('Dua shared with the community');
+            toast.success(
+              result.data.heldForReview
+                ? 'Dua received and waiting for review'
+                : 'Dua shared with the community',
+            );
             onCreated?.();
           } catch (error) {
             toast.error(
@@ -68,7 +89,6 @@ export function DuaForm({ categories, onCreated }: DuaFormProps) {
         });
       }}
     >
-      {/* honeypot */}
       <input
         type="text"
         name="website"
@@ -91,7 +111,11 @@ export function DuaForm({ categories, onCreated }: DuaFormProps) {
         />
         <div className="text-muted-foreground flex justify-between text-xs">
           <span>
-            {tooShort ? 'At least 15 characters' : 'Visible to the community'}
+            {tooShort
+              ? 'At least 15 characters'
+              : postingMode === 'registered_only'
+                ? 'Sign in required to share'
+                : 'Visible to the community'}
           </span>
           <span className={remaining < 0 ? 'text-destructive' : undefined}>
             {remaining}

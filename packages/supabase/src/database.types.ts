@@ -802,6 +802,111 @@ export type Database = {
           },
         ];
       };
+      user_follows: {
+        Row: {
+          id: number;
+          user_id: string;
+          channel_id: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          user_id: string;
+          channel_id: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          user_id?: string;
+          channel_id?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'user_follows_channel_id_fkey';
+            columns: ['channel_id'];
+            isOneToOne: false;
+            referencedRelation: 'categories';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      bookmarks: {
+        Row: {
+          id: number;
+          user_id: string;
+          dua_id: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          user_id: string;
+          dua_id: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          user_id?: string;
+          dua_id?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'bookmarks_dua_id_fkey';
+            columns: ['dua_id'];
+            isOneToOne: false;
+            referencedRelation: 'duas';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      dua_flags: {
+        Row: {
+          id: number;
+          dua_id: number;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          dua_id: number;
+          user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          dua_id?: number;
+          user_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'dua_flags_dua_id_fkey',
+            columns: ['dua_id'];
+            isOneToOne: false;
+            referencedRelation: 'duas';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      site_settings: {
+        Row: {
+          key: string;
+          value: string;
+          updated_at: string;
+        };
+        Insert: {
+          key: string;
+          value?: string;
+          updated_at?: string;
+        };
+        Update: {
+          key?: string;
+          value?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       user_account_workspace: {

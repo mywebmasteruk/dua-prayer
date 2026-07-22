@@ -2,7 +2,7 @@
 
 ## Goal
 
-Replace the custom SaaS foundation (auth, accounts, admin shell, billing wiring) with **Makerkit Pro**, while keeping DuaPrayer product behavior.
+Replace the custom SaaS foundation with **Makerkit Pro**, while keeping DuaPrayer product behavior.
 
 ## What moved where
 
@@ -11,45 +11,48 @@ Replace the custom SaaS foundation (auth, accounts, admin shell, billing wiring)
 | Entire Next.js app | `legacy/dua-prayer/` (preserved, not deleted) |
 | New SaaS foundation | Makerkit Pro monorepo at repo root (`apps/web`, `packages/*`) |
 
-## Foundation provided by Makerkit (use these)
-
-- Auth flows → `@kit/auth` / `/auth/*`
-- Personal & team accounts → `@kit/accounts`, `@kit/team-accounts`
-- Billing / Stripe → `@kit/billing`, `@kit/stripe`
-- Super admin → `@kit/admin`
-- Notifications → `@kit/notifications`
-- Supabase clients → `@kit/supabase/*`
-- Server actions → `@kit/next/safe-action`
-
 ## Porting status
 
 | Feature | Status |
 |---------|--------|
-| Schema: `categories`, `duas`, `dua_prayers`, `pray_for_dua` | Done — `apps/web/supabase/migrations/20260722120000_duaprayer_community.sql` |
-| Feature package `@kit/community` | Done — feed, share, ameen |
-| Marketing home → community feed | Done |
-| Turnstile / AI moderation / posting modes | Pending |
-| Channels / follows | Pending |
-| Bookmarks / flags / product notifications | Pending |
-| Admin moderation / bots / site copy | Pending |
-| Donate | Pending |
+| Schema: categories, duas, dua_prayers, pray_for_dua | Done |
+| Schema: bookmarks, dua_flags, user_follows, site_settings | Done |
+| `@kit/community` feed / share / ameen | Done |
+| Following tab | Done |
+| Channels list + detail + follow | Done |
+| Bookmarks + flag/unflag | Done |
+| Posting mode (`site_settings`) | Done |
+| Donate checkout (`/donate`, `/api/donate/checkout`) | Done |
+| Admin dua moderation (`/admin/duas`) | Done |
+| Marketing nav (Home / Channels / Bookmarks / Support) | Done |
+| Turnstile / AI moderation | Pending (optional hardening) |
+| Channel applications / bots / site-copy CMS / RSS | Pending (advanced) |
+| Volunteer flows | Pending |
 
-## Product features still to port from `legacy/dua-prayer`
+## Foundation provided by Makerkit
 
-Priority order for follow-up work:
+- Auth → `@kit/auth`
+- Accounts / teams → `@kit/accounts`, `@kit/team-accounts`
+- Billing subscriptions → `@kit/billing` (donations use a dedicated checkout path)
+- Super admin → `@kit/admin` + `/admin/duas`
 
-1. ~~**Public dua feed** — home stream, ameen~~ (MVP on Makerkit home)
-2. ~~**Share dua composer**~~ (basic form; Turnstile/moderation next)
-3. **Channels** — list, detail, follow, applications
-4. **Profiles / bookmarks / notifications** (product-specific)
-5. **Admin moderation** — bots, site copy, volunteers, RSS (map onto Makerkit admin where possible)
-6. **Donate** — map onto Makerkit billing or keep one-time Checkout
-7. **Hardening** — Turnstile, AI moderation, posting modes, feed filters
+## Local setup
 
-## Database note
+```bash
+pnpm install
+pnpm supabase:web:start
+# copy keys into apps/web/.env.development
+pnpm supabase:web:reset
+pnpm dev
+```
 
-Makerkit ships its own schema under `apps/web/supabase`. DuaPrayer’s schema is under `legacy/dua-prayer/supabase/migrations`. Do **not** point production at Makerkit’s empty schema until domain migrations are rewritten to coexist with Makerkit’s `accounts` / RLS model.
+Optional donate: set `STRIPE_SECRET_KEY` (+ site URL).
 
 ## Deploy note
 
-Until Vercel `rootDirectory` is `apps/web` and the feed is ported, keep production on the previous stack (do not merge this branch to `main` for a live cutover).
+Before production cutover:
+
+1. Apply both community migrations to the production Supabase project (or migrate data).
+2. Point Vercel to monorepo `apps/web`.
+3. Set Makerkit + Stripe env vars.
+4. Verify feed/share/ameen/channels/donate/admin on a preview deploy.

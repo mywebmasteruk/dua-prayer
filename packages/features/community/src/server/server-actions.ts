@@ -7,22 +7,32 @@ import { revalidatePath } from 'next/cache';
 
 import * as z from 'zod';
 
-import { publicActionClient } from '@kit/next/safe-action';
+import { authActionClient, publicActionClient } from '@kit/next/safe-action';
 import { getLogger } from '@kit/shared/logger';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
+import {
+  shouldAllowPublicDuaSubmission,
+  shouldHoldSubmissionForReview,
+} from '../posting-settings';
 import { createCommunityApi } from './api';
 import { checkRateLimit, getClientIp } from './rate-limit';
 
 const CreateDuaSchema = z.object({
   text: z.string().trim().min(15).max(1200),
   categoryId: z.number().int().positive().nullable(),
-  website: z.string().optional(), // honeypot
+  channelId: z.number().int().positive().nullable().optional(),
+  website: z.string().optional(),
 });
 
-const PraySchema = z.object({
+const IdSchema = z.object({
+  id: z.number().int().positive(),
+});
+
+const AdminDuaStatusSchema = z.object({
   duaId: z.number().int().positive(),
+  published: z.boolean(),
 });
 
 async function getVoterHash() {
@@ -46,24 +56,145 @@ async function getVoterHash() {
   return hash;
 }
 
-export async function getFeedDuas(options: { offset?: number } = {}) {
+async function isSuperAdminUser() {
+  const client = getSupabaseServerClient();
+  const { data, error } = await client.rpc('is_super_admin');
+
+  if (error) return false;
+
+  return Boolean(data);
+}
+
+export async function getFeedDuas(
+  options: {
+    offset?: number;
+    channelId?: number;
+    followingOnly?: boolean;
+  } = {},
+) {
   const client = getSupabaseServerClient();
   const api = createCommunityApi(client);
   const offset = Math.max(0, Math.trunc(options.offset ?? 0));
-  const { duas, total } = await api.getFeedBatch(offset);
 
-  return {
-    duas,
-    total,
-    pageSize: api.pageSize,
-  };
+  let followedChannelIds: number[] | undefined;
+
+  if (options.followingOnly) {
+    const {
+      data: { user },
+    } = await client.auth.getUser();
+
+    if (!user) {
+      return { duas: [], total: 0, pageSize: api.pageSize };
+    }
+
+    followedChannelIds = await api.listFollowIds(user.id);
+
+    if (followedChannelIds.length === 0) {
+      return { duas: [], total: 0, pageSize: api.pageSize };
+    }
+  }
+
+  const { duas, total } = await api.getFeedBatch(offset, {
+    channelId: options.channelId,
+    followedChannelIds,
+  });
+
+  return { duas, total, pageSize: api.pageSize };
 }
 
 export async function getCategories() {
   const client = getSupabaseServerClient();
+  return createCommunityApi(client).listCategories();
+}
+
+export async function getChannels() {
+  const client = getSupabaseServerClient();
+  return createCommunityApi(client).listChannels();
+}
+
+export async function getChannelByHandle(handle: string) {
+  const client = getSupabaseServerClient();
+  return createCommunityApi(client).getChannelByHandle(handle);
+}
+
+export async function getPostingMode() {
+  const client = getSupabaseServerClient();
+  return createCommunityApi(client).getPostingMode();
+}
+
+export async function listMyFollowIds() {
+  const client = getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+
+  if (!user) return [] as number[];
+
+  return createCommunityApi(client).listFollowIds(user.id);
+}
+
+export async function listMyBookmarks() {
+  const client = getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+
+  if (!user) {
+    return { error: 'Unauthorized' as const };
+  }
+
+  const admin = getSupabaseServerAdminClient();
+  const { data: rows, error } = await admin
+    .from('bookmarks')
+    .select('dua_id, created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) return { error: error.message };
+
+  const duaIds = (rows ?? []).map((row) => row.dua_id);
+
+  if (duaIds.length === 0) return { duas: [] };
+
+  const { data: duaRows, error: duaError } = await admin
+    .from('duas')
+    .select(
+      'id, text, user_id, category_id, channel_id, likes, published, flagged, language, created_at',
+    )
+    .in('id', duaIds)
+    .eq('published', true);
+
+  if (duaError) return { error: duaError.message };
+
+  const api = createCommunityApi(client);
+  const enriched = await api.enrichDuas(duaRows ?? []);
+  const order = new Map(duaIds.map((id, index) => [id, index]));
+
+  enriched.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+
+  return { duas: enriched };
+}
+
+export async function getAdminDuas() {
+  if (!(await isSuperAdminUser())) {
+    return { error: 'Unauthorized' as const, duas: [] };
+  }
+
+  const admin = getSupabaseServerAdminClient();
+  const { data, error } = await admin
+    .from('duas')
+    .select(
+      'id, text, user_id, category_id, channel_id, likes, created_at, published, flagged, language',
+    )
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (error) return { error: error.message, duas: [] };
+
+  const client = getSupabaseServerClient();
   const api = createCommunityApi(client);
 
-  return api.listCategories();
+  return { duas: await api.enrichDuas(data ?? []) };
 }
 
 export const createDuaAction = publicActionClient
@@ -88,7 +219,22 @@ export const createDuaAction = publicActionClient
     } = await client.auth.getUser();
 
     const api = createCommunityApi(client);
-    const categories = await api.listCategories();
+    const [categories, channels, postingMode, isAdmin] = await Promise.all([
+      api.listCategories(),
+      api.listChannels(),
+      api.getPostingMode(),
+      isSuperAdminUser(),
+    ]);
+
+    const access = shouldAllowPublicDuaSubmission({
+      mode: postingMode,
+      isAuthenticated: Boolean(user),
+      isAdmin,
+    });
+
+    if (!access.allowed) {
+      throw new Error(access.error);
+    }
 
     let validatedCategoryId: number | null = null;
 
@@ -104,13 +250,39 @@ export const createDuaAction = publicActionClient
       validatedCategoryId = target.id;
     }
 
+    let validatedChannelId: number | null = null;
+
+    if (parsedInput.channelId != null) {
+      const channel = channels.find(
+        (item) => item.id === parsedInput.channelId,
+      );
+
+      if (!channel) {
+        throw new Error('Choose a valid channel');
+      }
+
+      const full = await api.getChannelByHandle(channel.handle);
+
+      if (!full || !user || full.owner_id !== user.id) {
+        throw new Error('Only the channel owner can post in this channel.');
+      }
+
+      validatedChannelId = channel.id;
+    }
+
+    const holdForReview = shouldHoldSubmissionForReview({
+      mode: postingMode,
+      isAuthenticated: Boolean(user),
+      isAdmin,
+    });
+
     const admin = getSupabaseServerAdminClient();
     const { error } = await admin.from('duas').insert({
       text: parsedInput.text,
       category_id: validatedCategoryId,
-      channel_id: null,
-      published: true,
-      flagged: false,
+      channel_id: validatedChannelId,
+      published: !holdForReview,
+      flagged: holdForReview,
       user_id: user?.id ?? null,
       language: null,
     });
@@ -121,12 +293,17 @@ export const createDuaAction = publicActionClient
     }
 
     revalidatePath('/');
+    revalidatePath('/channels');
+    revalidatePath('/admin/duas');
 
-    return { success: true as const };
+    return {
+      success: true as const,
+      heldForReview: holdForReview,
+    };
   });
 
 export const prayForDuaAction = publicActionClient
-  .inputSchema(PraySchema)
+  .inputSchema(z.object({ duaId: z.number().int().positive() }))
   .action(async ({ parsedInput }) => {
     const headersList = await headers();
     const ip = getClientIp(headersList);
@@ -174,4 +351,212 @@ export const prayForDuaAction = publicActionClient
       counted: Boolean(result.counted),
       likes: result.likes ?? 0,
     };
+  });
+
+export const toggleBookmarkAction = authActionClient
+  .inputSchema(IdSchema)
+  .action(async ({ parsedInput, ctx: { user } }) => {
+    const admin = getSupabaseServerAdminClient();
+    const { data: existing, error: loadError } = await admin
+      .from('bookmarks')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('dua_id', parsedInput.id)
+      .maybeSingle();
+
+    if (loadError) throw new Error(loadError.message);
+
+    if (existing) {
+      const { error } = await admin
+        .from('bookmarks')
+        .delete()
+        .eq('id', existing.id);
+
+      if (error) throw new Error(error.message);
+
+      revalidatePath('/bookmarks');
+
+      return { bookmarked: false as const };
+    }
+
+    const { error } = await admin.from('bookmarks').insert({
+      user_id: user.id,
+      dua_id: parsedInput.id,
+    });
+
+    if (error && error.code !== '23505') {
+      throw new Error(error.message);
+    }
+
+    revalidatePath('/bookmarks');
+
+    return { bookmarked: true as const };
+  });
+
+export const flagDuaAction = authActionClient
+  .inputSchema(IdSchema)
+  .action(async ({ parsedInput, ctx: { user } }) => {
+    const rate = checkRateLimit(`flag:${user.id}`, 30);
+
+    if (!rate.allowed) {
+      throw new Error('Too many flags. Please wait.');
+    }
+
+    const admin = getSupabaseServerAdminClient();
+    const { data: dua } = await admin
+      .from('duas')
+      .select('id')
+      .eq('id', parsedInput.id)
+      .eq('published', true)
+      .maybeSingle();
+
+    if (!dua) throw new Error('Dua not found');
+
+    const { error } = await admin.from('dua_flags').upsert(
+      { dua_id: parsedInput.id, user_id: user.id },
+      { onConflict: 'dua_id,user_id' },
+    );
+
+    if (error) throw new Error(error.message);
+
+    await admin.from('duas').update({ flagged: true }).eq('id', parsedInput.id);
+    revalidatePath('/admin/duas');
+
+    return { success: true as const };
+  });
+
+export const unflagMyFlagAction = authActionClient
+  .inputSchema(IdSchema)
+  .action(async ({ parsedInput, ctx: { user } }) => {
+    const admin = getSupabaseServerAdminClient();
+    const { error } = await admin
+      .from('dua_flags')
+      .delete()
+      .eq('dua_id', parsedInput.id)
+      .eq('user_id', user.id);
+
+    if (error) throw new Error(error.message);
+
+    const { count } = await admin
+      .from('dua_flags')
+      .select('id', { count: 'exact', head: true })
+      .eq('dua_id', parsedInput.id);
+
+    if ((count ?? 0) === 0) {
+      await admin
+        .from('duas')
+        .update({ flagged: false })
+        .eq('id', parsedInput.id);
+    }
+
+    return { success: true as const };
+  });
+
+export const followChannelAction = authActionClient
+  .inputSchema(IdSchema)
+  .action(async ({ parsedInput, ctx: { user } }) => {
+    const admin = getSupabaseServerAdminClient();
+    const { error } = await admin.from('user_follows').upsert(
+      { user_id: user.id, channel_id: parsedInput.id },
+      { onConflict: 'user_id,channel_id' },
+    );
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/channels');
+
+    return { success: true as const };
+  });
+
+export const unfollowChannelAction = authActionClient
+  .inputSchema(IdSchema)
+  .action(async ({ parsedInput, ctx: { user } }) => {
+    const admin = getSupabaseServerAdminClient();
+    const { error } = await admin
+      .from('user_follows')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('channel_id', parsedInput.id);
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/channels');
+
+    return { success: true as const };
+  });
+
+export const updateDuaStatusAction = authActionClient
+  .inputSchema(AdminDuaStatusSchema)
+  .action(async ({ parsedInput }) => {
+    if (!(await isSuperAdminUser())) {
+      throw new Error('Unauthorized');
+    }
+
+    const admin = getSupabaseServerAdminClient();
+    const { error } = await admin
+      .from('duas')
+      .update({
+        published: parsedInput.published,
+        flagged: parsedInput.published ? false : undefined,
+      })
+      .eq('id', parsedInput.duaId);
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/');
+    revalidatePath('/admin/duas');
+
+    return { success: true as const };
+  });
+
+export const deleteDuaAction = authActionClient
+  .inputSchema(z.object({ duaId: z.number().int().positive() }))
+  .action(async ({ parsedInput }) => {
+    if (!(await isSuperAdminUser())) {
+      throw new Error('Unauthorized');
+    }
+
+    const admin = getSupabaseServerAdminClient();
+    const { error } = await admin
+      .from('duas')
+      .delete()
+      .eq('id', parsedInput.duaId);
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/');
+    revalidatePath('/admin/duas');
+
+    return { success: true as const };
+  });
+
+export const updatePostingModeAction = authActionClient
+  .inputSchema(
+    z.object({
+      mode: z.enum([
+        'public',
+        'registered_only',
+        'visitor_moderated',
+        'closed',
+      ]),
+    }),
+  )
+  .action(async ({ parsedInput }) => {
+    if (!(await isSuperAdminUser())) {
+      throw new Error('Unauthorized');
+    }
+
+    const admin = getSupabaseServerAdminClient();
+    const { error } = await admin.from('site_settings').upsert({
+      key: 'posting.mode',
+      value: parsedInput.mode,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/');
+    revalidatePath('/admin/duas');
+
+    return { success: true as const };
   });

@@ -1,37 +1,32 @@
 import { NavigationMenu, NavigationMenuList } from '@kit/ui/navigation-menu';
-import { Trans } from '@kit/ui/trans';
 
 import { MobileSiteNavigation } from './mobile-site-navigation';
 import { SiteNavigationItem } from './site-navigation-item';
 
 const links = {
-  Blog: {
-    label: 'marketing.blog',
-    path: '/blog',
+  Home: {
+    label: 'Home',
+    path: '/',
   },
-  Changelog: {
-    label: 'marketing.changelog',
-    path: '/changelog',
+  Channels: {
+    label: 'Channels',
+    path: '/channels',
   },
-  Docs: {
-    label: 'marketing.documentation',
-    path: '/docs',
+  Bookmarks: {
+    label: 'Bookmarks',
+    path: '/bookmarks',
   },
-  Pricing: {
-    label: 'marketing.pricing',
-    path: '/pricing',
-  },
-  FAQ: {
-    label: 'marketing.faq',
-    path: '/faq',
+  Donate: {
+    label: 'Support',
+    path: '/donate',
   },
   SignIn: {
-    label: 'auth.signIn',
+    label: 'Sign in',
     path: '/auth/sign-in',
     showOn: 'mobile',
   },
   SignUp: {
-    label: 'auth.signUp',
+    label: 'Sign up',
     path: '/auth/sign-up',
     showOn: 'mobile',
     variant: 'default' as const,
@@ -45,7 +40,7 @@ export function SiteNavigation() {
 
       return (
         <SiteNavigationItem key={item.path} path={item.path}>
-          <Trans i18nKey={item.label} />
+          {item.label}
         </SiteNavigationItem>
       );
     })

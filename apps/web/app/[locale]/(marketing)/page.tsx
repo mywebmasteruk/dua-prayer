@@ -2,6 +2,7 @@ import { CommunityFeed } from '@kit/community/components';
 import {
   getCategories,
   getFeedDuas,
+  getPostingMode,
 } from '@kit/community/server/actions';
 
 export const generateMetadata = async () => {
@@ -13,9 +14,10 @@ export const generateMetadata = async () => {
 };
 
 async function Home() {
-  const [{ duas, total }, categories] = await Promise.all([
+  const [{ duas, total }, categories, postingMode] = await Promise.all([
     getFeedDuas({ offset: 0 }),
     getCategories(),
+    getPostingMode(),
   ]);
 
   return (
@@ -24,6 +26,7 @@ async function Home() {
         initialDuas={duas}
         total={total}
         categories={categories}
+        postingMode={postingMode}
       />
     </div>
   );

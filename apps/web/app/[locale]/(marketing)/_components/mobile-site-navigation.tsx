@@ -56,11 +56,11 @@ export function MobileSiteNavigation({
               onClick={() => setOpen(false)}
               render={
                 <Link className={className} href={item.path}>
-                  {t(item.label)}
+                  {item.label.includes('.') ? t(item.label) : item.label}
                 </Link>
               }
             >
-              {t(item.label)}
+              {item.label.includes('.') ? t(item.label) : item.label}
             </Button>
           );
         })}

@@ -7,8 +7,13 @@ export interface Dua {
   likes: number;
   created_at: string;
   category_name?: string;
+  channel_name?: string;
+  channel_handle?: string;
+  channel_is_verified?: boolean;
   language?: string | null;
   user_has_prayed?: boolean;
+  user_has_flagged?: boolean;
+  user_has_bookmarked?: boolean;
   published: boolean;
   flagged: boolean;
 }
@@ -24,4 +29,18 @@ export interface Category {
   owner_id: string | null;
   handle: string | null;
   is_verified: boolean;
+  dua_count?: number;
+  ameen_count?: number;
+}
+
+export interface ChannelItem {
+  id: number;
+  name: string;
+  handle: string;
+  description: string;
+  channelType: 'category' | 'user';
+  isVerified: boolean;
+  duaCount: number;
+  ameenCount: number;
+  sortOrder: number;
 }
