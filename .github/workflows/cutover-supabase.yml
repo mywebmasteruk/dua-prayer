@@ -1,20 +1,26 @@
-# Apply Makerkit + DuaPrayer migrations to production Supabase, and sync
-# required Makerkit env aliases onto the Vercel project.
+# Apply Makerkit + DuaPrayer migrations to production Supabase.
 #
-# Secrets:
-#   VERCEL_TOKEN              (already used for deploys) — diagnose + env sync
-#   SUPABASE_ACCESS_TOKEN     https://supabase.com/dashboard/account/tokens
-#   SUPABASE_DB_PASSWORD      Database password for itcoxbkhcwlsjpcwawyl
-#   SUPABASE_DB_WEBHOOK_SECRET (optional) — synced to Vercel if present
+# Preferred: Actions → Cutover Supabase Production → Run workflow
+#   Paste SUPABASE_ACCESS_TOKEN + DB password into the inputs (or set repo secrets).
 #
-# Run: Actions → Cutover Supabase Production → Run workflow
-# Also runs on push when this workflow file changes.
+# Secrets (optional if inputs provided):
+#   VERCEL_TOKEN, SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD,
+#   SUPABASE_DB_WEBHOOK_SECRET
 
 name: Cutover Supabase Production
-# cutover-attempt: 2
+# cutover-attempt: 4
 
 on:
   workflow_dispatch:
+    inputs:
+      supabase_access_token:
+        description: Supabase personal access token (dashboard → Account → Access Tokens)
+        required: false
+        type: string
+      supabase_db_password:
+        description: Database password for project itcoxbkhcwlsjpcwawyl
+        required: false
+        type: string
   push:
     branches: [main]
     paths:
@@ -41,50 +47,19 @@ jobs:
             echo "has_token=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_token=false" >> "$GITHUB_OUTPUT"
-            echo "VERCEL_TOKEN missing — skipping diagnose/env sync"
           fi
 
       - name: Install Vercel CLI
         if: steps.vercel.outputs.has_token == 'true'
         run: npm install -g vercel@latest
 
-      - name: Pull production env (names only + health probe)
+      - name: Pull production env + REST probe
         if: steps.vercel.outputs.has_token == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-          ENV_FILE=".vercel/.env.production.local"
-          echo "== Production env keys =="
-          # Print KEY names only
-          node -e '
-            const fs = require("fs");
-            const text = fs.readFileSync(".vercel/.env.production.local", "utf8");
-            const keys = [];
-            for (const line of text.split("\n")) {
-              const t = line.trim();
-              if (!t || t.startsWith("#")) continue;
-              const i = t.indexOf("=");
-              if (i > 0) keys.push(t.slice(0, i));
-            }
-            keys.sort().forEach((k) => console.log(k));
-            const need = [
-              "NEXT_PUBLIC_SUPABASE_URL",
-              "NEXT_PUBLIC_SUPABASE_PUBLIC_KEY",
-              "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-              "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-              "SUPABASE_SECRET_KEY",
-              "SUPABASE_SERVICE_ROLE_KEY",
-              "NEXT_PUBLIC_SITE_URL",
-              "NEXT_PUBLIC_APP_URL",
-              "SUPABASE_DB_WEBHOOK_SECRET",
-              "DATABASE_URL",
-            ];
-            console.log("== presence ==");
-            for (const k of need) console.log(`${k}=${keys.includes(k) ? "yes" : "no"}`);
-          '
-          echo "== REST probe (no secrets printed) =="
           node <<'NODE'
           const fs = require("fs");
           const env = Object.fromEntries(
@@ -98,59 +73,47 @@ jobs:
                 if (
                   (v.startsWith('"') && v.endsWith('"')) ||
                   (v.startsWith("'") && v.endsWith("'"))
-                ) {
+                )
                   v = v.slice(1, -1);
-                }
                 return [l.slice(0, i), v];
               }),
           );
+          const keys = Object.keys(env).sort();
+          console.log("env_keys", keys.join(","));
           const url = (env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
           const key =
             env.SUPABASE_SECRET_KEY ||
             env.SUPABASE_SERVICE_ROLE_KEY ||
-            env.NEXT_PUBLIC_SUPABASE_PUBLIC_KEY ||
-            env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
             env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
             "";
-          console.log("url_host", url.replace(/^https?:\/\//, "").slice(0, 48));
-          console.log("key_kind", env.SUPABASE_SECRET_KEY ? "secret" : env.SUPABASE_SERVICE_ROLE_KEY ? "service_role" : "public");
-          console.log("key_len", key.length);
-          const tables = ["config", "accounts", "duas", "categories", "site_settings"];
+          console.log("url_host", url.replace(/^https?:\/\//, ""));
+          console.log("has_database_url", Boolean(env.DATABASE_URL));
           (async () => {
-            for (const t of tables) {
-              try {
-                const res = await fetch(`${url}/rest/v1/${t}?select=*&limit=1`, {
-                  headers: {
-                    apikey: key,
-                    Authorization: `Bearer ${key}`,
-                    Accept: "application/json",
-                  },
-                });
-                const body = await res.text();
-                const hint = body.includes("does not exist")
-                  ? "missing_relation"
-                  : body.includes("Invalid API key")
-                    ? "invalid_key"
-                    : body.slice(0, 80).replace(/\s+/g, " ");
-                console.log(`${t}: HTTP ${res.status} ${hint}`);
-              } catch (e) {
-                console.log(`${t}: ERROR ${e.message}`);
-              }
+            for (const t of ["config", "accounts", "duas"]) {
+              const res = await fetch(`${url}/rest/v1/${t}?select=*&limit=1`, {
+                headers: {
+                  apikey: key,
+                  Authorization: `Bearer ${key}`,
+                },
+              });
+              const body = await res.text();
+              console.log(
+                t,
+                res.status,
+                body.includes("PGRST205") ? "missing" : "ok",
+              );
             }
           })();
           NODE
 
-      - name: Sync Makerkit env aliases on Vercel
+      - name: Sync Makerkit env aliases
         if: steps.vercel.outputs.has_token == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           SUPABASE_DB_WEBHOOK_SECRET: ${{ secrets.SUPABASE_DB_WEBHOOK_SECRET }}
         run: |
           set -euo pipefail
-          # Load pulled env without printing values
-          set -a
-          # shellcheck disable=SC1091
-          source <(node -e '
+          eval "$(node -e '
             const fs=require("fs");
             for (const line of fs.readFileSync(".vercel/.env.production.local","utf8").split("\n")) {
               const t=line.trim();
@@ -159,92 +122,63 @@ jobs:
               const k=t.slice(0,i);
               let v=t.slice(i+1);
               if((v.startsWith("\"")&&v.endsWith("\""))||(v.startsWith("'\''")&&v.endsWith("'\''"))) v=v.slice(1,-1);
-              if(["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY","NEXT_PUBLIC_SUPABASE_ANON_KEY","NEXT_PUBLIC_APP_URL","NEXT_PUBLIC_SUPABASE_URL"].includes(k)) {
-                process.stdout.write(k+"="+JSON.stringify(v)+"\n");
+              if(["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY","NEXT_PUBLIC_SUPABASE_ANON_KEY"].includes(k)) {
+                const esc=v.replace(/'/g,"'\''");
+                process.stdout.write("export "+k+"='\''"+esc+"'\''\n");
               }
             }
-          ')
-          set +a
-
-          upsert_env() {
-            local key="$1"
-            local value="$2"
-            if [ -z "$value" ]; then
-              echo "skip $key (empty)"
-              return 0
-            fi
-            # Remove existing production env with same key (ignore errors)
+          ')"
+          upsert() {
+            local key="$1" value="$2"
+            [ -z "$value" ] && echo "skip $key" && return 0
             local ids
             ids="$(curl -sS "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}" \
               -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-              | node -e '
-                const key=process.argv[1];
-                const j=JSON.parse(require("fs").readFileSync(0,"utf8"));
-                const envs=j.envs||j||[];
-                for (const e of envs) {
-                  if (e.key===key && (e.target||[]).includes("production")) process.stdout.write(e.id+"\n");
-                }
-              ' "$key")"
+              | node -e 'const key=process.argv[1];const j=JSON.parse(require("fs").readFileSync(0,"utf8"));for(const e of (j.envs||[])){if(e.key===key&&(e.target||[]).includes("production"))console.log(e.id)}' "$key")"
             while IFS= read -r id; do
               [ -z "$id" ] && continue
-              curl -sS -X DELETE \
-                "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env/${id}?teamId=${VERCEL_ORG_ID}" \
+              curl -sS -X DELETE "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env/${id}?teamId=${VERCEL_ORG_ID}" \
                 -H "Authorization: Bearer ${VERCEL_TOKEN}" >/dev/null || true
             done <<< "$ids"
             curl -sS -X POST \
               "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}&upsert=true" \
               -H "Authorization: Bearer ${VERCEL_TOKEN}" \
               -H "Content-Type: application/json" \
-              -d "$(node -e 'const[k,v]=process.argv.slice(1); process.stdout.write(JSON.stringify({key:k,value:v,type:"encrypted",target:["production"]}))' "$key" "$value")" \
-              | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8")); console.log("upserted", j.key||j.error||j);'
+              -d "$(node -e 'const[k,v]=process.argv.slice(1);process.stdout.write(JSON.stringify({key:k,value:v,type:"encrypted",target:["production"]}))' "$key" "$value")" \
+              | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));console.log("upserted",j.key||j.error||"ok")'
           }
-
-          PUBLIC_KEY="${NEXT_PUBLIC_SUPABASE_PUBLIC_KEY:-}"
-          if [ -z "$PUBLIC_KEY" ]; then
-            PUBLIC_KEY="${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}}"
-          fi
-          upsert_env "NEXT_PUBLIC_SITE_URL" "https://www.duaprayer.com"
-          upsert_env "NEXT_PUBLIC_SUPABASE_PUBLIC_KEY" "$PUBLIC_KEY"
+          PUBLIC_KEY="${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}}"
+          upsert "NEXT_PUBLIC_SITE_URL" "https://www.duaprayer.com"
+          upsert "NEXT_PUBLIC_SUPABASE_PUBLIC_KEY" "$PUBLIC_KEY"
           if [ -n "${SUPABASE_DB_WEBHOOK_SECRET:-}" ]; then
-            upsert_env "SUPABASE_DB_WEBHOOK_SECRET" "$SUPABASE_DB_WEBHOOK_SECRET"
-          else
-            echo "SUPABASE_DB_WEBHOOK_SECRET secret not set — skipped"
-          fi
-          echo "Env sync complete."
-
-      - name: Redeploy production for NEXT_PUBLIC_* env
-        if: steps.vercel.outputs.has_token == 'true'
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
-        run: |
-          set -euo pipefail
-          if [ -n "${VERCEL_DEPLOY_HOOK_URL:-}" ]; then
-            curl -sS -X POST "$VERCEL_DEPLOY_HOOK_URL" -d "ref=main" --fail-with-body
-            echo
-            echo "Triggered deploy hook after env sync"
-          else
-            echo "No VERCEL_DEPLOY_HOOK_URL — skipping redeploy (CLI deploy on next main push)"
+            upsert "SUPABASE_DB_WEBHOOK_SECRET" "$SUPABASE_DB_WEBHOOK_SECRET"
           fi
 
   migrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: diagnose-and-sync-env
     steps:
-      - name: Check migration secrets
+      - name: Resolve credentials
         id: creds
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          INPUT_TOKEN: ${{ inputs.supabase_access_token }}
+          INPUT_PASSWORD: ${{ inputs.supabase_db_password }}
+          SECRET_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SECRET_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
-          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_DB_PASSWORD" ]; then
+          TOKEN="${INPUT_TOKEN:-$SECRET_TOKEN}"
+          PASS="${INPUT_PASSWORD:-$SECRET_PASSWORD}"
+          if [ -n "$TOKEN" ] && [ -n "$PASS" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+            echo "has_password=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::SUPABASE_ACCESS_TOKEN and/or SUPABASE_DB_PASSWORD missing."
-            echo "Add them under repo Actions secrets, then re-run this workflow."
-            echo "Until then https://www.duaprayer.com/api/healthcheck stays database:false."
+            echo "has_token=$([ -n "$TOKEN" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+            echo "has_password=$([ -n "$PASS" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+            echo "::warning::Need both Supabase access token and DB password."
+            echo "Run this workflow from the Actions tab and paste both inputs, or set SUPABASE_ACCESS_TOKEN + SUPABASE_DB_PASSWORD secrets."
           fi
 
       - uses: actions/checkout@v4
@@ -265,19 +199,19 @@ jobs:
         if: steps.creds.outputs.ready == 'true'
         run: corepack enable && pnpm install --filter web...
 
-      - name: Link and push migrations
+      - name: Push Makerkit + community migrations
         if: steps.creds.outputs.ready == 'true'
         working-directory: apps/web
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_ACCESS_TOKEN: ${{ inputs.supabase_access_token || secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ inputs.supabase_db_password || secrets.SUPABASE_DB_PASSWORD }}
         run: |
           set -euo pipefail
           pnpm exec supabase link \
             --project-ref "$SUPABASE_PROJECT_REF" \
             --password "$SUPABASE_DB_PASSWORD"
           pnpm exec supabase db push --include-all
-          echo "Migrations pushed."
+          echo "Migrations pushed successfully."
 
       - name: Verify production healthcheck
         if: always()
@@ -285,15 +219,14 @@ jobs:
           MIGRATE_READY: ${{ steps.creds.outputs.ready }}
         run: |
           set -euo pipefail
-          sleep 5
+          sleep 8
           BODY="$(curl -sS "https://www.duaprayer.com/api/healthcheck" || true)"
           echo "$BODY"
-          if echo "$BODY" | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8")); process.exit(j?.services?.database===true?0:1)'; then
+          if echo "$BODY" | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));process.exit(j?.services?.database===true?0:1)'; then
             echo "database healthy"
             exit 0
           fi
-          echo "database still unhealthy — need Makerkit migrations on itcoxbkhcwlsjpcwawyl"
-          # Soft-pass when migration secrets are not configured yet.
+          echo "database still unhealthy"
           if [ "$MIGRATE_READY" = "true" ]; then
             exit 1
           fi
