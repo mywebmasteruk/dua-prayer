@@ -91,10 +91,11 @@ Optional bots cron: set `CRON_SECRET` or `BOT_RUNNER_SECRET`, call `/api/cron/du
 Rebuild the legacy 3-column shell on Makerkit marketing routes:
 
 - Left: brand + primary nav + account dock (`CommunitySidebar`)
-- Center: composer + Latest/Following stream (`CommunityFeed` `variant="shell"`)
+- Center: sticky Feed/Following tabs + modal composer (`HomeComposer`) + shell dua cards
 - Right: search, trending, channel CTA, platform activity (`CommunityRightRail`)
-- Mobile: top brand bar + bottom nav
+- Mobile: top brand bar (compose +) + bottom nav
 - Theme: DuaPrayer green primary (not Makerkit default black/purple)
+- Inner pages use the same shell chrome with wider center column
 
 Auth entry points use Makerkit routes (`/auth/sign-in`, `/home`, `/home/settings`), not the legacy `/auth` modal.
 

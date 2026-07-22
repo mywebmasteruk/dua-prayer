@@ -12,6 +12,7 @@ export * from './channel-list';
 export * from './community-feed';
 export * from './dua-form';
 export * from './dua-list';
+export * from './home-composer';
 export * from './dynamic-application-form';
 export * from './feed-language-preferences';
 export * from './feed-topic-preferences';

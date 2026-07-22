@@ -25,6 +25,8 @@ export type CommunityRightRailData = {
 type CommunityShellContextValue = {
   rightRail: CommunityRightRailData | null;
   setRightRail: (value: CommunityRightRailData | null) => void;
+  composeOpen: boolean;
+  setComposeOpen: (open: boolean) => void;
 };
 
 const CommunityShellContext = createContext<CommunityShellContextValue | null>(
@@ -35,13 +37,16 @@ export function CommunityShellProvider({ children }: { children: ReactNode }) {
   const [rightRail, setRightRail] = useState<CommunityRightRailData | null>(
     null,
   );
+  const [composeOpen, setComposeOpen] = useState(false);
 
   const value = useMemo(
     () => ({
       rightRail,
       setRightRail,
+      composeOpen,
+      setComposeOpen,
     }),
-    [rightRail],
+    [rightRail, composeOpen],
   );
 
   return (

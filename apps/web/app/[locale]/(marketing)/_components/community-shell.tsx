@@ -32,7 +32,7 @@ function CommunityShellFrame({
         className={
           rightRail
             ? 'mx-auto grid w-full max-w-[1265px] lg:grid-cols-[minmax(0,275px)_minmax(0,600px)_minmax(0,350px)] lg:justify-center'
-            : 'mx-auto grid w-full max-w-[1265px] lg:grid-cols-[minmax(0,275px)_minmax(0,600px)] lg:justify-center'
+            : 'mx-auto grid w-full max-w-[1265px] lg:grid-cols-[minmax(0,275px)_minmax(0,950px)] lg:justify-center'
         }
       >
         <aside
@@ -51,7 +51,7 @@ function CommunityShellFrame({
           className="min-w-0 bg-white pb-20 shadow-[0_24px_80px_rgba(15,23,42,0.045)] lg:col-start-2 lg:pb-0"
           aria-label="Community content"
         >
-          <CommunityMobileTopBar />
+          <CommunityMobileTopBar showCompose={Boolean(rightRail)} />
           {children}
         </main>
 

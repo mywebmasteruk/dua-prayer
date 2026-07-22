@@ -1,4 +1,3 @@
-import { CommunityFeed } from '@kit/community/components';
 import { buildTrendingHashtags } from '@kit/community/hashtags';
 import {
   getCategories,
@@ -9,6 +8,7 @@ import {
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
 import { CommunityRightRailPortal } from '~/(marketing)/_components/community-shell-context';
+import { HomeFeedClient } from '~/(marketing)/_components/home-feed-client';
 
 export const generateMetadata = async () => {
   return {
@@ -72,14 +72,13 @@ async function Home() {
   return (
     <section id="requests" className="overflow-hidden">
       <CommunityRightRailPortal data={rightRail} />
-      <CommunityFeed
+      <HomeFeedClient
         initialDuas={duas}
         total={total}
         categories={categories}
         postingMode={postingMode}
         copy={copy}
         showLanguagePrefsLink={Boolean(userResult.data.user)}
-        variant="shell"
       />
     </section>
   );

@@ -10,7 +10,7 @@ export const generateMetadata = async () => {
 
 function SafetyPage() {
   return (
-    <div className="container mx-auto max-w-2xl space-y-8 py-10">
+    <div className="space-y-8 px-4 py-6 sm:px-5 lg:px-8">
       <header className="space-y-3 border-b pb-8">
         <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
           Trust & safety

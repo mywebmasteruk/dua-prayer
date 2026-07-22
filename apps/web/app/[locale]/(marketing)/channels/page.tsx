@@ -23,7 +23,7 @@ async function ChannelsPage() {
   ]);
 
   return (
-    <div className="space-y-6 px-4 py-6">
+    <div className="space-y-6 px-4 py-6 sm:px-5 lg:px-8">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight">Channels</h1>
