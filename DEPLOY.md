@@ -13,7 +13,14 @@ Production stays on the legacy app until all of these succeed:
 
    Until Makerkit base tables exist, `/api/healthcheck` returns `database:false` and the home feed shows load errors.
 
-   **CI:** add Actions secrets `SUPABASE_ACCESS_TOKEN` + `SUPABASE_DB_PASSWORD`, then run workflow **Cutover Supabase Production**.
+   **CI:** add Actions secrets, then run workflow **Cutover Supabase Production**:
+
+   | Secret | Required |
+   |--------|----------|
+   | `VERCEL_TOKEN` | Diagnose + sync Makerkit env aliases |
+   | `SUPABASE_ACCESS_TOKEN` | Yes — for `supabase db push` |
+   | `SUPABASE_DB_PASSWORD` | Yes — DB password for `itcoxbkhcwlsjpcwawyl` |
+   | `SUPABASE_DB_WEBHOOK_SECRET` | Optional — synced to Vercel if set |
 
    **Local:**
    ```bash
