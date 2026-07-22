@@ -24,6 +24,7 @@ const CreateDuaSchema = z.object({
   categoryId: z.number().int().positive().nullable(),
   channelId: z.number().int().positive().nullable().optional(),
   website: z.string().optional(),
+  captchaToken: z.string().optional(),
 });
 
 const IdSchema = z.object({
@@ -211,6 +212,16 @@ export const createDuaAction = publicActionClient
 
     if (parsedInput.website) {
       throw new Error('Submission rejected');
+    }
+
+    if (process.env.CAPTCHA_SECRET_TOKEN) {
+      const { verifyCaptchaToken } = await import('@kit/auth/captcha/server');
+
+      if (!parsedInput.captchaToken) {
+        throw new Error('Bot verification failed. Please try again.');
+      }
+
+      await verifyCaptchaToken(parsedInput.captchaToken);
     }
 
     const client = getSupabaseServerClient();

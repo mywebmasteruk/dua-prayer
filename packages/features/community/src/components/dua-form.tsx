@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 
+import { CaptchaField } from '@kit/auth/captcha/client';
 import { toast } from 'sonner';
 
 import { Button } from '@kit/ui/button';
@@ -34,7 +35,9 @@ export function DuaForm({
 }: DuaFormProps) {
   const [text, setText] = useState('');
   const [categoryId, setCategoryId] = useState<string>('none');
+  const [captchaToken, setCaptchaToken] = useState('');
   const [isPending, startTransition] = useTransition();
+  const captchaSiteKey = process.env.NEXT_PUBLIC_CAPTCHA_SITE_KEY;
 
   if (postingMode === 'closed') {
     return (
@@ -61,6 +64,7 @@ export function DuaForm({
                 categoryId === 'none' ? null : Number.parseInt(categoryId, 10),
               channelId,
               website: '',
+              captchaToken: captchaToken || undefined,
             });
 
             if (result?.serverError) {
@@ -143,7 +147,21 @@ export function DuaForm({
         </Select>
       </div>
 
-      <Button type="submit" disabled={isPending || text.trim().length < 15}>
+      {captchaSiteKey ? (
+        <CaptchaField
+          siteKey={captchaSiteKey}
+          onTokenChange={(token) => setCaptchaToken(token)}
+        />
+      ) : null}
+
+      <Button
+        type="submit"
+        disabled={
+          isPending ||
+          text.trim().length < 15 ||
+          (Boolean(captchaSiteKey) && !captchaToken)
+        }
+      >
         {isPending ? 'Sharing…' : 'Share dua'}
       </Button>
     </form>

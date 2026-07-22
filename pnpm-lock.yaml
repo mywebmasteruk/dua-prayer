@@ -1035,6 +1035,9 @@ importers:
 
   packages/features/community:
     dependencies:
+      '@kit/auth':
+        specifier: workspace:*
+        version: link:../auth
       '@kit/next':
         specifier: workspace:*
         version: link:../../next

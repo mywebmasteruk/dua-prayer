@@ -38,9 +38,21 @@ App: [http://localhost:3000](http://localhost:3000)
 | Path | Purpose |
 |------|---------|
 | `apps/web` | Main Next.js app |
-| `apps/web/supabase` | Makerkit schema & migrations |
+| `apps/web/supabase` | Makerkit + community migrations |
+| `packages/features/community` | Feed, channels, bookmarks, ameen, admin duas |
 | `packages/features` | Auth, accounts, billing, admin features |
-| `legacy/dua-prayer` | Previous DuaPrayer app (source for porting) |
+| `legacy/dua-prayer` | Previous app (advanced leftovers: bots, RSS, volunteers) |
+
+## Product routes
+
+| Route | Feature |
+|-------|---------|
+| `/` | Community feed + share dua |
+| `/channels` | Channel list + follow |
+| `/channels/[handle]` | Channel feed |
+| `/bookmarks` | Saved duas |
+| `/donate` | Support / Stripe checkout |
+| `/admin/duas` | Super-admin moderation |
 
 ## Production
 
