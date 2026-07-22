@@ -2,92 +2,60 @@
 
 Canonical production URL: **https://dua-prayer.vercel.app** → **https://www.duaprayer.com/**
 
-DuaPrayer is a **Makerkit Pro pnpm monorepo**. The web app lives in `apps/web`.
+
+## Architecture (important)
+
+| Surface | Code | Role |
+|---------|------|------|
+| **Public frontend** | `legacy/dua-prayer/` | Original DuaPrayer consumer UI (feed, channels, auth modal, admin) — **what www serves** |
+| **Makerkit** | `apps/web/` + `packages/*` | Backoffice / SaaS foundation work — **not** the public site |
+
+Do **not** point the production Vercel project Root Directory at `apps/web`. That ships Makerkit’s marketing shell as the homepage.
 
 
-## Makerkit cutover checklist (required)
+## Production deploy (public frontend)
 
-Production stays on the legacy app until all of these succeed:
+Push to `main` runs **Deploy Vercel Production**:
 
-1. **Supabase migrations** (production project `itcoxbkhcwlsjpcwawyl`):
-
-   Until Makerkit base tables exist, `/api/healthcheck` returns `database:false` and the home feed shows load errors.
-
-   **CI (fastest):** open
-   [Cutover Supabase Production](https://github.com/mywebmasteruk/dua-prayer/actions/workflows/cutover-supabase.yml)
-   → **Run workflow** → paste:
-
-   | Input | Value |
-   |-------|--------|
-   | `supabase_access_token` | [Account → Access Tokens](https://supabase.com/dashboard/account/tokens) |
-   | `supabase_db_password` | Project `itcoxbkhcwlsjpcwawyl` → Settings → Database → password |
-
-   Or set the same values as Actions secrets `SUPABASE_ACCESS_TOKEN` / `SUPABASE_DB_PASSWORD` (plus existing `VERCEL_TOKEN`).
-
-   **Local:**
-   ```bash
-   SUPABASE_PROJECT_REF=itcoxbkhcwlsjpcwawyl ./scripts/cutover-db.sh
-   ```
-   Applies Makerkit schemas + `apps/web/supabase/migrations/20260722*.sql`.
-
-2. **Vercel project settings** (dua-prayer → Settings → General):
-
-   | Setting | Required value |
-   |---------|----------------|
-   | **Root Directory** | `apps/web` (required — Actions sets this via API when `VERCEL_TOKEN` is present) |
-   | **Framework Preset** | Next.js |
-   | **Install / Build overrides** | **Off** — use `apps/web/vercel.json` (pnpm install from monorepo root + `pnpm --filter web build`) |
-   | **Node.js** | 20.x+ |
-
-3. **Vercel environment variables** (Production):
-
-   | Variable | Notes |
-   |----------|--------|
-   | `NEXT_PUBLIC_SITE_URL` | `https://www.duaprayer.com` |
-   | `NEXT_PUBLIC_SUPABASE_URL` | `https://itcoxbkhcwlsjpcwawyl.supabase.co` |
-   | `NEXT_PUBLIC_SUPABASE_PUBLIC_KEY` | Preferred; falls back to `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
-   | `SUPABASE_SECRET_KEY` | Preferred; falls back to `SUPABASE_SERVICE_ROLE_KEY` |
-   | `SUPABASE_DB_WEBHOOK_SECRET` | Required for Makerkit DB webhooks |
-   | Stripe / mailer / captcha / AI / cron | As used by product features |
-
-4. **Redeploy** — push to `main` (Actions) or Redeploy in the Vercel dashboard.
-
-5. **Smoke test** — `/auth/sign-in` must be **200** (not 404). Also check feed, channels/apply, volunteer, donate, admin, `/feed.xml`.
-
-
-## Recommended: push to main (GitHub Actions)
-
-Push to `main` triggers **Deploy Vercel Production** (`.github/workflows/deploy-vercel.yml`).
-
-**Preferred secrets** (CLI prebuilt deploy — pulls Production env from Vercel):
-
-| Secret | Value |
-|--------|--------|
-| `VERCEL_TOKEN` | [vercel.com/account/tokens](https://vercel.com/account/tokens) |
-
-Org/project IDs are set in the workflow (`team_km2T92NwivBy9c85XLjhTScR` / `prj_8sQGGuKxXAfJdnHeRXuX0jh15dIk`).
-
-**Fallback** if `VERCEL_TOKEN` is missing: `VERCEL_DEPLOY_HOOK_URL` (Vercel → Deploy Hooks). The workflow waits for a GitHub Production deployment matching the commit SHA.
+1. Sets Vercel **Root Directory** = `legacy/dua-prayer`
+2. Install/build: `npm install --legacy-peer-deps` / `npm run build`
+3. Deploys with `VERCEL_TOKEN` (CLI prebuilt) or `VERCEL_DEPLOY_HOOK_URL`
 
 Monitor: **https://github.com/mywebmasteruk/dua-prayer/actions**
 
 
-## If the deploy fails
+### Vercel settings (dua-prayer project)
 
-1. Open the failed deployment logs in Vercel (or `npx vercel inspect <dpl_…> --logs`).
-2. Confirm Root Directory + Install/Build overrides match the table above.
-3. Confirm Makerkit env vars (especially Supabase public/secret key names).
-4. Confirm DB migrations were applied before expecting product routes to work.
+| Setting | Value |
+|---------|--------|
+| Root Directory | `legacy/dua-prayer` |
+| Install Command | `npm install --legacy-peer-deps` |
+| Build Command | `npm run build` |
+| Framework | Next.js |
+
+### Env (legacy names)
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or anon)
+- `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_APP_URL=https://www.duaprayer.com`
+- Stripe / Turnstile / cron as before
+
+### Smoke after deploy
+
+- `/` → original 3-column feed shell
+- `/auth` → **200** (legacy auth)
+- `/auth/sign-in` → **404** (Makerkit-only route; should not be live on www)
+- `/channels`, `/donate`, `/admin`, `/feed.xml`
+
+
+## Makerkit (backoffice) — separate
+
+Makerkit stays in the monorepo for future backoffice work. It must **not** replace the public frontend until product explicitly opts in, with its own deploy target and DB cutover.
 
 
 ## Git safety
 
-- **Never** commit `.env` secrets, credentials, or `.vercel/`.
-- **Never** force push.
-- **Never** update git config from automation.
-- Do **not** run `vercel deploy` from an iCloud-synced project folder.
-
-
-## Local UI iteration
-
-While iterating locally with HMR, do not kill port 3000 or run `next build` against the live dev cache. See `.cursor/rules/local-ui-iteration.mdc`.
+- Never commit `.env` secrets, credentials, or `.vercel/`
+- Never force push
+- Never update git config from automation

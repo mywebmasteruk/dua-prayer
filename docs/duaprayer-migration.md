@@ -76,12 +76,9 @@ Optional donate: set `STRIPE_SECRET_KEY` (+ site URL).
 
 Optional bots cron: set `CRON_SECRET` or `BOT_RUNNER_SECRET`, call `/api/cron/dua-bots` with `Authorization: Bearer <secret>`.
 
-## Deploy / cutover note
+## Deploy / architecture note
 
-Code is on `main` (Makerkit monorepo). Production cutover still requires ops steps — see root `DEPLOY.md`.
+**Public www frontend = `legacy/dua-prayer/`** (original consumer UI).  
+**Makerkit (`apps/web`) = backoffice foundation only** — do not point production Root Directory at `apps/web`.
 
-1. Apply Makerkit + community migrations to production Supabase (`itcoxbkhcwlsjpcwawyl`) via `./scripts/cutover-db.sh`.
-2. Set Vercel Root Directory to `apps/web` (or repo root with root `vercel.json`); turn **off** Install/Build overrides so pnpm commands apply.
-3. Set Makerkit env vars (public key accepts legacy `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / anon; secret accepts `SUPABASE_SERVICE_ROLE_KEY`).
-4. Redeploy and verify `/auth/sign-in` returns **200** (404 means the legacy build is still live or the Makerkit build failed).
-5. Smoke-test feed/share/ameen/channels/apply/volunteer/donate/admin/RSS/forms/bots.
+See root `DEPLOY.md`. Makerkit DB cutover / `apps/web` deploy is a separate, explicit backoffice project — not a replacement for the public site.
