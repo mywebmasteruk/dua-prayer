@@ -19,6 +19,7 @@
     "./posting-settings": "./src/posting-settings.ts",
     "./feed-languages": "./src/feed-languages.ts",
     "./hashtags": "./src/hashtags.ts",
+    "./rss-settings": "./src/rss-settings.ts",
     "./site-copy": "./src/site-copy.ts"
   },
   "scripts": {

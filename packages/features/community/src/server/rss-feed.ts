@@ -57,18 +57,36 @@ export async function buildRssResponse(options: {
     });
   }
 
+  if (!settings.includeChannelPosts && !settings.includeFreeformDuas) {
+    return new Response('RSS feed has no included sources.', {
+      status: 404,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
+
   const siteUrl = siteBaseUrl();
   const feedUrl = `${siteUrl}${options.feedPath}`;
   const admin = getSupabaseServerAdminClient();
+  const fetchLimit = Math.min(
+    50,
+    Math.max(settings.itemCount * 2, settings.itemCount + 5),
+  );
 
-  const { data: duas } = await admin
+  let query = admin
     .from('duas')
     .select('id, text, category_id, channel_id, user_id, created_at, language')
     .eq('published', true)
     .eq('flagged', false)
     .order('created_at', { ascending: false })
-    .limit(settings.itemCount);
+    .limit(fetchLimit);
 
+  if (!settings.includeChannelPosts && settings.includeFreeformDuas) {
+    query = query.is('channel_id', null);
+  } else if (settings.includeChannelPosts && !settings.includeFreeformDuas) {
+    query = query.not('channel_id', 'is', null);
+  }
+
+  const { data: duas } = await query;
   const rows = duas ?? [];
   const lookupIds = [
     ...new Set(
@@ -80,13 +98,19 @@ export async function buildRssResponse(options: {
 
   const categoryById = new Map<
     number,
-    { id: number; name: string; handle: string | null }
+    {
+      id: number;
+      name: string;
+      handle: string | null;
+      status: string;
+      is_verified: boolean;
+    }
   >();
 
   if (lookupIds.length > 0) {
     const { data: categories } = await admin
       .from('categories')
-      .select('id, name, handle')
+      .select('id, name, handle, status, is_verified')
       .in('id', lookupIds);
 
     for (const category of categories ?? []) {
@@ -94,11 +118,26 @@ export async function buildRssResponse(options: {
     }
   }
 
+  const excluded = new Set(settings.excludedChannelIds);
+  const filtered = rows
+    .filter((dua) => {
+      if (!dua.channel_id) return settings.includeFreeformDuas;
+      if (!settings.includeChannelPosts) return false;
+      if (excluded.has(dua.channel_id)) return false;
+
+      const channel = categoryById.get(dua.channel_id);
+      if (!channel || channel.status !== 'approved') return false;
+      if (settings.onlyVerifiedChannels && !channel.is_verified) return false;
+
+      return true;
+    })
+    .slice(0, settings.itemCount);
+
   const lastBuildDate = (
-    rows[0]?.created_at ? new Date(rows[0].created_at) : new Date()
+    filtered[0]?.created_at ? new Date(filtered[0].created_at) : new Date()
   ).toUTCString();
 
-  const items = rows
+  const items = filtered
     .map((dua) => {
       const channel = dua.channel_id
         ? categoryById.get(dua.channel_id)

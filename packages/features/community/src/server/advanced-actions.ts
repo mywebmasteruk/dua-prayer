@@ -13,6 +13,13 @@ import {
   normalizeChannelHandle,
 } from '../channel-handle';
 import {
+  parseRssSettings,
+  RSS_DEFAULTS,
+  RSS_SETTING_KEY_LIST,
+  RSS_SETTING_KEYS,
+  type RssSettings,
+} from '../rss-settings';
+import {
   SITE_COPY_DEFAULTS,
   SITE_COPY_SETTING_KEYS,
   type SiteCopyKey,
@@ -336,18 +343,20 @@ export const updateSiteCopyAction = authActionClient
     return { success: true as const };
   });
 
-export async function getRssSettings() {
-  const client = getSupabaseServerClient();
-  const api = createCommunityApi(client);
-  const [enabled, itemCount] = await Promise.all([
-    api.getSetting('rss.enabled'),
-    api.getSetting('rss.item_count'),
-  ]);
+export async function getRssSettings(): Promise<RssSettings> {
+  try {
+    const admin = getSupabaseServerAdminClient();
+    const { data, error } = await admin
+      .from('site_settings')
+      .select('key, value')
+      .in('key', [...RSS_SETTING_KEY_LIST]);
 
-  return {
-    enabled: enabled === 'true',
-    itemCount: Number.parseInt(itemCount ?? '25', 10) || 25,
-  };
+    if (error) return { ...RSS_DEFAULTS };
+
+    return parseRssSettings(data ?? []);
+  } catch {
+    return { ...RSS_DEFAULTS };
+  }
 }
 
 export const updateRssSettingsAction = authActionClient
@@ -355,21 +364,49 @@ export const updateRssSettingsAction = authActionClient
     z.object({
       enabled: z.boolean(),
       itemCount: z.number().int().min(5).max(50),
+      includeChannelPosts: z.boolean(),
+      includeFreeformDuas: z.boolean(),
+      onlyVerifiedChannels: z.boolean(),
+      excludedChannelIds: z.array(z.number().int().positive()),
     }),
   )
   .action(async ({ parsedInput }) => {
     await requireSuperAdmin();
     const admin = getSupabaseServerAdminClient();
+    const excluded = [...new Set(parsedInput.excludedChannelIds)].sort(
+      (a, b) => a - b,
+    );
+    const now = new Date().toISOString();
     const { error } = await admin.from('site_settings').upsert([
       {
-        key: 'rss.enabled',
+        key: RSS_SETTING_KEYS.enabled,
         value: parsedInput.enabled ? 'true' : 'false',
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       },
       {
-        key: 'rss.item_count',
+        key: RSS_SETTING_KEYS.itemCount,
         value: String(parsedInput.itemCount),
-        updated_at: new Date().toISOString(),
+        updated_at: now,
+      },
+      {
+        key: RSS_SETTING_KEYS.includeChannelPosts,
+        value: parsedInput.includeChannelPosts ? 'true' : 'false',
+        updated_at: now,
+      },
+      {
+        key: RSS_SETTING_KEYS.includeFreeformDuas,
+        value: parsedInput.includeFreeformDuas ? 'true' : 'false',
+        updated_at: now,
+      },
+      {
+        key: RSS_SETTING_KEYS.onlyVerifiedChannels,
+        value: parsedInput.onlyVerifiedChannels ? 'true' : 'false',
+        updated_at: now,
+      },
+      {
+        key: RSS_SETTING_KEYS.excludedChannelIds,
+        value: JSON.stringify(excluded),
+        updated_at: now,
       },
     ]);
 
@@ -377,6 +414,7 @@ export const updateRssSettingsAction = authActionClient
 
     revalidatePath('/admin/settings');
     revalidatePath('/feed.xml');
+    revalidatePath('/feed-tags.xml');
 
     return { success: true as const };
   });

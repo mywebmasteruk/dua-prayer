@@ -27,6 +27,7 @@ Replace the custom SaaS foundation with **Makerkit Pro**, while keeping DuaPraye
 | Site-copy CMS (`/admin/copy`) | Done (composer + empty states) |
 | RSS feed (`/feed.xml` + `/admin/settings`) | Done |
 | Rich RSS (`/feed-tags.xml`, topic/hashtag/lang categories) | Done |
+| RSS source filters (channels/freeform/verified/exclude) | Done |
 | AI moderation (local + optional OpenAI-compatible) | Done (`/admin/settings`) |
 | Volunteer apply + admin list (`/volunteer`, `/admin/volunteers`) | Done (MVP; no tiers/RBAC) |
 | Donate checkout (`/donate`, `/api/donate/checkout`) | Done |
@@ -42,7 +43,7 @@ Replace the custom SaaS foundation with **Makerkit Pro**, while keeping DuaPraye
 | Onboarding gate / topic prefs | Deferred |
 | Topic/trending leaderboard rail | Deferred |
 | Dua bots + cron | Deferred (large; remains in `legacy/dua-prayer`) |
-| Full RSS channel include/exclude admin filters | Deferred |
+| RSS title/author/copyright/TTL CMS fields | Deferred |
 | Full site-copy AR groups / footer CMS | Deferred |
 | Volunteer tiers / suspend | Deferred |
 
@@ -69,7 +70,7 @@ Optional donate: set `STRIPE_SECRET_KEY` (+ site URL).
 
 Before production cutover:
 
-1. Apply all community migrations to the production Supabase project (or migrate data), including `20260722140000_duaprayer_advanced.sql`.
+1. Apply all community migrations to the production Supabase project (or migrate data), including advanced + RSS filter migrations.
 2. Point Vercel root to monorepo `apps/web`.
 3. Set Makerkit + Stripe (+ optional captcha / AI moderation) env vars.
 4. Verify feed/share/ameen/channels/apply/volunteer/donate/admin/RSS on a preview deploy.

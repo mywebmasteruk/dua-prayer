@@ -1,5 +1,6 @@
 import { AdminRssSettings } from '@kit/community/components';
 import { createCommunityApi } from '@kit/community/api';
+import { getChannels } from '@kit/community/server/actions';
 import { getRssSettings } from '@kit/community/server/advanced-actions';
 import { AdminGuard } from '@kit/admin/components/admin-guard';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
@@ -10,9 +11,10 @@ import { AiModerationSettingsForm } from './_components/ai-moderation-settings-f
 async function AdminSettingsPage() {
   const client = getSupabaseServerClient();
   const api = createCommunityApi(client);
-  const [rss, ai] = await Promise.all([
+  const [rss, ai, channels] = await Promise.all([
     getRssSettings(),
     api.getAiModerationSettings(),
+    getChannels(),
   ]);
 
   return (
@@ -23,7 +25,7 @@ async function AdminSettingsPage() {
       />
       <section className="space-y-3">
         <h2 className="font-medium">RSS</h2>
-        <AdminRssSettings enabled={rss.enabled} itemCount={rss.itemCount} />
+        <AdminRssSettings settings={rss} channels={channels} />
       </section>
       <section className="space-y-3">
         <h2 className="font-medium">AI moderation</h2>
