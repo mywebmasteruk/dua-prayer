@@ -1,8 +1,15 @@
 import { getTranslations } from 'next-intl/server';
 
 import { PersonalAccountSettingsContainer } from '@kit/accounts/personal-account-settings';
-import { FeedLanguagePreferences } from '@kit/community/components';
-import { getMyFeedLanguages } from '@kit/community/server/actions';
+import {
+  FeedLanguagePreferences,
+  FeedTopicPreferences,
+} from '@kit/community/components';
+import {
+  getCategories,
+  getMyFeedLanguages,
+  getMyFeedTopics,
+} from '@kit/community/server/actions';
 import {
   Card,
   CardContent,
@@ -52,7 +59,11 @@ export const generateMetadata = async () => {
 
 async function PersonalAccountSettingsPage() {
   const user = await requireUserInServerComponent();
-  const feedLanguages = await getMyFeedLanguages();
+  const [feedLanguages, feedTopics, topics] = await Promise.all([
+    getMyFeedLanguages(),
+    getMyFeedTopics(),
+    getCategories(),
+  ]);
 
   return (
     <div className={'flex w-full flex-1 flex-col space-y-4 lg:max-w-2xl'}>
@@ -62,11 +73,15 @@ async function PersonalAccountSettingsPage() {
         <CardHeader>
           <CardTitle>Community feed</CardTitle>
           <CardDescription>
-            Choose which languages appear in your DuaPrayer feed.
+            Choose which languages and topics appear in your DuaPrayer feed.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-8">
           <FeedLanguagePreferences initialLanguages={feedLanguages} />
+          <FeedTopicPreferences
+            initialTopics={feedTopics}
+            topics={topics}
+          />
         </CardContent>
       </Card>
 

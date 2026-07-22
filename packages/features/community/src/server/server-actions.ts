@@ -9,6 +9,7 @@ import * as z from 'zod';
 
 import { authActionClient, publicActionClient } from '@kit/next/safe-action';
 import { getLogger } from '@kit/shared/logger';
+import type { Json } from '@kit/supabase/database';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
@@ -16,7 +17,9 @@ import { evaluateDuaModeration } from '../ai-moderation';
 import { detectLanguage } from '../detect-language';
 import {
   parseFeedLanguages,
+  parseFeedTopics,
   readFeedLanguagesFromPublicData,
+  readFeedTopicsFromPublicData,
 } from '../feed-languages';
 import {
   shouldAllowPublicDuaSubmission,
@@ -89,9 +92,15 @@ export async function getFeedDuas(
 
   let followedChannelIds: number[] | undefined;
   let languages: string[] | undefined;
+  let topicIds: number[] | undefined;
 
   if (user) {
-    languages = await api.getFeedLanguages(user.id);
+    const [feedLanguages, feedTopics] = await Promise.all([
+      api.getFeedLanguages(user.id),
+      api.getFeedTopics(user.id),
+    ]);
+    languages = feedLanguages;
+    topicIds = feedTopics;
   }
 
   if (options.followingOnly) {
@@ -111,9 +120,45 @@ export async function getFeedDuas(
     followedChannelIds,
     languages:
       languages && languages.length > 0 ? languages : undefined,
+    topicIds: topicIds && topicIds.length > 0 ? topicIds : undefined,
   });
 
   return { duas, total, pageSize: api.pageSize };
+}
+
+async function updatePersonalPublicData(
+  userId: string,
+  patch: Record<string, string[] | number[]>,
+) {
+  const client = getSupabaseServerClient();
+  const { data: account, error: loadError } = await client
+    .from('accounts')
+    .select('public_data')
+    .eq('id', userId)
+    .eq('is_personal_account', true)
+    .maybeSingle();
+
+  if (loadError) throw new Error(loadError.message);
+
+  const current =
+    account?.public_data &&
+    typeof account.public_data === 'object' &&
+    !Array.isArray(account.public_data)
+      ? { ...(account.public_data as Record<string, unknown>) }
+      : {};
+
+  const { error } = await client
+    .from('accounts')
+    .update({
+      public_data: {
+        ...current,
+        ...patch,
+      } as Json,
+    })
+    .eq('id', userId)
+    .eq('is_personal_account', true);
+
+  if (error) throw new Error(error.message);
 }
 
 export async function getMyFeedLanguages() {
@@ -127,6 +172,17 @@ export async function getMyFeedLanguages() {
   return createCommunityApi(client).getFeedLanguages(user.id);
 }
 
+export async function getMyFeedTopics() {
+  const client = getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+
+  if (!user) return [];
+
+  return createCommunityApi(client).getFeedTopics(user.id);
+}
+
 export const updateMyFeedLanguagesAction = authActionClient
   .inputSchema(
     z.object({
@@ -135,33 +191,10 @@ export const updateMyFeedLanguagesAction = authActionClient
   )
   .action(async ({ parsedInput, ctx: { user } }) => {
     const languages = parseFeedLanguages(parsedInput.languages);
-    const client = getSupabaseServerClient();
-    const { data: account, error: loadError } = await client
-      .from('accounts')
-      .select('public_data')
-      .eq('id', user.id)
-      .eq('is_personal_account', true)
-      .maybeSingle();
 
-    if (loadError) throw new Error(loadError.message);
-
-    const current =
-      account?.public_data && typeof account.public_data === 'object'
-        ? (account.public_data as Record<string, unknown>)
-        : {};
-
-    const { error } = await client
-      .from('accounts')
-      .update({
-        public_data: {
-          ...current,
-          feed_languages: languages,
-        },
-      })
-      .eq('id', user.id)
-      .eq('is_personal_account', true);
-
-    if (error) throw new Error(error.message);
+    await updatePersonalPublicData(user.id, {
+      feed_languages: languages,
+    });
 
     revalidatePath('/');
     revalidatePath('/channels');
@@ -171,6 +204,37 @@ export const updateMyFeedLanguagesAction = authActionClient
       success: true as const,
       languages: readFeedLanguagesFromPublicData({
         feed_languages: languages,
+      }),
+    };
+  });
+
+export const updateMyFeedTopicsAction = authActionClient
+  .inputSchema(
+    z.object({
+      topics: z.array(z.number().int().positive()),
+    }),
+  )
+  .action(async ({ parsedInput, ctx: { user } }) => {
+    const client = getSupabaseServerClient();
+    const api = createCommunityApi(client);
+    const categories = await api.listCategories();
+    const allowed = new Set(categories.map((category) => category.id));
+    const topics = parseFeedTopics(parsedInput.topics).filter((id) =>
+      allowed.has(id),
+    );
+
+    await updatePersonalPublicData(user.id, {
+      feed_topics: topics,
+    });
+
+    revalidatePath('/');
+    revalidatePath('/channels');
+    revalidatePath('/home/settings');
+
+    return {
+      success: true as const,
+      topics: readFeedTopicsFromPublicData({
+        feed_topics: topics,
       }),
     };
   });

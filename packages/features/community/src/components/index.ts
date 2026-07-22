@@ -9,4 +9,5 @@ export * from './community-feed';
 export * from './dua-form';
 export * from './dua-list';
 export * from './feed-language-preferences';
+export * from './feed-topic-preferences';
 export * from './volunteer-apply-form';
