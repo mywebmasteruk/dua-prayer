@@ -10,6 +10,12 @@ DuaPrayer is a **Makerkit Pro pnpm monorepo**. The web app lives in `apps/web`.
 Production stays on the legacy app until all of these succeed:
 
 1. **Supabase migrations** (production project `itcoxbkhcwlsjpcwawyl`):
+
+   Until Makerkit base tables exist, `/api/healthcheck` returns `database:false` and the home feed shows load errors.
+
+   **CI:** add Actions secrets `SUPABASE_ACCESS_TOKEN` + `SUPABASE_DB_PASSWORD`, then run workflow **Cutover Supabase Production**.
+
+   **Local:**
    ```bash
    SUPABASE_PROJECT_REF=itcoxbkhcwlsjpcwawyl ./scripts/cutover-db.sh
    ```

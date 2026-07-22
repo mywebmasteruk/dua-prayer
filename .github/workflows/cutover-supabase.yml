@@ -1,0 +1,68 @@
+# One-shot / on-demand: apply Makerkit + DuaPrayer migrations to production Supabase.
+#
+# Secrets (repo → Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN   https://supabase.com/dashboard/account/tokens
+#   SUPABASE_DB_PASSWORD    Database password for project itcoxbkhcwlsjpcwawyl
+#
+# Usage: Actions → "Cutover Supabase Production" → Run workflow
+
+name: Cutover Supabase Production
+
+on:
+  workflow_dispatch:
+
+env:
+  SUPABASE_PROJECT_REF: itcoxbkhcwlsjpcwawyl
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check secrets
+        id: creds
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          missing=0
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN is not set"
+            missing=1
+          fi
+          if [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            echo "::error::SUPABASE_DB_PASSWORD is not set"
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            echo "Add both secrets, then re-run this workflow."
+            echo "Production app is live but /api/healthcheck reports database:false until Makerkit schema exists."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: corepack enable && pnpm install --filter web...
+
+      - name: Link and push migrations
+        working-directory: apps/web
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          pnpm exec supabase link \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --password "$SUPABASE_DB_PASSWORD"
+          pnpm exec supabase db push --include-all
+          echo "Migrations pushed. Verify https://www.duaprayer.com/api/healthcheck → database:true"
