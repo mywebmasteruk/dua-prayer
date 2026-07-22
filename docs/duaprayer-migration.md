@@ -76,9 +76,32 @@ Optional donate: set `STRIPE_SECRET_KEY` (+ site URL).
 
 Optional bots cron: set `CRON_SECRET` or `BOT_RUNNER_SECRET`, call `/api/cron/dua-bots` with `Authorization: Bearer <secret>`.
 
-## Deploy / architecture note
+## Architecture direction
 
-**Public www frontend = `legacy/dua-prayer/`** (original consumer UI).  
-**Makerkit (`apps/web`) = backoffice foundation only** — do not point production Root Directory at `apps/web`.
+**Use Makerkit as the foundation; rebuild the public frontend to match the old DuaPrayer design.**
 
-See root `DEPLOY.md`. Makerkit DB cutover / `apps/web` deploy is a separate, explicit backoffice project — not a replacement for the public site.
+| Layer | Role |
+|-------|------|
+| Makerkit (`apps/web`, `packages/*`) | Auth, accounts, billing, admin, notifications, and the **target** consumer app |
+| Legacy (`legacy/dua-prayer/`) | Preserved original UI — **live www until cutover**; reference for visual/UX parity |
+| `@kit/community` | Product features (feed, channels, bookmarks, bots, …) |
+
+### Target consumer UI (in progress)
+
+Rebuild the legacy 3-column shell on Makerkit marketing routes:
+
+- Left: brand + primary nav + account dock (`CommunitySidebar`)
+- Center: composer + Latest/Following stream (`CommunityFeed` `variant="shell"`)
+- Right: search, trending, channel CTA, platform activity (`CommunityRightRail`)
+- Mobile: top brand bar + bottom nav
+- Theme: DuaPrayer green primary (not Makerkit default black/purple)
+
+Auth entry points use Makerkit routes (`/auth/sign-in`, `/home`, `/home/settings`), not the legacy `/auth` modal.
+
+### Production (interim vs target)
+
+- **Live www today:** Root Directory = `legacy/dua-prayer` (stable original UI).
+- **Do not** ship unmodified Makerkit marketing chrome as www.
+- **Cutover:** when UI parity + Makerkit DB are ready, point Root Directory at `apps/web`.
+
+See root `DEPLOY.md`.

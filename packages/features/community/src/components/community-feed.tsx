@@ -12,6 +12,7 @@ import {
 
 import { Button } from '@kit/ui/button';
 import { Input } from '@kit/ui/input';
+import { cn } from '@kit/ui/utils';
 
 import { matchesHashtag, normalizeHashtag } from '../hashtags';
 import type { PostingMode } from '../posting-settings';
@@ -31,6 +32,8 @@ interface CommunityFeedProps {
   channelId?: number | null;
   showFollowingTab?: boolean;
   showLanguagePrefsLink?: boolean;
+  /** Match the legacy 3-column home: no marketing header / inline trending. */
+  variant?: 'default' | 'shell';
 }
 
 function matchesSearch(dua: Dua, query: string) {
@@ -55,16 +58,23 @@ function CommunityFeedInner({
   channelId = null,
   showFollowingTab = true,
   showLanguagePrefsLink = false,
+  variant = 'default',
 }: CommunityFeedProps) {
+  const isShell = variant === 'shell';
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeTag = normalizeHashtag(searchParams.get('tag') ?? '');
+  const queryFromUrl = searchParams.get('q') ?? '';
   const [tab, setTab] = useState<'latest' | 'following'>('latest');
   const [duas, setDuas] = useState(initialDuas);
   const [loadedTotal, setLoadedTotal] = useState(total);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(queryFromUrl);
   const deferredSearch = useDeferredValue(search);
+
+  useEffect(() => {
+    setSearch(queryFromUrl);
+  }, [queryFromUrl]);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -122,8 +132,14 @@ function CommunityFeedInner({
   const filteredEmpty = Boolean(activeTag || deferredSearch.trim());
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
-      {!channelId ? (
+    <div
+      className={
+        isShell
+          ? 'flex w-full flex-col'
+          : 'mx-auto flex w-full max-w-2xl flex-col gap-8'
+      }
+    >
+      {!channelId && !isShell ? (
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight">DuaPrayer</h1>
           <p className="text-muted-foreground text-sm">
@@ -143,21 +159,44 @@ function CommunityFeedInner({
         </header>
       ) : null}
 
-      <DuaForm
-        categories={categories}
-        channelId={channelId}
-        postingMode={postingMode}
-        copy={copy}
-        onCreated={() => reload(tab, 0)}
-      />
+      <div className={isShell ? 'border-b border-border/70 px-4 py-4' : undefined}>
+        <DuaForm
+          categories={categories}
+          channelId={channelId}
+          postingMode={postingMode}
+          copy={copy}
+          onCreated={() => reload(tab, 0)}
+        />
+      </div>
 
-      <section className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-2">
+      <section className={isShell ? 'space-y-4 px-4 py-4' : 'space-y-4'}>
+        <div
+          className={
+            isShell
+              ? 'flex items-stretch border-b border-border/70'
+              : 'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'
+          }
+        >
+          <div className={isShell ? 'flex flex-1' : 'flex gap-2'}>
             <Button
               type="button"
               size="sm"
-              variant={tab === 'latest' ? 'default' : 'outline'}
+              variant={
+                isShell
+                  ? 'ghost'
+                  : tab === 'latest'
+                    ? 'default'
+                    : 'outline'
+              }
+              className={
+                isShell
+                  ? cn(
+                      'h-12 flex-1 rounded-none border-b-2 border-transparent text-sm',
+                      tab === 'latest' &&
+                        'border-primary font-bold text-primary',
+                    )
+                  : undefined
+              }
               onClick={() => {
                 setTab('latest');
                 reload('latest', 0);
@@ -169,7 +208,22 @@ function CommunityFeedInner({
               <Button
                 type="button"
                 size="sm"
-                variant={tab === 'following' ? 'default' : 'outline'}
+                variant={
+                  isShell
+                    ? 'ghost'
+                    : tab === 'following'
+                      ? 'default'
+                      : 'outline'
+                }
+                className={
+                  isShell
+                    ? cn(
+                        'h-12 flex-1 rounded-none border-b-2 border-transparent text-sm',
+                        tab === 'following' &&
+                          'border-primary font-bold text-primary',
+                      )
+                    : undefined
+                }
                 onClick={() => {
                   setTab('following');
                   reload('following', 0);
@@ -179,23 +233,29 @@ function CommunityFeedInner({
               </Button>
             ) : null}
           </div>
-          <span className="text-muted-foreground text-xs tabular-nums">
-            {loadedTotal} total
-          </span>
+          {!isShell ? (
+            <span className="text-muted-foreground text-xs tabular-nums">
+              {loadedTotal} total
+            </span>
+          ) : null}
         </div>
 
-        <Input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search loaded duas…"
-          aria-label="Search loaded duas"
-        />
+        {!isShell ? (
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search loaded duas…"
+            aria-label="Search loaded duas"
+          />
+        ) : null}
 
-        <TrendingRail
-          duas={duas}
-          categories={categories}
-          onSelectTag={setTag}
-        />
+        {!isShell ? (
+          <TrendingRail
+            duas={duas}
+            categories={categories}
+            onSelectTag={setTag}
+          />
+        ) : null}
 
         {activeTag ? (
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -212,6 +272,18 @@ function CommunityFeedInner({
               Clear tag
             </Button>
           </div>
+        ) : null}
+
+        {showLanguagePrefsLink && isShell ? (
+          <p className="text-muted-foreground text-xs">
+            Prefer certain languages?{' '}
+            <Link
+              href="/home/settings"
+              className="text-foreground font-medium underline-offset-2 hover:underline"
+            >
+              Update feed languages
+            </Link>
+          </p>
         ) : null}
 
         <DuaList
