@@ -18,12 +18,21 @@ import { Textarea } from '@kit/ui/textarea';
 
 import type { PostingMode } from '../posting-settings';
 import { createDuaAction } from '../server/server-actions';
+import type { SiteCopy } from '../site-copy';
 import type { Category } from '../types';
 
 interface DuaFormProps {
   categories: Category[];
   channelId?: number | null;
   postingMode?: PostingMode;
+  copy?: Pick<
+    SiteCopy,
+    | 'composerTitleEn'
+    | 'composerDescriptionEn'
+    | 'composerPlaceholderEn'
+    | 'composerSubmitEn'
+    | 'composerSubmittingEn'
+  >;
   onCreated?: () => void;
 }
 
@@ -31,6 +40,7 @@ export function DuaForm({
   categories,
   channelId = null,
   postingMode = 'public',
+  copy,
   onCreated,
 }: DuaFormProps) {
   const [text, setText] = useState('');
@@ -103,12 +113,21 @@ export function DuaForm({
       />
 
       <div className="space-y-2">
-        <Label htmlFor="dua-text">Share a dua</Label>
+        <Label htmlFor="dua-text">
+          {copy?.composerTitleEn ?? 'Share a dua'}
+        </Label>
+        {copy?.composerDescriptionEn ? (
+          <p className="text-muted-foreground text-xs">
+            {copy.composerDescriptionEn}
+          </p>
+        ) : null}
         <Textarea
           id="dua-text"
           value={text}
           onChange={(event) => setText(event.target.value)}
-          placeholder="Write your dua here..."
+          placeholder={
+            copy?.composerPlaceholderEn ?? 'Write your dua here...'
+          }
           rows={4}
           maxLength={1200}
           required
@@ -162,7 +181,9 @@ export function DuaForm({
           (Boolean(captchaSiteKey) && !captchaToken)
         }
       >
-        {isPending ? 'Sharing…' : 'Share dua'}
+        {isPending
+          ? (copy?.composerSubmittingEn ?? 'Sharing…')
+          : (copy?.composerSubmitEn ?? 'Share dua')}
       </Button>
     </form>
   );

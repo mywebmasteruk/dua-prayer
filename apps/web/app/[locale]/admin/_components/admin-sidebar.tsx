@@ -3,7 +3,15 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import { HandHeart, LayoutDashboard, Users } from 'lucide-react';
+import {
+  FileText,
+  HandHeart,
+  LayoutDashboard,
+  Radio,
+  Settings2,
+  Users,
+  UserRoundPlus,
+} from 'lucide-react';
 
 import {
   Sidebar,
@@ -20,6 +28,16 @@ import {
 import { AppLogo } from '~/components/app-logo';
 import { ProfileAccountDropdownContainer } from '~/components/personal-account-dropdown-container';
 
+const links = [
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/admin/accounts', label: 'Accounts', icon: Users },
+  { href: '/admin/duas', label: 'Duas', icon: HandHeart },
+  { href: '/admin/channels', label: 'Channels', icon: Radio },
+  { href: '/admin/volunteers', label: 'Volunteers', icon: UserRoundPlus },
+  { href: '/admin/copy', label: 'Site copy', icon: FileText },
+  { href: '/admin/settings', label: 'Settings', icon: Settings2 },
+];
+
 export function AdminSidebar() {
   const path = usePathname();
 
@@ -35,39 +53,27 @@ export function AdminSidebar() {
 
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuButton
-                isActive={path === '/admin'}
-                render={<Link className={'flex gap-2.5'} href={'/admin'} />}
-              >
-                <LayoutDashboard className={'h-4'} />
-                <span>Dashboard</span>
-              </SidebarMenuButton>
+              {links.map((link) => {
+                const active = link.exact
+                  ? path === '/admin' || path.endsWith('/admin')
+                  : path.includes(link.href);
 
-              <SidebarMenuButton
-                isActive={path.includes('/admin/accounts')}
-                render={
-                  <Link
-                    className={'flex size-full gap-2.5'}
-                    href={'/admin/accounts'}
-                  >
-                    <Users className={'h-4'} />
-                    <span>Accounts</span>
-                  </Link>
-                }
-              />
-
-              <SidebarMenuButton
-                isActive={path.includes('/admin/duas')}
-                render={
-                  <Link
-                    className={'flex size-full gap-2.5'}
-                    href={'/admin/duas'}
-                  >
-                    <HandHeart className={'h-4'} />
-                    <span>Duas</span>
-                  </Link>
-                }
-              />
+                return (
+                  <SidebarMenuButton
+                    key={link.href}
+                    isActive={active}
+                    render={
+                      <Link
+                        className={'flex size-full gap-2.5'}
+                        href={link.href}
+                      >
+                        <link.icon className={'h-4'} />
+                        <span>{link.label}</span>
+                      </Link>
+                    }
+                  />
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

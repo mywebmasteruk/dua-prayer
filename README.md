@@ -39,9 +39,9 @@ App: [http://localhost:3000](http://localhost:3000)
 |------|---------|
 | `apps/web` | Main Next.js app |
 | `apps/web/supabase` | Makerkit + community migrations |
-| `packages/features/community` | Feed, channels, bookmarks, ameen, admin duas |
+| `packages/features/community` | Feed, channels, bookmarks, ameen, apply/volunteer, RSS, AI moderation |
 | `packages/features` | Auth, accounts, billing, admin features |
-| `legacy/dua-prayer` | Previous app (advanced leftovers: bots, RSS, volunteers) |
+| `legacy/dua-prayer` | Previous app (deferred: dua bots, rich RSS filters, full CMS) |
 
 ## Product routes
 
@@ -49,10 +49,17 @@ App: [http://localhost:3000](http://localhost:3000)
 |-------|---------|
 | `/` | Community feed + share dua |
 | `/channels` | Channel list + follow |
+| `/channels/apply` | Request a community channel |
 | `/channels/[handle]` | Channel feed |
 | `/bookmarks` | Saved duas |
+| `/volunteer` | Volunteer application |
 | `/donate` | Support / Stripe checkout |
-| `/admin/duas` | Super-admin moderation |
+| `/feed.xml` | Public RSS (when enabled in admin settings) |
+| `/admin/duas` | Super-admin dua moderation |
+| `/admin/channels` | Channel applications |
+| `/admin/volunteers` | Volunteer applications |
+| `/admin/copy` | Site copy |
+| `/admin/settings` | RSS + AI moderation |
 
 ## Production
 

@@ -12,6 +12,7 @@ import { getLogger } from '@kit/shared/logger';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
+import { evaluateDuaModeration } from '../ai-moderation';
 import {
   shouldAllowPublicDuaSubmission,
   shouldHoldSubmissionForReview,
@@ -121,6 +122,11 @@ export async function getChannelByHandle(handle: string) {
 export async function getPostingMode() {
   const client = getSupabaseServerClient();
   return createCommunityApi(client).getPostingMode();
+}
+
+export async function getSiteCopy() {
+  const client = getSupabaseServerClient();
+  return createCommunityApi(client).getSiteCopy();
 }
 
 export async function listMyFollowIds() {
@@ -287,13 +293,29 @@ export const createDuaAction = publicActionClient
       isAdmin,
     });
 
+    const moderation = await evaluateDuaModeration({
+      text: parsedInput.text,
+      settings: await api.getAiModerationSettings(),
+    });
+
+    if (moderation.severity === 'block') {
+      throw new Error(
+        'This dua could not be submitted because it appears to violate our community guidelines.',
+      );
+    }
+
+    const requiresReview =
+      holdForReview ||
+      moderation.flagged ||
+      moderation.severity === 'review';
+
     const admin = getSupabaseServerAdminClient();
     const { error } = await admin.from('duas').insert({
       text: parsedInput.text,
       category_id: validatedCategoryId,
       channel_id: validatedChannelId,
-      published: !holdForReview,
-      flagged: holdForReview,
+      published: !requiresReview,
+      flagged: requiresReview,
       user_id: user?.id ?? null,
       language: null,
     });
@@ -309,7 +331,7 @@ export const createDuaAction = publicActionClient
 
     return {
       success: true as const,
-      heldForReview: holdForReview,
+      heldForReview: requiresReview,
     };
   });
 

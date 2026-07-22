@@ -677,6 +677,7 @@ export type Database = {
           verified_at: string | null;
           reviewed_at: string | null;
           reviewed_by: string | null;
+          application: Json;
           created_at: string;
           updated_at: string;
         };
@@ -694,6 +695,7 @@ export type Database = {
           verified_at?: string | null;
           reviewed_at?: string | null;
           reviewed_by?: string | null;
+          application?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -711,6 +713,7 @@ export type Database = {
           verified_at?: string | null;
           reviewed_at?: string | null;
           reviewed_by?: string | null;
+          application?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -903,6 +906,48 @@ export type Database = {
         Update: {
           key?: string;
           value?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      volunteer_applications: {
+        Row: {
+          id: number;
+          user_id: string | null;
+          email: string;
+          name: string;
+          message: string;
+          status: string;
+          payload: Json;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: number;
+          user_id?: string | null;
+          email: string;
+          name?: string;
+          message?: string;
+          status?: string;
+          payload?: Json;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: number;
+          user_id?: string | null;
+          email?: string;
+          name?: string;
+          message?: string;
+          status?: string;
+          payload?: Json;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          created_at?: string;
           updated_at?: string;
         };
         Relationships: [];

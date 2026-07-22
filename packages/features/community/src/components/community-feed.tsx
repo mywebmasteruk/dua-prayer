@@ -7,6 +7,7 @@ import { Button } from '@kit/ui/button';
 
 import type { PostingMode } from '../posting-settings';
 import { getFeedDuas } from '../server/server-actions';
+import type { SiteCopy } from '../site-copy';
 import type { Category, Dua } from '../types';
 import { DuaForm } from './dua-form';
 import { DuaList } from './dua-list';
@@ -16,6 +17,7 @@ interface CommunityFeedProps {
   total: number;
   categories: Category[];
   postingMode: PostingMode;
+  copy: SiteCopy;
   channelId?: number | null;
   showFollowingTab?: boolean;
 }
@@ -25,6 +27,7 @@ export function CommunityFeed({
   total,
   categories,
   postingMode,
+  copy,
   channelId = null,
   showFollowingTab = true,
 }: CommunityFeedProps) {
@@ -77,6 +80,7 @@ export function CommunityFeed({
         categories={categories}
         channelId={channelId}
         postingMode={postingMode}
+        copy={copy}
         onCreated={() => reload(tab, 0)}
       />
 
@@ -116,12 +120,14 @@ export function CommunityFeed({
         <DuaList
           duas={duas}
           emptyTitle={
-            tab === 'following' ? 'No followed channels yet' : 'No duas yet'
+            tab === 'following'
+              ? copy.homeFollowingEmptyTitle
+              : copy.homeFeedEmptyTitle
           }
           emptyDescription={
             tab === 'following'
-              ? 'Follow channels to see their duas here.'
-              : 'Be the first to share a dua with the community.'
+              ? copy.homeFollowingEmptyDescription
+              : copy.homeFeedEmptyDescription
           }
         />
 

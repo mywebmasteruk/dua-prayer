@@ -1,3 +1,5 @@
+import { getSiteCopy } from '@kit/community/server/actions';
+
 import { DonateForm } from './_components/donate-form';
 
 export const generateMetadata = async () => {
@@ -13,6 +15,7 @@ async function DonatePage({
   searchParams: Promise<{ success?: string; canceled?: string }>;
 }) {
   const params = await searchParams;
+  const copy = await getSiteCopy();
   const stripeReady = Boolean(process.env.STRIPE_SECRET_KEY?.trim());
   const appUrlReady = Boolean(
     process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
@@ -22,10 +25,10 @@ async function DonatePage({
   return (
     <div className="container mx-auto max-w-xl space-y-6 py-10">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Support</h1>
-        <p className="text-muted-foreground text-sm">
-          Optional donations help keep DuaPrayer online for the community.
-        </p>
+        <h1 className="text-3xl font-semibold tracking-tight">
+          {copy.donatePageTitle}
+        </h1>
+        <p className="text-muted-foreground text-sm">{copy.donatePageIntro}</p>
       </header>
 
       {params.success ? (

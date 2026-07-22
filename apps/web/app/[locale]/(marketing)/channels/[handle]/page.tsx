@@ -6,6 +6,7 @@ import {
   getChannelByHandle,
   getFeedDuas,
   getPostingMode,
+  getSiteCopy,
 } from '@kit/community/server/actions';
 
 interface ChannelPageProps {
@@ -34,10 +35,11 @@ async function ChannelPage({ params }: ChannelPageProps) {
     notFound();
   }
 
-  const [{ duas, total }, categories, postingMode] = await Promise.all([
+  const [{ duas, total }, categories, postingMode, copy] = await Promise.all([
     getFeedDuas({ offset: 0, channelId: channel.id }),
     getCategories(),
     getPostingMode(),
+    getSiteCopy(),
   ]);
 
   return (
@@ -55,6 +57,7 @@ async function ChannelPage({ params }: ChannelPageProps) {
         total={total}
         categories={categories}
         postingMode={postingMode}
+        copy={copy}
         channelId={channel.id}
         showFollowingTab={false}
       />

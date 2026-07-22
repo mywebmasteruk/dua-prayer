@@ -7,7 +7,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@kit/supabase/database';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 
+import type { AiModerationSettings } from '../ai-moderation';
 import { normalizePostingMode, type PostingMode } from '../posting-settings';
+import { mergeSiteCopy, type SiteCopy } from '../site-copy';
 import type { Category, ChannelItem, Dua } from '../types';
 
 type Client = SupabaseClient<Database>;
@@ -285,6 +287,51 @@ class CommunityService {
     if (error) throw error;
 
     return (data ?? []).map((row) => row.channel_id);
+  }
+
+  async getSiteCopy(): Promise<SiteCopy> {
+    const { data } = await this.client
+      .from('site_settings')
+      .select('key, value')
+      .like('key', 'copy.%');
+
+    return mergeSiteCopy(data ?? []);
+  }
+
+  async getSetting(key: string): Promise<string | null> {
+    const { data } = await this.client
+      .from('site_settings')
+      .select('value')
+      .eq('key', key)
+      .maybeSingle();
+
+    return data?.value ?? null;
+  }
+
+  async getAiModerationSettings(): Promise<AiModerationSettings> {
+    const admin = getSupabaseServerAdminClient();
+    const { data } = await admin
+      .from('site_settings')
+      .select('key, value')
+      .in('key', [
+        'ai_moderation.enabled',
+        'ai_moderation.api_key',
+        'ai_moderation.model',
+        'ai_moderation.base_url',
+        'ai_moderation.timeout_ms',
+      ]);
+
+    const map = new Map((data ?? []).map((row) => [row.key, row.value]));
+
+    return {
+      enabled: map.get('ai_moderation.enabled') === 'true',
+      apiKey: map.get('ai_moderation.api_key')?.trim() || null,
+      model: map.get('ai_moderation.model')?.trim() || 'gpt-4o-mini',
+      baseUrl:
+        map.get('ai_moderation.base_url')?.trim() ||
+        'https://api.openai.com/v1',
+      timeoutMs: Number.parseInt(map.get('ai_moderation.timeout_ms') ?? '8000', 10) || 8000,
+    };
   }
 
   get pageSize() {

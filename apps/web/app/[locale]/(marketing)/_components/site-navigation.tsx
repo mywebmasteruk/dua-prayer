@@ -20,6 +20,10 @@ const links = {
     label: 'Support',
     path: '/donate',
   },
+  Volunteer: {
+    label: 'Volunteer',
+    path: '/volunteer',
+  },
   SignIn: {
     label: 'Sign in',
     path: '/auth/sign-in',
