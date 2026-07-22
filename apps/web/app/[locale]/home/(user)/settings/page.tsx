@@ -1,8 +1,15 @@
-import { use } from 'react';
-
 import { getTranslations } from 'next-intl/server';
 
 import { PersonalAccountSettingsContainer } from '@kit/accounts/personal-account-settings';
+import { FeedLanguagePreferences } from '@kit/community/components';
+import { getMyFeedLanguages } from '@kit/community/server/actions';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@kit/ui/card';
 
 import authConfig from '~/config/auth.config';
 import featureFlagsConfig from '~/config/feature-flags.config';
@@ -43,12 +50,25 @@ export const generateMetadata = async () => {
   };
 };
 
-function PersonalAccountSettingsPage() {
-  const user = use(requireUserInServerComponent());
+async function PersonalAccountSettingsPage() {
+  const user = await requireUserInServerComponent();
+  const feedLanguages = await getMyFeedLanguages();
 
   return (
-    <div className={'flex w-full flex-1 flex-col lg:max-w-2xl'}>
+    <div className={'flex w-full flex-1 flex-col space-y-4 lg:max-w-2xl'}>
       <AuthHashStatusListener />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Community feed</CardTitle>
+          <CardDescription>
+            Choose which languages appear in your DuaPrayer feed.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <FeedLanguagePreferences initialLanguages={feedLanguages} />
+        </CardContent>
+      </Card>
 
       <PersonalAccountSettingsContainer
         userId={user.id}

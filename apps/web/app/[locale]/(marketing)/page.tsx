@@ -5,6 +5,7 @@ import {
   getPostingMode,
   getSiteCopy,
 } from '@kit/community/server/actions';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
 export const generateMetadata = async () => {
   return {
@@ -15,12 +16,15 @@ export const generateMetadata = async () => {
 };
 
 async function Home() {
-  const [{ duas, total }, categories, postingMode, copy] = await Promise.all([
-    getFeedDuas({ offset: 0 }),
-    getCategories(),
-    getPostingMode(),
-    getSiteCopy(),
-  ]);
+  const client = getSupabaseServerClient();
+  const [{ duas, total }, categories, postingMode, copy, userResult] =
+    await Promise.all([
+      getFeedDuas({ offset: 0 }),
+      getCategories(),
+      getPostingMode(),
+      getSiteCopy(),
+      client.auth.getUser(),
+    ]);
 
   return (
     <div className="container py-10">
@@ -30,6 +34,7 @@ async function Home() {
         categories={categories}
         postingMode={postingMode}
         copy={copy}
+        showLanguagePrefsLink={Boolean(userResult.data.user)}
       />
     </div>
   );
