@@ -1,0 +1,202 @@
+---
+status: "published"
+title: 'Using the PostHog Analytics Provider in Next.js Supabase Turbo'
+label: 'PostHog'
+description: 'Add PostHog to your MakerKit application for product analytics, session replay, and feature flags with client-side and server-side support.'
+order: 3
+---
+
+PostHog provides product analytics, session replay, feature flags, and A/B testing in one platform. 
+
+Unlike marketing-focused tools, PostHog helps you understand how users interact with your product. 
+
+Posthog supports both client-side and server-side tracking, and can be self-hosted for full data control.
+
+## Prerequisites
+
+Before starting:
+
+- Create a PostHog account at [posthog.com](https://posthog.com)
+- Note your Project API Key (starts with `phc_`)
+- Choose your region: `eu.posthog.com` or `us.posthog.com`
+
+Find your API key in PostHog: **Project Settings > Project API Key**.
+
+## Installation
+
+Install the PostHog plugin using the MakerKit CLI:
+
+```bash
+npx @makerkit/cli@latest plugins add posthog
+```
+
+Our codemod will wire up the plugin in your project, so you don't have to do anything manually. Please review the changes with `git diff`.
+
+Add environment variables:
+
+```bash {% title=".env.local" %}
+NEXT_PUBLIC_POSTHOG_KEY=phc_your_key_here
+NEXT_PUBLIC_POSTHOG_HOST=https://eu.posthog.com
+```
+
+Use `https://us.posthog.com` if your project is in the US region.
+
+## Server-Side Configuration
+
+PostHog supports server-side analytics for tracking events in API routes and Server Actions:
+
+Use server-side tracking in your code:
+
+```typescript
+import { analytics } from '@kit/analytics/server';
+
+export async function createProject(data: ProjectData) {
+  const project = await db.projects.create(data);
+
+  await analytics.trackEvent('project.created', {
+    projectId: project.id,
+    userId: data.userId,
+  });
+
+  return project;
+}
+```
+
+## Bypassing Ad Blockers with Ingestion Rewrites
+
+Ad blockers frequently block PostHog. Use Next.js rewrites to proxy requests through your domain:
+
+### Step 1: Add the Ingestion URL
+
+```bash {% title=".env.local" %}
+NEXT_PUBLIC_POSTHOG_KEY=phc_your_key_here
+NEXT_PUBLIC_POSTHOG_HOST=https://eu.posthog.com
+NEXT_PUBLIC_POSTHOG_INGESTION_URL=http://localhost:3000/ingest
+```
+
+In production, replace `localhost:3000` with your domain.
+
+### Step 2: Configure Next.js Rewrites
+
+Add rewrites to your Next.js configuration:
+
+```javascript {% title="apps/web/next.config.mjs" %}
+/** @type {import('next').NextConfig} */
+const config = {
+  // Required for PostHog trailing slash API requests
+  skipTrailingSlashRedirect: true,
+
+  async rewrites() {
+    // Change 'eu' to 'us' if using the US region
+    return [
+      {
+        source: '/ingest/static/:path*',
+        destination: 'https://eu-assets.i.posthog.com/static/:path*',
+      },
+      {
+        source: '/ingest/:path*',
+        destination: 'https://eu.i.posthog.com/:path*',
+      },
+    ];
+  },
+};
+
+export default config;
+```
+
+### Step 3: Exclude Ingestion Endpoint from Middleware
+
+Ensure the ingestion endpoint is excluded from the middleware matcher:
+
+```typescript {% title="apps/web/proxy.ts" %}
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|images|locales|assets|ingest/*|api/*).*)',
+  ],
+};
+```
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_POSTHOG_KEY` | Yes | Your PostHog Project API Key |
+| `NEXT_PUBLIC_POSTHOG_HOST` | Yes | PostHog host (`https://eu.posthog.com` or `https://us.posthog.com`) |
+| `NEXT_PUBLIC_POSTHOG_INGESTION_URL` | No | Proxy URL to bypass ad blockers (e.g., `https://yourdomain.com/ingest`) |
+
+## Verification
+
+After configuration:
+
+1. Open your application
+2. Navigate between pages
+3. Open PostHog > Activity > Live Events
+4. Confirm page views and events appear
+
+If using ingestion rewrites, check the Network tab for requests to `/ingest` instead of `posthog.com`.
+
+## Using with Other Providers
+
+PostHog works alongside other analytics providers:
+
+```typescript {% title="packages/analytics/src/index.ts" %}
+import { createPostHogAnalyticsService } from '@kit/posthog/client';
+import { createGoogleAnalyticsService } from '@kit/google-analytics';
+
+import { createAnalyticsManager } from './analytics-manager';
+
+export const analytics = createAnalyticsManager({
+  providers: {
+    posthog: createPostHogAnalyticsService,
+    'google-analytics': createGoogleAnalyticsService,
+  },
+});
+```
+
+## PostHog Features Beyond Analytics
+
+PostHog offers additional features beyond event tracking:
+
+- **Session Replay**: Watch user sessions to debug issues
+- **Feature Flags**: Control feature rollouts
+- **A/B Testing**: Run experiments on UI variants
+- **Surveys**: Collect user feedback
+
+These features are available in the PostHog dashboard once you are capturing events.
+
+For monitoring features (error tracking), see the [PostHog Monitoring guide](/docs/next-supabase-turbo/monitoring/posthog).
+
+## Troubleshooting
+
+### Events not appearing
+
+- Verify your API key starts with `phc_`
+- Confirm the host matches your project region (EU vs US)
+- Check for ad blockers if not using ingestion rewrites
+
+### CORS errors with ingestion rewrites
+
+- Ensure `skipTrailingSlashRedirect: true` is set in next.config.mjs
+- Verify the rewrite destination matches your region
+
+### Server-side events not appearing
+
+- Ensure you import from `@kit/analytics/server`, not `@kit/analytics`
+- Server-side tracking requires the same environment variables
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Should I use the EU or US region?", "answer": "Use the EU region (eu.posthog.com) if you have European users and want GDPR-compliant data residency. The US region may have slightly lower latency for US-based users."},
+     {"question": "Can I self-host PostHog?", "answer": "Yes. PostHog can be self-hosted using Docker. Update NEXT_PUBLIC_POSTHOG_HOST to your self-hosted instance URL."},
+     {"question": "How do I enable session replay?", "answer": "Session replay is enabled by default in PostHog. Configure recording settings in PostHog > Project Settings > Session Replay."},
+     {"question": "Do ingestion rewrites work on Vercel?", "answer": "Yes. The rewrites in next.config.mjs work on Vercel and other Next.js hosting platforms."},
+     {"question": "Is PostHog GDPR compliant?", "answer": "PostHog can be GDPR compliant. Use the EU region for data residency, enable cookie-less tracking, and integrate with a consent management solution."}
+   ]
+/%}
+
+## Next Steps
+
+- [Learn about Analytics and Events](analytics-and-events) for custom event tracking
+- [Set up PostHog for monitoring](/docs/next-supabase-turbo/monitoring/posthog)
+- [Try Umami](umami-analytics-provider) for simpler, privacy-focused analytics

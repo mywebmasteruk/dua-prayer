@@ -1,0 +1,263 @@
+---
+status: "published"
+label: "Adding a Turborepo App"
+title: "Add a New Application to Your Makerkit Monorepo"
+description: "Create additional applications in your Turborepo monorepo using git subtree to maintain updates from Makerkit while building separate products."
+order: 13
+---
+
+Add new applications to your Makerkit monorepo using `git subtree` to clone the `apps/web` template while maintaining the ability to pull updates from the Makerkit repository. This is useful for building multiple products (e.g., a main app and an admin dashboard) that share the same packages and infrastructure.
+
+{% alert type="warning" title="Advanced Topic" %}
+This guide is for advanced use cases where you need multiple applications in a single monorepo. For most projects, a single `apps/web` application is sufficient. Creating a separate repository may be simpler if you don't need to share code between applications.
+{% /alert %}
+
+{% sequence title="Add a Turborepo Application" description="Create a new application from the web template" %}
+
+[Create the subtree branch](#step-1-create-the-subtree-branch)
+
+[Add the new application](#step-2-add-the-new-application)
+
+[Configure the application](#step-3-configure-the-new-application)
+
+[Keep it updated](#step-4-pulling-updates)
+
+{% /sequence %}
+
+## When to Add a New Application
+
+Add a new Turborepo application when:
+
+- **Multiple products**: You're building separate products that share authentication, billing, or UI components
+- **Admin dashboard**: You need a separate admin interface with different routing and permissions
+- **API server**: You want a dedicated API application separate from your main web app
+- **Mobile companion**: You're building a React Native or Expo app that shares business logic
+
+Keep a single application when:
+
+- You only need one web application
+- Different features can live under different routes in `apps/web`
+- Separation isn't worth the complexity
+
+## Step 1: Create the Subtree Branch
+
+First, create a branch that contains only the `apps/web` folder. This branch serves as the template for new applications.
+
+```bash
+git subtree split --prefix=apps/web --branch web-branch
+```
+
+This command:
+1. Extracts the history of `apps/web` into a new branch
+2. Creates `web-branch` containing only the `apps/web` contents
+3. Preserves commit history for that folder
+
+## Step 2: Add the New Application
+
+Create your new application by pulling from the subtree branch.
+
+For example, to create a `pdf-chat` application:
+
+```bash
+git subtree add --prefix=apps/pdf-chat origin web-branch --squash
+```
+
+This command:
+1. Creates `apps/pdf-chat` with the same structure as `apps/web`
+2. Squashes the history into a single commit (cleaner git log)
+3. Sets up tracking for future updates
+
+### Verify the Application
+
+```bash
+ls apps/pdf-chat
+```
+
+You should see the same structure as `apps/web`:
+
+```
+apps/pdf-chat/
+├── app/
+├── components/
+├── config/
+├── lib/
+├── supabase/
+├── next.config.mjs
+├── package.json
+└── ...
+```
+
+## Step 3: Configure the New Application
+
+### Update package.json
+
+Change the package name and any app-specific settings:
+
+```json {% title="apps/pdf-chat/package.json" %}
+{
+  "name": "pdf-chat",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001"
+  }
+}
+```
+
+### Update Environment Variables
+
+Create a separate `.env.local` for the new application:
+
+```bash {% title="apps/pdf-chat/.env.local" %}
+NEXT_PUBLIC_SITE_URL=http://localhost:3001
+NEXT_PUBLIC_APP_NAME="PDF Chat"
+# ... other environment variables
+```
+
+### Update Supabase Configuration (if separate)
+
+If the application needs its own database, update `apps/pdf-chat/supabase/config.toml` with unique ports and project settings.
+
+### Add Turbo Configuration
+
+Update the root `turbo.json` to include your new application:
+
+```json {% title="turbo.json" %}
+{
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**"]
+    },
+    "pdf-chat#dev": {
+      "dependsOn": ["^build"],
+      "persistent": true
+    }
+  }
+}
+```
+
+### Run the New Application
+
+```bash
+# Run just the new app
+pnpm --filter pdf-chat dev
+
+# Run all apps in parallel
+pnpm dev
+```
+
+## Step 4: Pulling Updates
+
+When Makerkit releases updates, follow these steps to sync them to your new application.
+
+### Pull Upstream Changes
+
+First, pull the latest changes from Makerkit:
+
+```bash
+git pull upstream main
+```
+
+### Update the Subtree Branch
+
+Re-extract the `apps/web` folder into the subtree branch:
+
+```bash
+git subtree split --prefix=apps/web --branch web-branch
+```
+
+### Push the Branch
+
+Push the updated branch to your repository:
+
+```bash
+git push origin web-branch
+```
+
+### Pull Into Your Application
+
+Finally, pull the updates into your new application:
+
+```bash
+git subtree pull --prefix=apps/pdf-chat origin web-branch --squash
+```
+
+### Resolve Conflicts
+
+If you've modified files that were also changed upstream, you'll need to resolve conflicts:
+
+```bash
+# After conflicts appear
+git status  # See conflicted files
+# Edit files to resolve conflicts
+git add .
+git commit -m "Merge upstream changes into pdf-chat"
+```
+
+## Update Workflow Summary
+
+```bash
+# 1. Get latest from Makerkit
+git pull upstream main
+
+# 2. Update the template branch
+git subtree split --prefix=apps/web --branch web-branch
+git push origin web-branch
+
+# 3. Pull into each additional app
+git subtree pull --prefix=apps/pdf-chat origin web-branch --squash
+git subtree pull --prefix=apps/admin origin web-branch --squash
+```
+
+## Troubleshooting
+
+**"fatal: refusing to merge unrelated histories"**
+
+Add the `--squash` flag to ignore history differences:
+
+```bash
+git subtree pull --prefix=apps/pdf-chat origin web-branch --squash
+```
+
+**Subtree branch doesn't exist on remote**
+
+Push it first:
+
+```bash
+git push origin web-branch
+```
+
+**Application won't start (port conflict)**
+
+Update the port in `package.json`:
+
+```json
+{
+  "scripts": {
+    "dev": "next dev --port 3001"
+  }
+}
+```
+
+**Shared packages not resolving**
+
+Ensure the new app's `package.json` includes the workspace dependencies:
+
+```json
+{
+  "dependencies": {
+    "@kit/ui": "workspace:*",
+    "@kit/supabase": "workspace:*"
+  }
+}
+```
+
+Then run `pnpm install` from the repository root.
+
+## Related Resources
+
+- [Adding Turborepo Packages](/docs/next-supabase-turbo/development/adding-turborepo-package) for creating shared packages
+- [Technical Details](/docs/next-supabase-turbo/installation/technical-details) for monorepo structure
+- [Clone Repository](/docs/next-supabase-turbo/installation/clone-repository) for initial setup

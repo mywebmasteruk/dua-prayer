@@ -1,0 +1,221 @@
+---
+status: "published"
+label: "Legal Pages"
+title: "Legal Pages in the Next.js Supabase Turbo Starter Kit"
+description: "Create and customize legal pages including Terms of Service, Privacy Policy, and Cookie Policy in your Makerkit application."
+order: 8
+---
+
+Legal pages in Makerkit are TSX files located at `apps/web/app/[locale]/(marketing)/(legal)/`. The kit includes placeholder files for Terms of Service, Privacy Policy, and Cookie Policy that you must customize with your own content.
+
+{% sequence title="Legal Pages Setup" description="Configure your SaaS application's legal pages" %}
+
+[Understand the included pages](#included-legal-pages)
+
+[Customize the content](#customizing-legal-pages)
+
+[Add new legal pages](#adding-new-legal-pages)
+
+[Use a CMS for legal content](#using-a-cms-for-legal-pages)
+
+{% /sequence %}
+
+## Included Legal Pages
+
+Makerkit includes three legal page templates:
+
+| Page | File Location | URL |
+|------|---------------|-----|
+| Terms of Service | `apps/web/app/[locale]/(marketing)/(legal)/terms-of-service/page.tsx` | `/terms-of-service` |
+| Privacy Policy | `apps/web/app/[locale]/(marketing)/(legal)/privacy-policy/page.tsx` | `/privacy-policy` |
+| Cookie Policy | `apps/web/app/[locale]/(marketing)/(legal)/cookie-policy/page.tsx` | `/cookie-policy` |
+
+{% alert type="error" title="Required: Add Your Own Content" %}
+The included legal pages contain placeholder text only. You must replace this content with legally compliant policies for your jurisdiction and business model. Consult a lawyer for proper legal documentation.
+{% /alert %}
+
+## Customizing Legal Pages
+
+### Basic MDX Structure
+
+Each legal page uses MDX format with frontmatter:
+
+```mdx {% title="apps/web/app/[locale]/(marketing)/(legal)/privacy-policy/page.tsx" %}
+---
+title: "Privacy Policy"
+description: "How we collect, use, and protect your personal information"
+---
+
+# Privacy Policy
+
+**Last updated: January 2026**
+
+## Information We Collect
+
+We collect information you provide directly...
+
+## How We Use Your Information
+
+We use the information we collect to...
+
+## Contact Us
+
+If you have questions about this Privacy Policy, contact us at...
+```
+
+### Adding Last Updated Dates
+
+Include a visible "Last updated" date in your legal pages. This helps with compliance and user trust:
+
+```mdx
+**Last updated: January 15, 2026**
+
+*This policy is effective as of the date above and replaces any prior versions.*
+```
+
+### Structuring Long Documents
+
+For complex legal documents, use clear heading hierarchy:
+
+```mdx
+# Privacy Policy
+
+## 1. Information Collection
+### 1.1 Information You Provide
+### 1.2 Information Collected Automatically
+### 1.3 Information from Third Parties
+
+## 2. Use of Information
+### 2.1 Service Delivery
+### 2.2 Communications
+### 2.3 Analytics and Improvements
+
+## 3. Data Sharing
+...
+```
+
+## Adding New Legal Pages
+
+Create additional legal pages in the `(legal)` directory:
+
+```bash
+# Create a new legal page
+mkdir -p apps/web/app/\[locale\]/\(marketing\)/\(legal\)/acceptable-use
+touch apps/web/app/\[locale\]/\(marketing\)/\(legal\)/acceptable-use/page.tsx
+```
+
+Add the content:
+
+```mdx {% title="apps/web/app/[locale]/(marketing)/(legal)/acceptable-use/page.tsx" %}
+---
+title: "Acceptable Use Policy"
+description: "Guidelines for using our service responsibly"
+---
+
+# Acceptable Use Policy
+
+**Last updated: January 2026**
+
+This Acceptable Use Policy outlines prohibited activities...
+```
+
+### Update Navigation
+
+Add links to new legal pages in your footer or navigation. The footer typically lives in:
+
+```
+apps/web/app/[locale]/(marketing)/_components/site-footer.tsx
+```
+
+### Update Sitemap
+
+Add new legal pages to your sitemap in `apps/web/app/sitemap.xml/route.ts`:
+
+```typescript
+function getPaths() {
+  const paths = [
+    // ... existing paths
+    '/acceptable-use',  // Add new legal page
+  ];
+
+  return paths.map((path) => ({
+    loc: new URL(path, appConfig.url).href,
+    lastmod: new Date().toISOString(),
+  }));
+}
+```
+
+## Using a CMS for Legal Pages
+
+For organizations that need non-developers to update legal content, use the CMS integration:
+
+```tsx {% title="apps/web/app/(marketing)/(legal)/privacy-policy/page.tsx" %}
+import { createCmsClient } from '@kit/cms';
+
+export default async function PrivacyPolicyPage() {
+  const cms = await createCmsClient();
+
+  const { title, content } = await cms.getContentBySlug({
+    slug: 'privacy-policy',
+    collection: 'pages',
+  });
+
+  return (
+    <article className="prose prose-gray max-w-3xl mx-auto py-12">
+      <h1>{title}</h1>
+      <div dangerouslySetInnerHTML={{ __html: content }} />
+    </article>
+  );
+}
+```
+
+### CMS Setup for Legal Pages
+
+1. Create a `pages` collection in your CMS (Keystatic, WordPress, or custom)
+2. Add entries for each legal page with slugs matching the URL paths
+3. Use the CMS admin interface to edit content without code changes
+
+See the [CMS documentation](/docs/next-supabase-turbo/content/cms) for detailed setup instructions.
+
+## Legal Page Best Practices
+
+### What to Include
+
+**Privacy Policy** should cover:
+- What data you collect (personal info, usage data, cookies)
+- How you use the data
+- Third-party services (analytics, payment processors)
+- User rights (access, deletion, portability)
+- Contact information
+
+**Terms of Service** should cover:
+- Service description and limitations
+- User responsibilities and prohibited uses
+- Payment terms (if applicable)
+- Intellectual property rights
+- Limitation of liability
+- Termination conditions
+
+**Cookie Policy** should cover:
+- Types of cookies used (essential, analytics, marketing)
+- Purpose of each cookie type
+- How to manage cookie preferences
+- Third-party cookies
+
+### Compliance Considerations
+
+| Regulation | Requirements |
+|------------|--------------|
+| GDPR (EU) | Privacy policy, cookie consent, data subject rights |
+| CCPA (California) | Privacy policy with specific disclosures, opt-out rights |
+| LGPD (Brazil) | Privacy policy, consent mechanisms, data protection officer |
+
+{% alert type="warning" title="Not Legal Advice" %}
+This documentation provides technical guidance only. Consult qualified legal counsel to ensure your policies comply with applicable laws and regulations.
+{% /alert %}
+
+## Related Resources
+
+- [CMS Configuration](/docs/next-supabase-turbo/content/cms) for managing legal content through a CMS
+- [Marketing Pages](/docs/next-supabase-turbo/development/marketing-pages) for customizing other marketing content
+- [SEO Configuration](/docs/next-supabase-turbo/development/seo) for proper indexing of legal pages

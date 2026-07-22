@@ -1,0 +1,342 @@
+---
+status: "published"
+title: "Deploy Next.js Supabase to Cloudflare"
+label: "Deploy to Cloudflare"
+order: 6
+description: "Deploy your MakerKit Next.js Supabase application to Cloudflare Pages using the Edge runtime. Covers configuration changes, OpenNext setup, and deployment."
+---
+
+Deploy your MakerKit Next.js 16 application to Cloudflare Pages using OpenNext for Edge runtime deployment. Cloudflare offers zero cold starts, global distribution, and cost-effective pricing for high-traffic applications.
+
+## Prerequisites
+
+Before deploying to Cloudflare:
+
+1. **Cloudflare Workers Paid Plan**: Required due to bundle size limits on the free tier (starts at $5/month)
+2. [Set up Supabase](/docs/next-supabase-turbo/going-to-production/supabase) project
+3. [Generate environment variables](/docs/next-supabase-turbo/going-to-production/production-environment-variables)
+
+---
+
+## Edge Runtime Considerations
+
+Cloudflare uses the Edge runtime, which differs from Node.js. Before proceeding, understand these limitations:
+
+### What Works Differently
+
+| Feature | Node.js | Edge Runtime | Solution |
+|---------|---------|--------------|----------|
+| File system | Full access | No access | Use remote CMS |
+| Nodemailer | Supported | Not supported | Use Resend or HTTP mailer |
+| Pino logger | Supported | Not supported | Use console logger |
+| Stripe SDK | Default config | Needs fetch client | Add `httpClient` option |
+| Database latency | Low | Potentially higher | Choose region wisely |
+
+### Benefits
+
+- Zero cold starts
+- Global edge deployment (runs close to users)
+- Lower costs for high-traffic applications
+- Excellent caching capabilities
+
+---
+
+## Step 1: Run the Cloudflare Generator
+
+MakerKit provides a generator that scaffolds all required Cloudflare configuration:
+
+```bash
+pnpm run turbo gen cloudflare
+```
+
+This command:
+
+1. Creates `wrangler.jsonc` configuration file
+2. Creates `open-next.config.ts` for OpenNext
+3. Creates `.dev.vars` for local development variables
+4. Adds OpenNext and Wrangler dependencies
+5. Updates `next.config.mjs` with OpenNext initialization
+6. Adds deployment scripts to `package.json`
+
+---
+
+## Step 2: Switch to Console Logger
+
+Pino logger uses Node.js APIs unavailable in Edge runtime. Switch to console logging:
+
+```bash
+LOGGER=console
+```
+
+Add this to both your `.env` file and Cloudflare environment variables.
+
+---
+
+## Step 3: Update Stripe Client
+
+The default Stripe SDK configuration uses Node.js HTTP which doesn't work in Edge runtime. You need to modify the Stripe client to use the fetch-based HTTP client instead.
+
+Open `packages/billing/stripe/src/services/stripe-sdk.ts` and add the `httpClient` option to the Stripe constructor:
+
+```typescript
+return new Stripe(stripeServerEnv.secretKey, {
+  apiVersion: STRIPE_API_VERSION,
+  httpClient: Stripe.createFetchHttpClient(), // ADD THIS LINE
+});
+```
+
+{% alert type="warning" title="Manual change required" %}
+This modification is not included in MakerKit by default. You must add the `httpClient: Stripe.createFetchHttpClient()` line yourself when deploying to Edge runtime (Cloudflare or Vercel Edge Functions).
+{% /alert %}
+
+The `httpClient` option tells Stripe to use the Fetch API instead of Node.js HTTP, making it compatible with Edge runtime.
+
+---
+
+## Step 4: Rename proxy.ts to middleware.ts
+
+Rename `apps/web/proxy.ts` to `apps/web/middleware.ts`. 
+
+This is required until OpenNext supports the new `proxy.ts` convention. See [this Github issue](https://github.com/opennextjs/opennextjs-cloudflare/issues/1082) for more details.
+
+## Step 5: Switch to HTTP-Based Mailer
+
+Nodemailer relies on Node.js networking APIs. Use Resend instead, which uses the Fetch API:
+
+```bash
+MAILER_PROVIDER=resend
+RESEND_API_KEY=re_your_api_key
+EMAIL_SENDER=noreply@yourdomain.com
+```
+
+If you need a different email provider, implement a custom mailer using the abstract class in `packages/mailers`. Ensure your implementation uses only Fetch API for HTTP requests.
+
+---
+
+## Step 6: Switch CMS Provider
+
+Keystatic's local mode reads from the file system, which isn't available in Edge runtime. Choose one of these alternatives:
+
+### Option A: WordPress
+
+Set your CMS to WordPress:
+
+```bash
+CMS_CLIENT=wordpress
+```
+
+Configure your WordPress instance as the content source. See the [WordPress CMS documentation](/docs/next-supabase-turbo/content/wordpress) for setup.
+
+### Option B: Keystatic GitHub Mode
+
+Keep Keystatic but use GitHub as the storage backend instead of local files:
+
+1. Configure Keystatic for GitHub mode in your `keystatic.config.ts`
+2. Set up GitHub App or Personal Access Token
+3. Content is stored in your GitHub repository
+
+See the [Keystatic documentation](/docs/next-supabase-turbo/content/keystatic) for GitHub mode setup.
+
+---
+
+## Step 7: Configure Environment Variables
+
+### For Local Development
+
+Add variables to `apps/web/.dev.vars`:
+
+```bash
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLIC_KEY=eyJ...
+SUPABASE_SECRET_KEY=eyJ...
+LOGGER=console
+MAILER_PROVIDER=resend
+RESEND_API_KEY=re_...
+# ... other variables
+```
+
+### For Production
+
+You'll set these during deployment or via the Cloudflare Dashboard.
+
+---
+
+## Step 8: Preview Locally
+
+Test your application in a Cloudflare-like environment before deploying:
+
+```bash
+pnpm --filter web run preview
+```
+
+This builds the application with OpenNext and runs it in Wrangler's local development server. Test all critical paths:
+
+- Authentication flows
+- Billing checkout
+- Email sending
+- Database operations
+
+{% alert type="warning" title="Test thoroughly" %}
+Edge runtime differences may cause unexpected issues. Test your entire application flow before deploying to production.
+{% /alert %}
+
+---
+
+## Step 9: Deploy to Cloudflare
+
+Deploy your application:
+
+```bash
+pnpm --filter web run deploy
+```
+
+This command:
+1. Builds your Next.js application with OpenNext
+2. Uploads to Cloudflare Pages
+3. Deploys to the edge network
+
+{% alert type="default" title="Dashboard deployment not supported" %}
+At the time of writing, Cloudflare's Dashboard doesn't support OpenNext deployments. Use the CLI command instead.
+{% /alert %}
+
+---
+
+## Additional Commands
+
+### Generate TypeScript Types
+
+Generate types for Cloudflare environment bindings:
+
+```bash
+pnpm --filter web run cf-typegen
+```
+
+This creates `cloudflare-env.d.ts` with type definitions for your Cloudflare environment.
+
+### View Deployment Logs
+
+Check your Cloudflare Dashboard under **Workers & Pages** for deployment logs and analytics.
+
+---
+
+## Production Configuration
+
+### Custom Domain
+
+1. Go to Cloudflare Dashboard > **Workers & Pages**
+2. Select your project
+3. Go to **Custom Domains**
+4. Add your domain
+
+Cloudflare automatically provisions SSL certificates.
+
+### Environment Variables in Dashboard
+
+Add production secrets via the Cloudflare Dashboard:
+
+1. Go to **Workers & Pages** > Your Project > **Settings**
+2. Click **Variables**
+3. Add each secret variable
+
+Or use Wrangler CLI:
+
+```bash
+wrangler secret put STRIPE_SECRET_KEY
+```
+
+### Caching Strategy
+
+Cloudflare's edge caching works well with Next.js ISR. Configure cache headers in your `next.config.mjs` for optimal performance.
+
+---
+
+## Troubleshooting
+
+### "Script size exceeds limit"
+
+Your bundle exceeds Cloudflare's free tier limit. You need the Workers Paid plan ($5/month).
+
+### "Cannot find module 'fs'"
+
+You're using a library that requires Node.js file system APIs. Options:
+1. Find an Edge-compatible alternative
+2. Use dynamic imports with fallbacks
+3. Move the functionality to an external API
+
+### "fetch is not defined"
+
+Ensure you're using the Fetch API correctly. In Edge runtime, `fetch` is globally available without importing.
+
+### Stripe errors
+
+Verify you've added `httpClient: Stripe.createFetchHttpClient()` to your Stripe configuration.
+
+### Email sending fails
+
+Confirm:
+1. `MAILER_PROVIDER=resend` is set
+2. `RESEND_API_KEY` is configured
+3. You're not accidentally importing nodemailer
+
+### Database timeouts
+
+Edge functions may have higher latency to your database. Consider:
+1. Placing your Supabase project in a region close to your edge deployment
+2. Using connection pooling
+3. Optimizing query performance
+
+### Build fails with OpenNext errors
+
+1. Ensure all dependencies are installed: `pnpm install`
+2. Clear build caches: `rm -rf .next .open-next`
+3. Check for Node.js-specific code in your pages
+
+---
+
+## Performance Optimization
+
+### Regional Deployment
+
+By default, Cloudflare deploys globally. If your users are concentrated in a region, consider:
+
+1. Deploying Supabase in the same region
+2. Using Cloudflare's Smart Placement feature
+
+### Cache Optimization
+
+Leverage Cloudflare's caching:
+
+```typescript
+// In your API routes
+export const runtime = 'edge';
+export const revalidate = 3600; // Cache for 1 hour
+```
+
+### Bundle Size
+
+Keep your bundle small for faster cold starts:
+
+1. Use dynamic imports for large components
+2. Avoid importing entire libraries when you only need specific functions
+3. Check your bundle with `next build --analyze`
+
+---
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Why do I need the Workers Paid plan?", "answer": "The free tier has a 1MB script size limit, which MakerKit exceeds after bundling. The Workers Paid plan ($5/month) increases this limit and includes more requests. Most production apps need the paid tier regardless."},
+     {"question": "Can I use Keystatic with Cloudflare?", "answer": "Not in local file mode. Keystatic's local mode requires file system access, which Edge runtime doesn't support. Use Keystatic's GitHub mode (stores content in your repo) or switch to WordPress as your CMS provider."},
+     {"question": "Why isn't nodemailer working?", "answer": "Nodemailer uses Node.js networking APIs unavailable in Edge runtime. Switch to Resend (MAILER_PROVIDER=resend) which uses the Fetch API. This is a one-line environment variable change plus adding your Resend API key."},
+     {"question": "How do I debug Edge runtime issues?", "answer": "Run 'pnpm --filter web run preview' locally to test in a Cloudflare-like environment before deploying. Check the Wrangler logs for errors. Common issues are importing Node.js-only modules or using file system APIs."}
+   ]
+/%}
+
+---
+
+## Next Steps
+
+- [Vercel Deployment](/docs/next-supabase-turbo/going-to-production/vercel): Alternative with full Node.js support
+- [Environment Variables](/docs/next-supabase-turbo/going-to-production/production-environment-variables): Complete variable reference
+- [CMS Configuration](/docs/next-supabase-turbo/content/cms): Set up WordPress or Keystatic GitHub mode

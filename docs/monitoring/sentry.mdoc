@@ -1,0 +1,314 @@
+---
+status: "published"
+title: "Configuring Sentry in Your Next.js Supabase SaaS Kit"
+label: "Sentry"
+order: 3
+description: "Set up Sentry for error tracking, performance monitoring, and session replay in your Makerkit application."
+---
+
+{% sequence title="Steps to configure Sentry" description="Learn how to configure Sentry in your Next.js Supabase SaaS kit." %}
+
+[Installing the Sentry SDK](#installing-the-sentry-sdk)
+
+[Environment variables](#environment-variables)
+
+[Configuring source maps](#configuring-source-maps)
+
+[Customizing the Sentry configuration](#customizing-the-sentry-configuration)
+
+[Sentry features in Makerkit](#sentry-features-in-makerkit)
+
+{% /sequence %}
+
+[Sentry](https://sentry.io) is the recommended monitoring provider for Makerkit applications. It provides error tracking, performance monitoring, and session replay out of the box. Sentry is included in Makerkit's core packages, so no plugin installation is required.
+
+## Installing the Sentry SDK
+
+Install the `@sentry/nextjs` package in your web application:
+
+```bash
+pnpm add @sentry/nextjs --filter web
+```
+
+This package provides the Next.js-specific integrations for Sentry, including automatic instrumentation for Server Components, Server Actions, and Route Handlers.
+
+## Environment Variables
+
+Add these variables to your `.env.local` file:
+
+```bash title=".env.local"
+# Required: Enable Sentry as your monitoring provider
+NEXT_PUBLIC_MONITORING_PROVIDER=sentry
+
+# Required: Your Sentry DSN (found in Sentry project settings)
+NEXT_PUBLIC_SENTRY_DSN=https://abc123@o123456.ingest.sentry.io/123456
+
+# Optional: Set the environment (defaults to VERCEL_ENV if not set)
+NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+```
+
+You can find your DSN in the Sentry dashboard under **Project Settings > Client Keys (DSN)**.
+
+## Configuring Source Maps
+
+Source maps let Sentry show you the original source code in error stack traces instead of minified production code. This is essential for debugging production errors.
+
+### 1. Update your Next.js configuration
+
+Wrap your Next.js configuration with Sentry's build plugin:
+
+```typescript title="next.config.mjs"
+import { withSentryConfig } from '@sentry/nextjs';
+
+const nextConfig = {
+  // Your existing Next.js config
+};
+
+export default withSentryConfig(nextConfig, {
+  // Sentry organization slug
+  org: 'your-sentry-org',
+
+  // Sentry project name
+  project: 'your-sentry-project',
+
+  // Auth token for uploading source maps (set in CI)
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Suppress logs in non-production builds
+  silent: process.env.NODE_ENV !== 'production',
+
+  // Upload source maps from all packages in the monorepo
+  widenClientFileUpload: true,
+
+  // Disable automatic server function instrumentation
+  // (Makerkit handles this via the monitoring package)
+  autoInstrumentServerFunctions: false,
+});
+```
+
+### 2. Create a Sentry auth token
+
+Generate an auth token in your Sentry account:
+
+1. Go to **Settings > Auth Tokens** in Sentry
+2. Click **Create New Token**
+3. Select the `project:releases` and `org:read` scopes
+4. Copy the token
+
+### 3. Add the token to your CI environment
+
+Add the `SENTRY_AUTH_TOKEN` to your deployment platform's environment variables:
+
+```bash
+# Vercel, Railway, Render, etc.
+SENTRY_AUTH_TOKEN=sntrys_eyJ...
+```
+
+{% alert type="warning" title="Don't commit this token" %}
+The `SENTRY_AUTH_TOKEN` should only exist in your CI/CD environment, not in your `.env.local` or committed to git. It has write access to your Sentry project.
+{% /alert %}
+
+## Customizing the Sentry Configuration
+
+Makerkit initializes Sentry with sensible defaults. You can customize these by modifying the configuration in the Sentry package.
+
+### Where Sentry is initialized
+
+Sentry initialization is owned by the monitoring instrumentation files, not by `SentryMonitoringService`:
+
+- `apps/web/instrumentation-client.ts` → `registerClientMonitoringInstrumentation()` → `initializeSentryBrowserClient()`
+- `apps/web/instrumentation.ts` → `registerMonitoringInstrumentation()` → `initializeSentryServerClient()`
+
+`instrumentation-client.ts` also installs provider-agnostic `window.onerror` and `unhandledrejection` listeners. The Sentry client config explicitly filters out Sentry's `GlobalHandlers` integration to avoid double-reporting — keep that filter in place if you customize integrations.
+
+### Client-side configuration
+
+Edit `packages/monitoring/sentry/src/sentry.client.config.ts`:
+
+```typescript title="packages/monitoring/sentry/src/sentry.client.config.ts"
+import { init } from '@sentry/nextjs';
+
+export function initializeSentryBrowserClient(
+  props: Parameters<typeof init>[0] = {},
+) {
+  const userIntegrations = props.integrations;
+
+  return init({
+    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+
+    // Sample 100% of transactions for performance monitoring
+    // Reduce this in high-traffic applications
+    tracesSampleRate: props?.tracesSampleRate ?? 1.0,
+
+    // Capture 10% of sessions for replay
+    replaysSessionSampleRate: 0.1,
+
+    // Capture 100% of sessions with errors for replay
+    replaysOnErrorSampleRate: 1.0,
+
+    ...props,
+
+    // Applied AFTER `...props` so callers can't accidentally re-enable
+    // `GlobalHandlers`. The monitoring layer owns `window.onerror` /
+    // `unhandledrejection`; keeping both would double-report.
+    integrations: composeIntegrations(userIntegrations),
+  });
+}
+```
+
+If you need extra integrations, pass them via `props.integrations` — they're composed with Sentry's defaults and the `GlobalHandlers` filter is reapplied on top.
+
+### Server-side configuration
+
+Edit `packages/monitoring/sentry/src/sentry.server.config.ts`:
+
+```typescript title="packages/monitoring/sentry/src/sentry.server.config.ts"
+import { init } from '@sentry/nextjs';
+
+export function initializeSentryServerClient(
+  props: Parameters<typeof init>[0] = {},
+) {
+  return init({
+    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+
+    // Sample rate for server-side transactions
+    tracesSampleRate: props?.tracesSampleRate ?? 1.0,
+
+    ...props,
+  });
+}
+```
+
+### Adjusting sample rates for production
+
+For high-traffic applications, sampling 100% of transactions can be expensive. Adjust the sample rates based on your traffic:
+
+| Monthly requests | Recommended `tracesSampleRate` |
+|-----------------|-------------------------------|
+| < 100k          | 1.0 (100%)                    |
+| 100k - 1M       | 0.1 - 0.5 (10-50%)           |
+| > 1M            | 0.01 - 0.1 (1-10%)           |
+
+Error capture is not affected by sampling. All errors are captured regardless of the `tracesSampleRate` setting.
+
+## Sentry Features in Makerkit
+
+### Error tracking
+
+All uncaught exceptions are automatically captured:
+
+- **Client-side**: React errors, unhandled promise rejections — captured by the global handlers installed in `instrumentation-client.ts`, then forwarded to Sentry via `captureException` with a `mechanism` of `onerror`, `onunhandledrejection`, or `react-error-boundary`.
+- **Server-side**: Server Component errors, Server Action errors, Route Handler errors, Middleware errors — forwarded to Sentry's `captureRequestError` helper from `@sentry/nextjs`, which records the full Next.js request context.
+
+Each error includes:
+
+- Full stack trace (with source maps)
+- Request context (URL, method, headers)
+- User information (if identified)
+- Environment and release information
+
+### Performance monitoring
+
+When `tracesSampleRate` is greater than 0, Sentry tracks:
+
+- Page load times
+- API route response times
+- Server Component render times
+- Database query durations (if using Sentry's database integrations)
+
+### Session replay
+
+Sentry can record user sessions and replay them when errors occur. This helps you see exactly what the user did before encountering an error.
+
+Session replay is enabled by default with these settings:
+
+- 10% of normal sessions are recorded
+- 100% of sessions with errors are recorded
+
+To disable replay, set both sample rates to 0 in your client config.
+
+### User identification
+
+Makerkit automatically identifies users when they sign in through the events system. You can also manually identify users:
+
+```typescript
+import { useMonitoring } from '@kit/monitoring/hooks';
+
+function UserProfile({ user }) {
+  const monitoring = useMonitoring();
+
+  useEffect(() => {
+    monitoring.identifyUser({
+      id: user.id,
+      email: user.email,
+      username: user.name,
+    });
+  }, [user]);
+
+  // ...
+}
+```
+
+## Testing Your Setup
+
+After configuration, verify Sentry is working:
+
+### 1. Trigger a test error
+
+Add a temporary button to trigger an error:
+
+```tsx
+'use client';
+
+export function TestSentry() {
+  return (
+    <button
+      onClick={() => {
+        throw new Error('Test Sentry error');
+      }}
+    >
+      Test Sentry
+    </button>
+  );
+}
+```
+
+### 2. Check the Sentry dashboard
+
+The error should appear in your Sentry project within a few seconds. Verify:
+
+- The stack trace shows your original source code (not minified)
+- The environment is correct
+- User information is attached (if logged in)
+
+### 3. Remove the test code
+
+Delete the test button after verifying the setup.
+
+## Troubleshooting
+
+### Errors not appearing in Sentry
+
+1. **Check the DSN**: Verify `NEXT_PUBLIC_SENTRY_DSN` is set correctly
+2. **Check the provider**: Verify `NEXT_PUBLIC_MONITORING_PROVIDER=sentry`
+3. **Check the console**: Look for Sentry initialization errors
+4. **Check ad blockers**: Some ad blockers block Sentry's ingestion endpoint
+
+### Source maps not working
+
+1. **Verify the auth token**: Check `SENTRY_AUTH_TOKEN` is set in your CI environment
+2. **Check the build logs**: Look for "Uploading source maps" in your build output
+3. **Verify the release**: Make sure the release version matches between your build and Sentry
+
+### High Sentry costs
+
+1. **Reduce `tracesSampleRate`**: Lower the performance monitoring sample rate
+2. **Reduce `replaysSessionSampleRate`**: Only capture error sessions
+3. **Filter events**: Use Sentry's `beforeSend` hook to drop low-value errors
+
+## Next Steps
+
+- [View the Sentry Next.js documentation](https://docs.sentry.io/platforms/javascript/guides/nextjs/)
+- [Set up Sentry alerts](https://docs.sentry.io/product/alerts/)
+- [Configure Slack notifications](https://docs.sentry.io/product/integrations/notification-incidents/slack/)
+- [Return to monitoring overview](/docs/next-supabase-turbo/monitoring/overview)

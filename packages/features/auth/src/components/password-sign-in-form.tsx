@@ -1,0 +1,161 @@
+'use client';
+
+import type React from 'react';
+
+import Link from 'next/link';
+
+import { zodResolver } from '@hookform/resolvers/zod';
+import { ArrowRight, Mail } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useForm } from 'react-hook-form';
+import type { z } from 'zod';
+
+import { Button } from '@kit/ui/button';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+} from '@kit/ui/form';
+import { If } from '@kit/ui/if';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@kit/ui/input-group';
+import { Trans } from '@kit/ui/trans';
+
+import { PasswordSignInSchema } from '../schemas/password-sign-in.schema';
+import { PasswordInput } from './password-input';
+
+export function PasswordSignInForm({
+  onSubmit,
+  captchaLoading = false,
+  loading = false,
+  redirecting = false,
+  captchaField,
+}: {
+  onSubmit: (params: z.output<typeof PasswordSignInSchema>) => unknown;
+  captchaLoading: boolean;
+  loading: boolean;
+  redirecting: boolean;
+  captchaField?: React.ReactNode;
+}) {
+  const t = useTranslations('auth');
+
+  const form = useForm({
+    resolver: zodResolver(PasswordSignInSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
+
+  return (
+    <Form {...form}>
+      <form
+        className={'flex w-full flex-col gap-y-2'}
+        onSubmit={form.handleSubmit(onSubmit)}
+      >
+        <div className={'flex flex-col gap-y-1.5'}>
+          <FormField
+            control={form.control}
+            name={'email'}
+            render={({ field }) => (
+              <FormItem>
+                <FormControl>
+                  <InputGroup className="dark:bg-background">
+                    <InputGroupAddon>
+                      <Mail className="h-4 w-4" />
+                    </InputGroupAddon>
+
+                    <InputGroupInput
+                      data-test={'email-input'}
+                      required
+                      type="email"
+                      placeholder={t('emailPlaceholder')}
+                      {...field}
+                    />
+                  </InputGroup>
+                </FormControl>
+
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name={'password'}
+            render={({ field }) => (
+              <FormItem>
+                <FormControl>
+                  <PasswordInput {...field} />
+
+                  <Button
+                    nativeButton={false}
+                    render={<Link href={'/auth/password-reset'} />}
+                    type={'button'}
+                    size={'sm'}
+                    variant={'link'}
+                    className={'p-0 text-xs'}
+                  >
+                    <Trans i18nKey={'auth.passwordForgottenQuestion'} />
+                  </Button>
+                </FormControl>
+
+                <FormMessage />
+
+                <div></div>
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {captchaField}
+
+        <Button
+          data-test="auth-submit-button"
+          className={'group w-full'}
+          type="submit"
+          disabled={loading || redirecting || captchaLoading}
+        >
+          <If condition={redirecting}>
+            <span className={'animate-in fade-in slide-in-from-bottom-24'}>
+              <Trans i18nKey={'auth.redirecting'} />
+            </span>
+          </If>
+
+          <If condition={loading}>
+            <span className={'animate-in fade-in slide-in-from-bottom-24'}>
+              <Trans i18nKey={'auth.signingIn'} />
+            </span>
+          </If>
+
+          <If condition={captchaLoading && !redirecting}>
+            <span className={'animate-in fade-in slide-in-from-bottom-24'}>
+              <Trans i18nKey={'auth.verifyingCaptcha'} />
+            </span>
+          </If>
+
+          <If condition={!redirecting && !loading && !captchaLoading}>
+            <span
+              className={
+                'animate-in fade-in slide-in-from-bottom-24 flex items-center gap-1'
+              }
+            >
+              <Trans i18nKey={'auth.signInWithEmail'} />
+
+              <ArrowRight
+                className={
+                  'zoom-in animate-in slide-in-from-left-2 fill-mode-both h-4 delay-500 duration-500'
+                }
+              />
+            </span>
+          </If>
+        </Button>
+      </form>
+    </Form>
+  );
+}

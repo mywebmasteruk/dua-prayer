@@ -1,0 +1,56 @@
+{
+  "name": "@kit/accounts",
+  "version": "0.1.0",
+  "private": true,
+  "typesVersions": {
+    "*": {
+      "*": [
+        "src/*"
+      ]
+    }
+  },
+  "exports": {
+    "./personal-account-dropdown": "./src/components/personal-account-dropdown.tsx",
+    "./account-selector": "./src/components/account-selector.tsx",
+    "./personal-account-settings": "./src/components/personal-account-settings/index.ts",
+    "./components": "./src/components/index.ts",
+    "./hooks/*": "./src/hooks/*.ts",
+    "./api": "./src/server/api.ts",
+    "./services/delete-personal-account.service": "./src/server/services/delete-personal-account.service.ts",
+    "./shared": "./src/shared/index.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .turbo node_modules",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "nanoid": "catalog:"
+  },
+  "devDependencies": {
+    "@hookform/resolvers": "catalog:",
+    "@kit/billing-gateway": "workspace:*",
+    "@kit/email-templates": "workspace:*",
+    "@kit/i18n": "workspace:*",
+    "@kit/mailers": "workspace:*",
+    "@kit/monitoring": "workspace:*",
+    "@kit/next": "workspace:*",
+    "@kit/otp": "workspace:*",
+    "@kit/shared": "workspace:*",
+    "@kit/supabase": "workspace:*",
+    "@kit/tsconfig": "workspace:*",
+    "@kit/ui": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "lucide-react": "catalog:",
+    "next": "catalog:",
+    "next-intl": "catalog:",
+    "next-safe-action": "catalog:",
+    "next-themes": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-hook-form": "catalog:",
+    "zod": "catalog:"
+  }
+}

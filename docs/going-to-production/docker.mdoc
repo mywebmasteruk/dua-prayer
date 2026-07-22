@@ -1,0 +1,388 @@
+---
+status: "published"
+title: "Deploy Next.js Supabase with Docker"
+label: "Deploy with Docker"
+order: 10
+description: "Deploy your MakerKit Next.js Supabase application using Docker. Covers Dockerfile generation, image building, container registry, and production deployment."
+---
+
+Deploy your MakerKit Next.js 16 application using Docker containers for full infrastructure control. This guide covers the standalone build output, multi-stage Dockerfiles, container registries, and production deployment with Docker Compose.
+
+## Overview
+
+| Step | Purpose |
+|------|---------|
+| Generate Dockerfile | Create optimized Docker configuration |
+| Configure environment | Set up production variables |
+| Build image | Create the container image |
+| Push to registry | Upload to DockerHub or GitHub Container Registry |
+| Deploy | Run on your server or cloud platform |
+
+---
+
+## Prerequisites
+
+Before starting:
+
+1. [Docker](https://docs.docker.com/get-docker/) installed locally
+2. [Set up Supabase](/docs/next-supabase-turbo/going-to-production/supabase) project
+3. [Generate environment variables](/docs/next-supabase-turbo/going-to-production/production-environment-variables)
+
+---
+
+## Step 1: Generate the Dockerfile
+
+MakerKit provides a generator that creates an optimized Dockerfile and configures Next.js for standalone output:
+
+```bash
+pnpm run turbo gen docker
+```
+
+This command:
+
+1. Creates a `Dockerfile` in the project root
+2. Sets `output: "standalone"` in `next.config.mjs`
+3. Installs platform-specific dependencies for Tailwind CSS
+
+{% alert type="default" title="Architecture-specific dependencies" %}
+The generator detects your CPU architecture (ARM64 or x64) and installs the correct Tailwind CSS and LightningCSS binaries for Linux builds.
+{% /alert %}
+
+---
+
+## Step 2: Configure Environment Variables
+
+### Create the Production Environment File
+
+Generate your environment variables:
+
+```bash
+pnpm turbo gen env
+```
+
+Copy the generated file to `apps/web/.env.production.local`.
+
+### Separate Build-Time and Runtime Secrets
+
+Docker images should not contain secrets. Separate your variables into two groups:
+
+**Build-time variables** (safe to include in image):
+
+```bash
+NEXT_PUBLIC_SITE_URL=https://yourdomain.com
+NEXT_PUBLIC_PRODUCT_NAME=MyApp
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLIC_KEY=eyJ...
+NEXT_PUBLIC_BILLING_PROVIDER=stripe
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
+```
+
+**Runtime secrets** (add only when running container):
+
+```bash
+SUPABASE_SECRET_KEY=eyJ...
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+SUPABASE_DB_WEBHOOK_SECRET=your-secret
+RESEND_API_KEY=re_...
+CAPTCHA_SECRET_TOKEN=...
+```
+
+### Prepare for Build
+
+Before building, temporarily remove secrets from your env file to avoid baking them into the image:
+
+1. Open `apps/web/.env.production.local`
+2. Comment out or remove these lines:
+   ```bash
+   # SUPABASE_SECRET_KEY=...
+   # STRIPE_SECRET_KEY=...
+   # STRIPE_WEBHOOK_SECRET=...
+   # SUPABASE_DB_WEBHOOK_SECRET=...
+   # RESEND_API_KEY=...
+   # CAPTCHA_SECRET_TOKEN=...
+   ```
+3. Save the file
+4. Keep the secrets somewhere safe for later
+
+---
+
+## Step 3: Build the Docker Image
+
+Build the image for your target architecture:
+
+### For AMD64 (most cloud servers)
+
+```bash
+docker buildx build --platform linux/amd64 -t myapp:latest .
+```
+
+### For ARM64 (Apple Silicon, AWS Graviton)
+
+```bash
+docker buildx build --platform linux/arm64 -t myapp:latest .
+```
+
+### Build Options
+
+| Flag | Purpose |
+|------|---------|
+| `--platform` | Target architecture |
+| `-t` | Image name and tag |
+| `--no-cache` | Force fresh build |
+| `--progress=plain` | Show detailed build output |
+
+Build typically completes in 3-10 minutes depending on your machine.
+
+---
+
+## Step 4: Add Runtime Secrets
+
+After building, restore the secrets to your environment file:
+
+```bash
+SUPABASE_SECRET_KEY=eyJ...
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+SUPABASE_DB_WEBHOOK_SECRET=your-secret
+RESEND_API_KEY=re_...
+CAPTCHA_SECRET_TOKEN=...
+```
+
+---
+
+## Step 5: Run the Container
+
+### Local Testing
+
+Test the image locally:
+
+```bash
+docker run -d \
+  -p 3000:3000 \
+  --env-file apps/web/.env.production.local \
+  myapp:latest
+```
+
+Access your app at `http://localhost:3000`.
+
+### Run Options
+
+| Flag | Purpose |
+|------|---------|
+| `-d` | Run in background (detached) |
+| `-p 3000:3000` | Map port 3000 |
+| `--env-file` | Load environment variables from file |
+| `--name myapp` | Name the container |
+| `--restart unless-stopped` | Auto-restart on failure |
+
+---
+
+## Step 6: Push to Container Registry
+
+### GitHub Container Registry
+
+1. Create a Personal Access Token with `write:packages` scope
+2. Login:
+   ```bash
+   docker login ghcr.io -u YOUR_USERNAME
+   ```
+3. Tag your image:
+   ```bash
+   docker tag myapp:latest ghcr.io/YOUR_USERNAME/myapp:latest
+   ```
+4. Push:
+   ```bash
+   docker push ghcr.io/YOUR_USERNAME/myapp:latest
+   ```
+
+### DockerHub
+
+1. Login:
+   ```bash
+   docker login
+   ```
+2. Tag your image:
+   ```bash
+   docker tag myapp:latest YOUR_USERNAME/myapp:latest
+   ```
+3. Push:
+   ```bash
+   docker push YOUR_USERNAME/myapp:latest
+   ```
+
+---
+
+## Step 7: Deploy to Production
+
+### Pull and Run on Your Server
+
+SSH into your server and run:
+
+```bash
+# Login to registry (GitHub example)
+docker login ghcr.io
+
+# Pull the image
+docker pull ghcr.io/YOUR_USERNAME/myapp:latest
+
+# Run the container
+docker run -d \
+  -p 3000:3000 \
+  --env-file .env.production.local \
+  --name myapp \
+  --restart unless-stopped \
+  ghcr.io/YOUR_USERNAME/myapp:latest
+```
+
+### Using Docker Compose
+
+Create `docker-compose.yml`:
+
+```yaml
+services:
+  web:
+    image: ghcr.io/YOUR_USERNAME/myapp:latest
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.production.local
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+Run with:
+
+```bash
+docker compose up -d
+```
+
+---
+
+## CI/CD with GitHub Actions
+
+Automate builds and deployments with GitHub Actions:
+
+```yaml
+# .github/workflows/docker.yml
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+```
+
+---
+
+## Production Considerations
+
+### Health Checks
+
+MakerKit includes a health check endpoint. Use it for monitoring:
+
+```bash
+curl http://localhost:3000/api/healthcheck
+```
+
+### Resource Limits
+
+Set memory and CPU limits in production:
+
+```bash
+docker run -d \
+  -p 3000:3000 \
+  --memory="512m" \
+  --cpus="1.0" \
+  --env-file .env.production.local \
+  myapp:latest
+```
+
+### Logging
+
+View container logs:
+
+```bash
+# Follow logs
+docker logs -f myapp
+
+# Last 100 lines
+docker logs --tail 100 myapp
+```
+
+---
+
+## Troubleshooting
+
+### Build fails with memory error
+
+Increase Docker's memory allocation or use a more powerful build machine:
+
+```bash
+docker build --memory=4g -t myapp:latest .
+```
+
+### Container exits immediately
+
+Check logs for errors:
+
+```bash
+docker logs myapp
+```
+
+Common causes:
+- Missing environment variables
+- Port already in use
+- Invalid configuration
+
+### Image too large
+
+The standalone output mode creates smaller images. If still too large:
+
+1. Ensure you're using the generated Dockerfile (not a custom one)
+2. Check for unnecessary files in your project
+3. Use `.dockerignore` to exclude development files
+
+### Environment variables not working
+
+1. Verify the env file path is correct
+2. Check file permissions
+3. Ensure no syntax errors in the env file
+4. For `NEXT_PUBLIC_` variables, rebuild the image (they're embedded at build time)
+
+---
+
+## Next Steps
+
+- [VPS Deployment](/docs/next-supabase-turbo/going-to-production/vps): Deploy Docker containers to Digital Ocean, Hetzner, or Linode
+- [Environment Variables](/docs/next-supabase-turbo/going-to-production/production-environment-variables): Complete variable reference with secrets management
+- [Monitoring Setup](/docs/next-supabase-turbo/monitoring/overview): Add Sentry or PostHog for error tracking

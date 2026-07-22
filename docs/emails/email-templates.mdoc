@@ -1,0 +1,350 @@
+---
+status: "published"
+label: "Email Templates"
+description: "Create branded email templates with React Email in your Next.js Supabase application. Learn the template architecture, i18n support, and how to build custom templates."
+title: "Email Templates in the Next.js Supabase SaaS Starter Kit"
+order: 2
+---
+
+MakerKit uses [React Email](https://react.email) to create type-safe, responsive email templates. Templates are stored in the `@kit/email-templates` package and support internationalization out of the box.
+
+## Template Architecture
+
+The email templates package is organized as follows:
+
+```
+packages/email-templates/
+├── src/
+│   ├── components/       # Reusable email components
+│   │   ├── body-style.tsx
+│   │   ├── content.tsx
+│   │   ├── cta-button.tsx
+│   │   ├── footer.tsx
+│   │   ├── header.tsx
+│   │   ├── heading.tsx
+│   │   └── wrapper.tsx
+│   ├── emails/           # Email templates
+│   │   ├── account-delete.email.tsx
+│   │   ├── invite.email.tsx
+│   │   └── otp.email.tsx
+│   ├── lib/
+│   │   └── i18n.ts       # i18n initialization
+│   └── locales/          # Translation files
+│       └── en/
+│           ├── account-delete-email.json
+│           ├── invite-email.json
+│           └── otp-email.json
+```
+
+## Built-in Templates
+
+MakerKit includes three email templates:
+
+| Template | Function | Purpose |
+|----------|----------|---------|
+| Team Invitation | `renderInviteEmail` | Invite users to join a team |
+| Account Deletion | `renderAccountDeleteEmail` | Confirm account deletion |
+| OTP Code | `renderOtpEmail` | Send one-time password codes |
+
+## Using Templates
+
+Each template exports an async render function that returns HTML and a subject line:
+
+```tsx
+import { getMailer } from '@kit/mailers';
+import { renderInviteEmail } from '@kit/email-templates';
+
+async function sendInvitation() {
+  const { html, subject } = await renderInviteEmail({
+    teamName: 'Acme Corp',
+    teamLogo: 'https://example.com/logo.png', // optional
+    inviter: 'John Doe', // can be undefined if inviter is unknown
+    invitedUserEmail: 'jane@example.com',
+    link: 'https://app.example.com/invite/abc123',
+    productName: 'Your App',
+    language: 'en', // optional, defaults to NEXT_PUBLIC_DEFAULT_LOCALE
+  });
+
+  const mailer = await getMailer();
+
+  await mailer.sendEmail({
+    to: 'jane@example.com',
+    from: process.env.EMAIL_SENDER!,
+    subject,
+    html,
+  });
+}
+```
+
+## Creating Custom Templates
+
+To create a new email template:
+
+### 1. Create the Template File
+
+Create a new file in `packages/email-templates/src/emails/`:
+
+```tsx {% title="packages/email-templates/src/emails/welcome.email.tsx" %}
+import {
+  Body,
+  Head,
+  Html,
+  Preview,
+  Tailwind,
+  Text,
+  render,
+} from 'react-email';
+
+import { BodyStyle } from '../components/body-style';
+import { EmailContent } from '../components/content';
+import { CtaButton } from '../components/cta-button';
+import { EmailFooter } from '../components/footer';
+import { EmailHeader } from '../components/header';
+import { EmailHeading } from '../components/heading';
+import { EmailWrapper } from '../components/wrapper';
+import { initializeEmailI18n } from '../lib/i18n';
+
+interface Props {
+  userName: string;
+  productName: string;
+  dashboardUrl: string;
+  language?: string;
+}
+
+export async function renderWelcomeEmail(props: Props) {
+  const namespace = 'welcome-email';
+
+  const { t } = await initializeEmailI18n({
+    language: props.language,
+    namespace,
+  });
+
+  const previewText = t('previewText', {
+    productName: props.productName,
+  });
+
+  const subject = t('subject', {
+    productName: props.productName,
+  });
+
+  const html = await render(
+    <Html>
+      <Head>
+        <BodyStyle />
+      </Head>
+
+      <Preview>{previewText}</Preview>
+
+      <Tailwind>
+        <Body>
+          <EmailWrapper>
+            <EmailHeader>
+              <EmailHeading>
+                {t('heading', { productName: props.productName })}
+              </EmailHeading>
+            </EmailHeader>
+
+            <EmailContent>
+              <Text className="text-[16px] leading-[24px] text-[#242424]">
+                {t('hello', { userName: props.userName })}
+              </Text>
+
+              <Text className="text-[16px] leading-[24px] text-[#242424]">
+                {t('mainText')}
+              </Text>
+
+              <CtaButton href={props.dashboardUrl}>
+                {t('ctaButton')}
+              </CtaButton>
+            </EmailContent>
+
+            <EmailFooter>{props.productName}</EmailFooter>
+          </EmailWrapper>
+        </Body>
+      </Tailwind>
+    </Html>,
+  );
+
+  return {
+    html,
+    subject,
+  };
+}
+```
+
+### 2. Create Translation File
+
+Add a translation file in `packages/email-templates/src/locales/en/`:
+
+```json {% title="packages/email-templates/src/locales/en/welcome-email.json" %}
+{
+  "subject": "Welcome to {productName}",
+  "previewText": "Welcome to {productName} - Let's get started",
+  "heading": "Welcome to {productName}",
+  "hello": "Hi {userName},",
+  "mainText": "Thanks for signing up! We're excited to have you on board. Click the button below to access your dashboard and get started.",
+  "ctaButton": "Go to Dashboard"
+}
+```
+
+### 3. Export the Template
+
+Add the export to the package's index file:
+
+```tsx {% title="packages/email-templates/src/index.ts" %}
+export { renderInviteEmail } from './emails/invite.email';
+export { renderAccountDeleteEmail } from './emails/account-delete.email';
+export { renderOtpEmail } from './emails/otp.email';
+export { renderWelcomeEmail } from './emails/welcome.email'; // Add this
+```
+
+### 4. Use the Template
+
+```tsx
+import { getMailer } from '@kit/mailers';
+import { renderWelcomeEmail } from '@kit/email-templates';
+
+async function sendWelcome(user: { email: string; name: string }) {
+  const { html, subject } = await renderWelcomeEmail({
+    userName: user.name,
+    productName: 'Your App',
+    dashboardUrl: 'https://app.example.com/dashboard',
+  });
+
+  const mailer = await getMailer();
+
+  await mailer.sendEmail({
+    to: user.email,
+    from: process.env.EMAIL_SENDER!,
+    subject,
+    html,
+  });
+}
+```
+
+## Reusable Components
+
+MakerKit provides styled components for consistent email design:
+
+### EmailWrapper
+
+The outer container with proper styling:
+
+```tsx
+<EmailWrapper>
+  {/* Email content */}
+</EmailWrapper>
+```
+
+### EmailHeader and EmailHeading
+
+Header section with title:
+
+```tsx
+<EmailHeader>
+  <EmailHeading>Your Email Title</EmailHeading>
+</EmailHeader>
+```
+
+### EmailContent
+
+Main content area with white background:
+
+```tsx
+<EmailContent>
+  <Text>Your email body text here.</Text>
+</EmailContent>
+```
+
+### CtaButton
+
+Call-to-action button:
+
+```tsx
+<CtaButton href="https://example.com/action">
+  Click Here
+</CtaButton>
+```
+
+### EmailFooter
+
+Footer with product name:
+
+```tsx
+<EmailFooter>Your Product Name</EmailFooter>
+```
+
+## Internationalization
+
+Templates support multiple languages through the i18n system. The language is determined by:
+
+1. The `language` prop passed to the render function
+2. Falls back to `'en'` if no language specified
+
+### Adding a New Language
+
+Create a new locale folder:
+
+```
+packages/email-templates/src/locales/es/
+```
+
+Copy and translate the JSON files:
+
+```json {% title="packages/email-templates/src/locales/es/invite-email.json" %}
+{
+  "subject": "Te han invitado a unirte a {teamName}",
+  "heading": "Únete a {teamName} en {productName}",
+  "hello": "Hola {invitedUserEmail},",
+  "mainText": "<strong>{inviter}</strong> te ha invitado a unirte al equipo <strong>{teamName}</strong> en <strong>{productName}</strong>.",
+  "joinTeam": "Unirse a {teamName}",
+  "copyPasteLink": "O copia y pega este enlace en tu navegador:",
+  "invitationIntendedFor": "Esta invitación fue enviada a {invitedUserEmail}."
+}
+```
+
+Pass the language when rendering:
+
+```tsx
+const { html, subject } = await renderInviteEmail({
+  // ... other props
+  language: 'es',
+});
+```
+
+## Styling with Tailwind
+
+React Email supports Tailwind CSS classes. The `<Tailwind>` wrapper enables Tailwind styling:
+
+```tsx
+<Tailwind>
+  <Body>
+    <Text className="text-[16px] font-bold text-blue-600">
+      Styled text
+    </Text>
+  </Body>
+</Tailwind>
+```
+
+Note that email clients have limited CSS support. Stick to basic styles:
+
+- Font sizes and weights
+- Colors
+- Padding and margins
+- Basic flexbox (limited support)
+
+Avoid:
+- CSS Grid
+- Complex transforms
+- CSS variables
+- Advanced selectors
+
+## Testing Templates
+
+Please use the Dev Tool to see how emails look like.
+
+## Next Steps
+
+- [Send emails](/docs/next-supabase-turbo/sending-emails) using your templates
+- [Configure Supabase Auth emails](/docs/next-supabase-turbo/authentication-emails) with custom templates
+- [Test emails locally](/docs/next-supabase-turbo/emails/inbucket) with Mailpit

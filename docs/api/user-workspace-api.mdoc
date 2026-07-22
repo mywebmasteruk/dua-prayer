@@ -1,0 +1,358 @@
+---
+status: "published"
+label: "User Workspace API"
+order: 3
+title: "User Workspace API | Next.js Supabase SaaS Kit"
+description: "Access personal workspace data in MakerKit layouts. Load user account information, subscription status, and account switcher data with the User Workspace API."
+---
+
+The User Workspace API provides personal account context for pages under `/home/(user)`. It loads user data, subscription status, and all accounts the user belongs to, making this information available to both server and client components.
+
+{% sequence title="User Workspace API Reference" description="Access personal workspace data in layouts and components" %}
+
+[loadUserWorkspace (Server)](#loaduserworkspace-server)
+
+[useUserWorkspace (Client)](#useuserworkspace-client)
+
+[Data structure](#data-structure)
+
+[Usage patterns](#usage-patterns)
+
+{% /sequence %}
+
+## loadUserWorkspace (Server)
+
+Loads the personal workspace data for the authenticated user. Use this in Server Components within the `/home/(user)` route group.
+
+```tsx
+import { loadUserWorkspace } from '~/home/(user)/_lib/server/load-user-workspace';
+
+export default async function PersonalDashboard() {
+  const data = await loadUserWorkspace();
+
+  return (
+    <div>
+      <h1>Welcome, {data.user.email}</h1>
+      <p>Account: {data.workspace.name}</p>
+    </div>
+  );
+}
+```
+
+### Function signature
+
+```tsx
+async function loadUserWorkspace(): Promise<UserWorkspaceData>
+```
+
+### Caching behavior
+
+The function uses React's `cache()` to deduplicate calls within a single request. You can call it multiple times in nested components without additional database queries.
+
+```tsx
+// Both calls use the same cached data
+const layout = await loadUserWorkspace();  // First call: hits database
+const page = await loadUserWorkspace();    // Second call: returns cached data
+```
+
+{% callout title="Performance consideration" %}
+While calls are deduplicated within a request, the data is fetched on every navigation. If you only need a subset of the data (like subscription status), consider making a more targeted query.
+{% /callout %}
+
+---
+
+## useUserWorkspace (Client)
+
+Access the workspace data in client components using the `useUserWorkspace` hook. The data is provided through React Context from the layout.
+
+```tsx
+'use client';
+
+import { useUserWorkspace } from '@kit/accounts/hooks/use-user-workspace';
+
+export function ProfileCard() {
+  const { workspace, user, accounts } = useUserWorkspace();
+
+  return (
+    <div className="rounded-lg border p-4">
+      <div className="flex items-center gap-3">
+        {workspace.picture_url && (
+          <img
+            src={workspace.picture_url}
+            alt={workspace.name ?? 'Profile'}
+            className="h-10 w-10 rounded-full"
+          />
+        )}
+        <div>
+          <p className="font-medium">{workspace.name}</p>
+          <p className="text-sm text-muted-foreground">{user.email}</p>
+        </div>
+      </div>
+
+      {workspace.subscription_status && (
+        <div className="mt-3">
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">
+            Plan: {workspace.subscription_status}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+{% callout type="warning" title="Context requirement" %}
+The `useUserWorkspace` hook only works within the `/home/(user)` route group where the context provider is set up. Using it outside this layout will throw an error.
+{% /callout %}
+
+---
+
+## Data structure
+
+### UserWorkspaceData
+
+```tsx
+import type { User } from '@supabase/supabase-js';
+
+interface UserWorkspaceData {
+  workspace: {
+    id: string | null;
+    name: string | null;
+    picture_url: string | null;
+    public_data: Json | null;
+    subscription_status: SubscriptionStatus | null;
+  };
+
+  user: User;
+
+  accounts: Array<{
+    id: string | null;
+    name: string | null;
+    picture_url: string | null;
+    role: string | null;
+    slug: string | null;
+  }>;
+}
+```
+
+### subscription_status values
+
+| Status | Description |
+|--------|-------------|
+| `active` | Active subscription |
+| `trialing` | In trial period |
+| `past_due` | Payment failed, grace period |
+| `canceled` | Subscription canceled |
+| `unpaid` | Payment required |
+| `incomplete` | Setup incomplete |
+| `incomplete_expired` | Setup expired |
+| `paused` | Subscription paused |
+
+### accounts array
+
+The `accounts` array contains all accounts the user belongs to, including:
+
+- Their personal account
+- Team accounts where they're a member
+- The user's role in each account
+
+This data powers the account switcher component.
+
+---
+
+## Usage patterns
+
+### Personal dashboard page
+
+```tsx
+import { loadUserWorkspace } from '~/home/(user)/_lib/server/load-user-workspace';
+
+export default async function DashboardPage() {
+  const { workspace, user, accounts } = await loadUserWorkspace();
+
+  const hasActiveSubscription =
+    workspace.subscription_status === 'active' ||
+    workspace.subscription_status === 'trialing';
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground">
+          Welcome back, {user.user_metadata.full_name || user.email}
+        </p>
+      </header>
+
+      {!hasActiveSubscription && (
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+          <p>Upgrade to unlock premium features</p>
+          <a href="/pricing" className="text-primary underline">
+            View plans
+          </a>
+        </div>
+      )}
+
+      <section>
+        <h2 className="text-lg font-medium">Your teams</h2>
+        <ul className="mt-2 space-y-2">
+          {accounts
+            .filter((a) => a.slug !== null)
+            .map((account) => (
+              <li key={account.id}>
+                <a
+                  href={`/home/${account.slug}`}
+                  className="flex items-center gap-2 rounded-lg p-2 hover:bg-muted"
+                >
+                  {account.picture_url && (
+                    <img
+                      src={account.picture_url}
+                      alt=""
+                      className="h-8 w-8 rounded"
+                    />
+                  )}
+                  <span>{account.name}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {account.role}
+                  </span>
+                </a>
+              </li>
+            ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
+```
+
+### Account switcher component
+
+```tsx
+'use client';
+
+import { useUserWorkspace } from '@kit/accounts/hooks/use-user-workspace';
+import { useRouter } from 'next/navigation';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@kit/ui/select';
+
+export function AccountSwitcher() {
+  const { workspace, accounts } = useUserWorkspace();
+  const router = useRouter();
+
+  const handleChange = (value: string) => {
+    if (value === 'personal') {
+      router.push('/home');
+    } else {
+      router.push(`/home/${value}`);
+    }
+  };
+
+  return (
+    <Select
+      defaultValue={workspace.id ?? 'personal'}
+      onValueChange={handleChange}
+    >
+      <SelectTrigger className="w-[200px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="personal">
+          Personal Account
+        </SelectItem>
+        {accounts
+          .filter((a) => a.slug)
+          .map((account) => (
+            <SelectItem key={account.id} value={account.slug!}>
+              {account.name}
+            </SelectItem>
+          ))}
+      </SelectContent>
+    </Select>
+  );
+}
+```
+
+### Feature gating with subscription status
+
+```tsx
+'use client';
+
+import { useUserWorkspace } from '@kit/accounts/hooks/use-user-workspace';
+
+interface FeatureGateProps {
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+  requiredStatus?: string[];
+}
+
+export function FeatureGate({
+  children,
+  fallback,
+  requiredStatus = ['active', 'trialing'],
+}: FeatureGateProps) {
+  const { workspace } = useUserWorkspace();
+
+  const hasAccess = requiredStatus.includes(
+    workspace.subscription_status ?? ''
+  );
+
+  if (!hasAccess) {
+    return fallback ?? null;
+  }
+
+  return <>{children}</>;
+}
+
+// Usage
+function PremiumFeature() {
+  return (
+    <FeatureGate
+      fallback={
+        <div className="text-center p-4">
+          <p>This feature requires a paid plan</p>
+          <a href="/pricing">Upgrade now</a>
+        </div>
+      }
+    >
+      <ExpensiveComponent />
+    </FeatureGate>
+  );
+}
+```
+
+### Combining with server data
+
+```tsx
+import { loadUserWorkspace } from '~/home/(user)/_lib/server/load-user-workspace';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export default async function TasksPage() {
+  const { workspace, user } = await loadUserWorkspace();
+  const client = getSupabaseServerClient();
+
+  // Fetch additional data using the workspace context
+  const { data: tasks } = await client
+    .from('tasks')
+    .select('*')
+    .eq('account_id', workspace.id)
+    .eq('created_by', user.id)
+    .order('created_at', { ascending: false });
+
+  return (
+    <div>
+      <h1>My Tasks</h1>
+      <TaskList tasks={tasks ?? []} />
+    </div>
+  );
+}
+```
+
+## Related documentation
+
+- [Team Workspace API](/docs/next-supabase-turbo/api/account-workspace-api) - Team account context
+- [Account API](/docs/next-supabase-turbo/api/account-api) - Account operations
+- [Authentication API](/docs/next-supabase-turbo/api/authentication-api) - User authentication

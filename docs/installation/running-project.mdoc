@@ -1,0 +1,165 @@
+---
+status: "published"
+title: "Running the Next.js Supabase SaaS Kit Locally"
+label: "Running the Project"
+order: 5
+description: "Start the local development environment with Supabase, Next.js, and optional Stripe webhook forwarding."
+---
+
+Running the project requires starting three services: Supabase (database), Next.js (web app), and optionally Stripe (billing webhooks).
+
+{% sequence title="Startup Order" description="Start services in this order for a working development environment." %}
+
+[Start Docker](#1-start-docker)
+
+[Start Supabase](#2-start-supabase)
+
+[Start Next.js](#3-start-nextjs)
+
+[Start Stripe (optional)](#4-start-stripe-optional)
+
+{% /sequence %}
+
+## 1. Start Docker
+
+Supabase runs in Docker containers. Open Docker Desktop (or OrbStack on macOS) before proceeding.
+
+{% alert type="warning" title="Docker Required" %}
+Supabase cannot start without Docker running. If you see "Cannot connect to Docker daemon", open your Docker application first.
+{% /alert %}
+
+## 2. Start Supabase
+
+```bash
+pnpm run supabase:web:start
+```
+
+This starts:
+- PostgreSQL database on port 54322
+- Supabase Studio (database UI) at [http://localhost:54323](http://localhost:54323)
+- Mailpit (email testing) at [http://localhost:54324](http://localhost:54324)
+- Auth, Storage, and other Supabase services
+
+First startup downloads Docker images and runs migrations. This can take a few minutes.
+
+**Bookmark these URLs:**
+- [localhost:54323](http://localhost:54323) - Supabase Studio (view your database)
+- [localhost:54324](http://localhost:54324) - Mailpit (check auth emails)
+
+### If Supabase Fails to Start
+
+Common fixes:
+
+1. **Docker resources**: Increase Docker memory to 4GB+ in Docker Desktop settings
+2. **Port conflicts**: Stop other services using ports 54321-54324
+3. **Clean restart**: `pnpm run supabase:web:stop` then try again
+
+## 3. Start Next.js
+
+```bash
+pnpm dev
+```
+
+This starts:
+- Web application at [http://localhost:3000](http://localhost:3000)
+- Dev Tools at [http://localhost:3010](http://localhost:3010)
+
+The dev tools provide debugging utilities for environment variables, feature flags, and authentication state.
+
+### Test Credentials
+
+The database is seeded with test users:
+
+**Regular User:**
+```
+Email: test@makerkit.dev
+Password: testingpassword
+```
+
+**Super Admin (requires MFA):**
+```
+Email: super-admin@makerkit.dev
+Password: testingpassword
+```
+
+### Super Admin MFA Setup
+
+Super admin login requires a TOTP code. Use any authenticator app with this secret:
+
+```
+NHOHJVGPO3R3LKVPRMNIYLCDMBHUM2SE
+```
+
+Or use [totp.danhersam.com](https://totp.danhersam.com/) with this secret to generate codes.
+
+### If Login Fails
+
+Reset the database to restore seeded users:
+
+```bash
+pnpm run supabase:web:reset
+```
+
+This re-runs migrations and seeds fresh test data.
+
+## 4. Start Stripe (Optional)
+
+For testing subscription billing, forward Stripe webhooks to your local server:
+
+```bash
+pnpm run stripe:listen
+```
+
+This requires:
+1. [Stripe CLI](https://stripe.com/docs/stripe-cli) installed
+2. Stripe account authenticated (`stripe login`)
+
+The command outputs a webhook signing secret. Add it to your `.env.local`:
+
+```bash
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+```
+
+## Local Development URLs
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| Web App | [localhost:3000](http://localhost:3000) | Main application |
+| Dev Tools | [localhost:3010](http://localhost:3010) | Debugging utilities |
+| Supabase Studio | [localhost:54323](http://localhost:54323) | Database management |
+| Mailpit | [localhost:54324](http://localhost:54324) | Email testing |
+
+## Stopping Services
+
+Stop Supabase:
+```bash
+pnpm run supabase:web:stop
+```
+
+Stop Next.js: Press `Ctrl+C` in the terminal.
+
+## Common Issues
+
+### "Module not found: Can't resolve 'react-dom/client'"
+
+Windows path length issue. Move your project closer to the drive root (e.g., `C:\projects\my-saas`).
+
+See [troubleshooting module not found](../troubleshooting/troubleshooting-module-not-found) for details.
+
+### Database connection errors
+
+Supabase isn't running. Start it with `pnpm run supabase:web:start`.
+
+### Seeded users not working
+
+Database may have stale data. Reset with `pnpm run supabase:web:reset`.
+
+### Emails not arriving
+
+Check Mailpit at [localhost:54324](http://localhost:54324). All local emails go there, not to real email addresses.
+
+## Next Steps
+
+- [Navigate the codebase](/docs/next-supabase-turbo/installation/navigating-codebase) to understand the project structure
+- [Configure the application](/docs/next-supabase-turbo/configuration/application-configuration) to customize for your product
+- Review the [production checklist](/docs/next-supabase-turbo/going-to-production/checklist) before deploying

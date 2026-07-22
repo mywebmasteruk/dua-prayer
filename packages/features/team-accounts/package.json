@@ -1,0 +1,63 @@
+{
+  "name": "@kit/team-accounts",
+  "version": "0.1.0",
+  "private": true,
+  "typesVersions": {
+    "*": {
+      "*": [
+        "src/*"
+      ]
+    }
+  },
+  "exports": {
+    "./api": "./src/server/api.ts",
+    "./components": "./src/components/index.ts",
+    "./hooks/*": "./src/hooks/*.ts",
+    "./webhooks": "./src/server/services/webhooks/index.ts",
+    "./policies": "./src/server/policies/index.ts",
+    "./orchestration": "./src/server/orchestration/index.ts",
+    "./services/account-members.service": "./src/server/services/account-members.service.ts",
+    "./services/account-invitations.service": "./src/server/services/account-invitations.service.ts",
+    "./services/create-team-account.service": "./src/server/services/create-team-account.service.ts",
+    "./services/leave-team-account.service": "./src/server/services/leave-team-account.service.ts",
+    "./invitation-signature": "./src/server/services/invitation-signature.ts",
+    "./shared": "./src/shared/index.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .turbo node_modules",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "nanoid": "catalog:"
+  },
+  "devDependencies": {
+    "@hookform/resolvers": "catalog:",
+    "@kit/accounts": "workspace:*",
+    "@kit/billing-gateway": "workspace:*",
+    "@kit/email-templates": "workspace:*",
+    "@kit/mailers": "workspace:*",
+    "@kit/monitoring": "workspace:*",
+    "@kit/next": "workspace:*",
+    "@kit/otp": "workspace:*",
+    "@kit/policies": "workspace:*",
+    "@kit/shared": "workspace:*",
+    "@kit/supabase": "workspace:*",
+    "@kit/tsconfig": "workspace:*",
+    "@kit/ui": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-table": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "class-variance-authority": "catalog:",
+    "date-fns": "catalog:",
+    "lucide-react": "catalog:",
+    "next": "catalog:",
+    "next-intl": "catalog:",
+    "next-safe-action": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-hook-form": "catalog:",
+    "zod": "catalog:"
+  }
+}

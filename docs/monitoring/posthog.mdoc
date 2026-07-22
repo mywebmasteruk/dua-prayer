@@ -1,0 +1,146 @@
+---
+status: "published"
+title: "Configuring PostHog Monitoring in Your Next.js Supabase SaaS Kit"
+label: "PostHog"
+order: 3
+description: "Set up PostHog as your error monitoring provider in Makerkit, combining analytics and error tracking in one platform."
+---
+
+{% sequence title="Steps to configure PostHog monitoring" description="Learn how to configure PostHog for error monitoring in your Next.js Supabase SaaS kit." %}
+
+[Installing the PostHog plugin](#installing-the-posthog-plugin)
+
+[Registering the monitoring service](#registering-the-monitoring-service)
+
+[Environment variables](#environment-variables)
+
+[How PostHog monitoring works](#how-posthog-monitoring-works)
+
+{% /sequence %}
+
+[PostHog](https://posthog.com) combines product analytics, session replay, feature flags, and error tracking in one platform. If you're already using PostHog for analytics, adding it as your monitoring provider lets you correlate errors with user behavior without switching between tools.
+
+{% alert type="default" title="Already using PostHog for analytics?" %}
+If you've set up PostHog using the [PostHog Analytics guide](../analytics/posthog-analytics-provider), you already have the plugin installed. Skip to [Registering the monitoring service](#registering-the-monitoring-service).
+{% /alert %}
+
+## Installing the PostHog Plugin
+
+PostHog is distributed as a Makerkit plugin. Install it using the CLI:
+
+```bash
+npx @makerkit/cli@latest plugins add posthog
+```
+
+The Makerkit CLI will automatically wire up the plugin in your project, so you don't have to do anything manually. Please review the changes with `git diff`.
+
+## Environment Variables
+
+Set the monitoring provider and PostHog configuration:
+
+```bash title=".env.local"
+# Enable PostHog as the monitoring provider
+NEXT_PUBLIC_MONITORING_PROVIDER=posthog
+
+# PostHog configuration (same as analytics setup)
+NEXT_PUBLIC_POSTHOG_KEY=phc_your_key_here
+NEXT_PUBLIC_POSTHOG_HOST=https://eu.posthog.com
+```
+
+If you haven't configured PostHog yet, see the [PostHog Analytics guide](/docs/next-supabase-turbo/analytics/posthog-analytics-provider) for details on:
+
+- Finding your API key
+- Choosing your region (EU vs US)
+- Setting up ingestion rewrites to bypass ad blockers
+
+## How PostHog Monitoring Works
+
+When PostHog is your monitoring provider, errors are captured and sent to PostHog's error tracking system:
+
+### Exception capture
+
+PostHog captures:
+
+- Client-side React errors
+- Unhandled promise rejections
+- Server-side exceptions via the Next.js instrumentation hook
+
+Errors appear in PostHog under **Error Tracking** in the sidebar.
+
+### Session correlation
+
+The main benefit of using PostHog for monitoring is that errors are automatically linked to session replays. When you view an error in PostHog, you can:
+
+1. See the exact session where the error occurred
+2. Watch the user's actions leading up to the error
+3. Correlate errors with feature flag states
+4. See the user's full journey through your app
+
+This is particularly useful for debugging errors that only happen in specific user flows or under certain conditions.
+
+### User identification
+
+When a user signs in, Makerkit identifies them in PostHog. This links errors to specific users, so you can:
+
+- See all errors for a specific user
+- Contact users affected by critical bugs
+- Filter errors by user properties (plan, account type, etc.)
+
+## Limitations
+
+PostHog's error tracking is newer than dedicated tools like Sentry. Consider these limitations:
+
+| Feature | PostHog | Sentry |
+|---------|---------|--------|
+| Error tracking | Yes | Yes |
+| Stack trace deobfuscation | Limited | Full source map support |
+| Performance monitoring | Via analytics | Full APM |
+| Release tracking | No | Yes |
+| Issue assignment | No | Yes |
+| Slack/PagerDuty integration | Limited | Full |
+
+**When to choose PostHog for monitoring:**
+
+- You're already using PostHog for analytics
+- You want errors correlated with session replays
+- Your error volume is moderate
+- You prefer fewer tools to manage
+
+**When to choose Sentry instead:**
+
+- You need detailed stack traces with source maps
+- You have high error volume
+- You need advanced alerting and issue management
+- You want dedicated performance monitoring
+
+## Using Both PostHog and Sentry
+
+You can use PostHog for analytics and Sentry for monitoring. Set `NEXT_PUBLIC_MONITORING_PROVIDER=sentry` while keeping PostHog configured for analytics. This gives you:
+
+- PostHog: Analytics, session replay, feature flags
+- Sentry: Error tracking, performance monitoring, source maps
+
+## Verification
+
+After setup:
+
+1. Trigger a test error in your application
+2. Open PostHog and navigate to **Error Tracking**
+3. Verify the error appears with:
+   - Error message and stack trace
+   - User information (if logged in)
+   - Link to session replay
+
+## Troubleshooting
+
+### Errors not appearing in PostHog
+
+1. **Check the provider setting**: Verify `NEXT_PUBLIC_MONITORING_PROVIDER=posthog`
+2. **Check PostHog initialization**: Open browser DevTools and look for PostHog network requests
+3. **Verify the registrations**: Ensure all three files are updated with PostHog registrations
+4. **Check ad blockers**: If using PostHog directly (no ingestion rewrites), ad blockers may block requests
+
+## Next Steps
+- [Learn about PostHog's error tracking features](https://posthog.com/docs/error-tracking)
+- [Configure session replay settings](https://posthog.com/docs/session-replay)
+- [Return to monitoring overview](/docs/next-supabase-turbo/monitoring/overview)

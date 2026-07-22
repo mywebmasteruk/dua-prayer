@@ -1,0 +1,39 @@
+---
+status: "published"
+title: "Configuring Honeybadger Monitoring in Your Next.js Supabase SaaS Kit"
+label: "Honeybadger"
+order: 5
+description: "Set up Honeybadger as your error monitoring provider in Makerkit, combining analytics and error tracking in one platform."
+---
+
+[Honeybadger](https://honeybadger.io/) is a platform for error monitoring and uptime tracking with zero-config alerts.
+
+## Installing the Honeybadger Plugin
+
+Honeybadger is distributed as a Makerkit plugin. Install it using the CLI:
+
+```bash
+npx @makerkit/cli@latest plugins add honeybadger
+```
+
+The Makerkit CLI will automatically wire up the plugin in your project, so you don't have to do anything manually. 
+
+Please review the changes with `git diff`.
+
+## Environment Variables
+
+Set the monitoring provider and Honeybadger configuration:
+
+```bash title="apps/web/.env.local"
+# Enable Honeybadger as the monitoring provider
+NEXT_PUBLIC_MONITORING_PROVIDER=honeybadger
+
+# Honeybadger configuration
+NEXT_PUBLIC_HONEYBADGER_API_KEY=your_api_key_here
+```
+
+Please add these environment variables to your hosting provider when you deploy your application to production.
+
+## Scope of this plugin
+
+This plugin is only responsible for capturing errors and exceptions in the browser and server. Uploading sourcemaps is not supported yet. Please use the [Honeybadger guide](https://docs.honeybadger.io/lib/javascript/integration/nextjs/) for more information on all the available options.

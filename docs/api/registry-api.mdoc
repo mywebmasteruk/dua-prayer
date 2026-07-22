@@ -1,0 +1,415 @@
+---
+status: "published"
+label: "Registry API"
+title: "Registry API for Interchangeable Services | Next.js Supabase SaaS Kit"
+description: "Build pluggable infrastructure with MakerKit's Registry API. Swap billing providers, mailers, monitoring services, and CMS clients without changing application code."
+order: 6
+---
+
+The Registry API provides a type-safe pattern for registering and resolving interchangeable service implementations. Use it to swap between billing providers (Stripe, Lemon Squeezy, Paddle), mailers (Resend, Mailgun), monitoring (Sentry, SignOz), and any other pluggable infrastructure based on environment variables.
+
+{% sequence title="Registry API Reference" description="Build pluggable infrastructure with the Registry API" %}
+
+[Why use a registry](#why-use-a-registry)
+
+[Core API](#core-api)
+
+[Creating a registry](#creating-a-registry)
+
+[Registering implementations](#registering-implementations)
+
+[Resolving implementations](#resolving-implementations)
+
+[Setup hooks](#setup-hooks)
+
+[Real-world examples](#real-world-examples)
+
+{% /sequence %}
+
+## Why use a registry
+
+MakerKit uses registries to decouple your application code from specific service implementations:
+
+| Problem | Registry Solution |
+|---------|------------------|
+| Billing provider lock-in | Switch from Stripe to Paddle via env var |
+| Testing with different backends | Register mock implementations for tests |
+| Multi-tenant configurations | Different providers per tenant |
+| Lazy initialization | Services only load when first accessed |
+| Type safety | Full TypeScript support for implementations |
+
+### How MakerKit uses registries
+
+```
+Environment Variable           Registry              Your Code
+─────────────────────         ────────              ─────────
+BILLING_PROVIDER=stripe   →   billingRegistry   →   getBillingGateway()
+MAILER_PROVIDER=resend    →   mailerRegistry    →   getMailer()
+CMS_PROVIDER=keystatic    →   cmsRegistry       →   getCmsClient()
+```
+
+Your application code calls `getBillingGateway()` and receives the configured implementation without knowing which provider is active.
+
+---
+
+## Core API
+
+The registry helper at `@kit/shared/registry` provides four methods:
+
+| Method | Description |
+|--------|-------------|
+| `register(name, factory)` | Store an async factory for an implementation |
+| `get(...names)` | Resolve one or more implementations |
+| `addSetup(group, callback)` | Queue initialization tasks |
+| `setup(group?)` | Execute setup tasks (once per group) |
+
+---
+
+## Creating a registry
+
+Use `createRegistry<T, N>()` to create a typed registry:
+
+```tsx
+import { createRegistry } from '@kit/shared/registry';
+
+// Define the interface implementations must follow
+interface EmailService {
+  send(to: string, subject: string, body: string): Promise<void>;
+}
+
+// Define allowed provider names
+type EmailProvider = 'resend' | 'mailgun' | 'sendgrid';
+
+// Create the registry
+const emailRegistry = createRegistry<EmailService, EmailProvider>();
+```
+
+The generic parameters ensure:
+
+- All registered implementations match `EmailService`
+- Only valid provider names can be used
+- `get()` returns correctly typed implementations
+
+---
+
+## Registering implementations
+
+Use `register()` to add implementations. Factories can be sync or async:
+
+```tsx
+// Async factory with dynamic import (recommended for code splitting)
+emailRegistry.register('resend', async () => {
+  const { createResendMailer } = await import('./mailers/resend');
+  return createResendMailer();
+});
+
+// Sync factory
+emailRegistry.register('mailgun', () => {
+  return new MailgunService(process.env.MAILGUN_API_KEY!);
+});
+
+// Chaining
+emailRegistry
+  .register('resend', async () => createResendMailer())
+  .register('mailgun', async () => createMailgunMailer())
+  .register('sendgrid', async () => createSendgridMailer());
+```
+
+{% callout title="Lazy loading" %}
+Factories only execute when `get()` is called. This keeps your bundle small since unused providers aren't imported.
+{% /callout %}
+
+---
+
+## Resolving implementations
+
+Use `get()` to resolve implementations. Always await the result:
+
+```tsx
+// Single implementation
+const mailer = await emailRegistry.get('resend');
+await mailer.send('user@example.com', 'Welcome', 'Hello!');
+
+// Multiple implementations (returns tuple)
+const [primary, fallback] = await emailRegistry.get('resend', 'mailgun');
+
+// Dynamic resolution from environment
+const provider = process.env.EMAIL_PROVIDER as EmailProvider;
+const mailer = await emailRegistry.get(provider);
+```
+
+### Creating a helper function
+
+Wrap the registry in a helper for cleaner usage:
+
+```tsx
+export async function getEmailService(): Promise<EmailService> {
+  const provider = (process.env.EMAIL_PROVIDER ?? 'resend') as EmailProvider;
+  return emailRegistry.get(provider);
+}
+
+// Usage
+const mailer = await getEmailService();
+await mailer.send('user@example.com', 'Welcome', 'Hello!');
+```
+
+---
+
+## Setup hooks
+
+Use `addSetup()` and `setup()` for initialization tasks that should run once:
+
+```tsx
+// Add setup tasks
+emailRegistry.addSetup('initialize', async () => {
+  console.log('Initializing email service...');
+  // Verify API keys, warm up connections, etc.
+});
+
+emailRegistry.addSetup('initialize', async () => {
+  console.log('Loading email templates...');
+});
+
+// Run all setup tasks (idempotent)
+await emailRegistry.setup('initialize');
+await emailRegistry.setup('initialize'); // No-op, already ran
+```
+
+### Setup groups
+
+Use different groups to control when initialization happens:
+
+```tsx
+emailRegistry.addSetup('verify-credentials', async () => {
+  // Quick check at startup
+});
+
+emailRegistry.addSetup('warm-cache', async () => {
+  // Expensive operation, run later
+});
+
+// At startup
+await emailRegistry.setup('verify-credentials');
+
+// Before first email
+await emailRegistry.setup('warm-cache');
+```
+
+---
+
+## Real-world examples
+
+### Billing provider registry
+
+```tsx
+// lib/billing/registry.ts
+import { createRegistry } from '@kit/shared/registry';
+
+interface BillingGateway {
+  createCheckoutSession(params: CheckoutParams): Promise<{ url: string }>;
+  createBillingPortalSession(customerId: string): Promise<{ url: string }>;
+  cancelSubscription(subscriptionId: string): Promise<void>;
+}
+
+type BillingProvider = 'stripe' | 'lemon-squeezy' | 'paddle';
+
+const billingRegistry = createRegistry<BillingGateway, BillingProvider>();
+
+billingRegistry
+  .register('stripe', async () => {
+    const { createStripeGateway } = await import('./gateways/stripe');
+    return createStripeGateway();
+  })
+  .register('lemon-squeezy', async () => {
+    const { createLemonSqueezyGateway } = await import('./gateways/lemon-squeezy');
+    return createLemonSqueezyGateway();
+  })
+  .register('paddle', async () => {
+    const { createPaddleGateway } = await import('./gateways/paddle');
+    return createPaddleGateway();
+  });
+
+export async function getBillingGateway(): Promise<BillingGateway> {
+  const provider = (process.env.BILLING_PROVIDER ?? 'stripe') as BillingProvider;
+  return billingRegistry.get(provider);
+}
+```
+
+**Usage:**
+
+```tsx
+import { getBillingGateway } from '@/lib/billing/registry';
+
+export async function createCheckout(priceId: string, userId: string) {
+  const billing = await getBillingGateway();
+
+  const session = await billing.createCheckoutSession({
+    priceId,
+    userId,
+    successUrl: '/checkout/success',
+    cancelUrl: '/pricing',
+  });
+
+  return session.url;
+}
+```
+
+### CMS client registry
+
+```tsx
+// lib/cms/registry.ts
+import { createRegistry } from '@kit/shared/registry';
+
+interface CmsClient {
+  getPosts(options?: { limit?: number }): Promise<Post[]>;
+  getPost(slug: string): Promise<Post | null>;
+  getPages(): Promise<Page[]>;
+}
+
+type CmsProvider = 'keystatic' | 'wordpress' | 'supabase';
+
+const cmsRegistry = createRegistry<CmsClient, CmsProvider>();
+
+cmsRegistry
+  .register('keystatic', async () => {
+    const { createKeystaticClient } = await import('./clients/keystatic');
+    return createKeystaticClient();
+  })
+  .register('wordpress', async () => {
+    const { createWordPressClient } = await import('./clients/wordpress');
+    return createWordPressClient(process.env.WORDPRESS_URL!);
+  })
+  .register('supabase', async () => {
+    const { createSupabaseCmsClient } = await import('./clients/supabase');
+    return createSupabaseCmsClient();
+  });
+
+export async function getCmsClient(): Promise<CmsClient> {
+  const provider = (process.env.CMS_PROVIDER ?? 'keystatic') as CmsProvider;
+  return cmsRegistry.get(provider);
+}
+```
+
+### Logger registry
+
+```tsx
+// lib/logger/registry.ts
+import { createRegistry } from '@kit/shared/registry';
+
+interface Logger {
+  info(context: object, message: string): void;
+  error(context: object, message: string): void;
+  warn(context: object, message: string): void;
+  debug(context: object, message: string): void;
+}
+
+type LoggerProvider = 'pino' | 'console';
+
+const loggerRegistry = createRegistry<Logger, LoggerProvider>();
+
+loggerRegistry
+  .register('pino', async () => {
+    const pino = await import('pino');
+    return pino.default({
+      level: process.env.LOG_LEVEL ?? 'info',
+    });
+  })
+  .register('console', () => ({
+    info: (ctx, msg) => console.log('[INFO]', msg, ctx),
+    error: (ctx, msg) => console.error('[ERROR]', msg, ctx),
+    warn: (ctx, msg) => console.warn('[WARN]', msg, ctx),
+    debug: (ctx, msg) => console.debug('[DEBUG]', msg, ctx),
+  }));
+
+export async function getLogger(): Promise<Logger> {
+  const provider = (process.env.LOGGER ?? 'pino') as LoggerProvider;
+  return loggerRegistry.get(provider);
+}
+```
+
+### Testing with mock implementations
+
+```tsx
+// __tests__/billing.test.ts
+import { createRegistry } from '@kit/shared/registry';
+
+const mockBillingRegistry = createRegistry<BillingGateway, 'mock'>();
+
+mockBillingRegistry.register('mock', () => ({
+  createCheckoutSession: jest.fn().mockResolvedValue({ url: 'https://mock.checkout' }),
+  createBillingPortalSession: jest.fn().mockResolvedValue({ url: 'https://mock.portal' }),
+  cancelSubscription: jest.fn().mockResolvedValue(undefined),
+}));
+
+test('checkout creates session', async () => {
+  const billing = await mockBillingRegistry.get('mock');
+
+  const result = await billing.createCheckoutSession({
+    priceId: 'price_123',
+    userId: 'user_456',
+  });
+
+  expect(result.url).toBe('https://mock.checkout');
+});
+```
+
+---
+
+## Best practices
+
+### 1. Use environment variables for provider selection
+
+```tsx
+// Good: Configuration-driven
+const provider = process.env.BILLING_PROVIDER as BillingProvider;
+const billing = await registry.get(provider);
+
+// Avoid: Hardcoded providers
+const billing = await registry.get('stripe');
+```
+
+### 2. Create helper functions for common access
+
+```tsx
+// Good: Encapsulated helper
+export async function getBillingGateway() {
+  const provider = process.env.BILLING_PROVIDER ?? 'stripe';
+  return billingRegistry.get(provider as BillingProvider);
+}
+
+// Usage is clean
+const billing = await getBillingGateway();
+```
+
+### 3. Use dynamic imports for code splitting
+
+```tsx
+// Good: Lazy loaded
+registry.register('stripe', async () => {
+  const { createStripeGateway } = await import('./stripe');
+  return createStripeGateway();
+});
+
+// Avoid: Eager imports
+import { createStripeGateway } from './stripe';
+registry.register('stripe', () => createStripeGateway());
+```
+
+### 4. Define strict interfaces
+
+```tsx
+// Good: Well-defined interface
+interface BillingGateway {
+  createCheckoutSession(params: CheckoutParams): Promise<CheckoutResult>;
+  createBillingPortalSession(customerId: string): Promise<PortalResult>;
+}
+
+// Avoid: Loose typing
+type BillingGateway = Record<string, (...args: any[]) => any>;
+```
+
+## Related documentation
+
+- [Billing Configuration](/docs/next-supabase-turbo/billing/overview) - Payment provider setup
+- [Monitoring Configuration](/docs/next-supabase-turbo/monitoring/overview) - Logger and APM setup
+- [CMS Configuration](/docs/next-supabase-turbo/content) - Content management setup

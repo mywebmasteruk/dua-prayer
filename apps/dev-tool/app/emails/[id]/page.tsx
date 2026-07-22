@@ -1,0 +1,110 @@
+import {
+  createKitEmailsDeps,
+  createKitEmailsService,
+} from '@kit/mcp-server/emails';
+import { findWorkspaceRoot, getVariable } from '@kit/mcp-server/env';
+import { AppBreadcrumbs } from '@kit/ui/app-breadcrumbs';
+import { Button } from '@kit/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from '@kit/ui/dialog';
+import { Page, PageBody, PageHeader } from '@kit/ui/page';
+
+import { EmailTesterForm } from '@/app/emails/[id]/components/email-tester-form';
+import { EnvModeSelector } from '@/components/env-mode-selector';
+import { IFrame } from '@/components/iframe';
+
+type EnvMode = 'development' | 'production';
+
+type EmailPageProps = React.PropsWithChildren<{
+  params: Promise<{
+    id: string;
+  }>;
+
+  searchParams: Promise<{ mode?: EnvMode }>;
+}>;
+
+export const metadata = {
+  title: 'Email Template',
+};
+
+export default async function EmailPage(props: EmailPageProps) {
+  const { id } = await props.params;
+  const mode = (await props.searchParams).mode ?? 'development';
+
+  const rootPath = findWorkspaceRoot(process.cwd());
+  const service = createKitEmailsService(createKitEmailsDeps(rootPath));
+
+  const [result, { templates }, emailSettings] = await Promise.all([
+    service.read({ id }),
+    service.list(),
+    getEmailSettings(mode),
+  ]);
+
+  const html = result.renderedHtml ?? result.source;
+
+  const values: Record<string, string> = { emails: 'Emails' };
+
+  for (const t of templates) {
+    values[t.id] = t.name;
+  }
+
+  return (
+    <Page style={'custom'}>
+      <PageBody className={'flex flex-1 flex-col gap-y-4'}>
+        <PageHeader
+          title={values[id] ?? id}
+          description={<AppBreadcrumbs values={values} />}
+        >
+          <EnvModeSelector mode={mode} />
+        </PageHeader>
+
+        <p className={'text-muted-foreground py-1 text-xs'}>
+          Remember that the below is an approximation of the email. Always test
+          it in your inbox.{' '}
+          <Dialog>
+            <DialogTrigger
+              render={<Button variant={'link'} className="p-0 underline" />}
+            >
+              Test Email
+            </DialogTrigger>
+
+            <DialogContent>
+              <DialogTitle>Send Test Email</DialogTitle>
+
+              <EmailTesterForm settings={emailSettings} template={id} />
+            </DialogContent>
+          </Dialog>
+        </p>
+
+        <IFrame className={'flex flex-1 flex-col'}>
+          <div
+            className={'flex flex-1 flex-col'}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        </IFrame>
+      </PageBody>
+    </Page>
+  );
+}
+
+async function getEmailSettings(mode: EnvMode) {
+  const sender = await getVariable('EMAIL_SENDER', mode);
+  const host = await getVariable('EMAIL_HOST', mode);
+  const port = await getVariable('EMAIL_PORT', mode);
+  const tls = await getVariable('EMAIL_TLS', mode);
+  const username = await getVariable('EMAIL_USER', mode);
+  const password = await getVariable('EMAIL_PASSWORD', mode);
+
+  return {
+    sender,
+    host,
+    port: Number.isNaN(Number(port)) ? 487 : Number(port),
+    tls: tls === 'true',
+    username,
+    password,
+  };
+}

@@ -1,0 +1,309 @@
+---
+status: "published"
+title: "Deploy Next.js Supabase to Vercel"
+label: "Deploy to Vercel"
+order: 5
+description: "Deploy your MakerKit Next.js Supabase application to Vercel. Covers project setup, environment variables, monorepo configuration, and Edge Functions deployment."
+---
+
+Deploy your MakerKit Next.js 16 application to Vercel with automatic CI/CD, preview deployments, and serverless functions. Vercel is the recommended hosting platform for Next.js apps due to its native support for App Router, Server Actions, and ISR caching.
+
+## Prerequisites
+
+Before deploying, complete these steps:
+
+1. [Set up your Supabase project](/docs/next-supabase-turbo/going-to-production/supabase)
+2. [Generate environment variables](/docs/next-supabase-turbo/going-to-production/production-environment-variables)
+3. Push your code to a Git repository (GitHub, GitLab, or Bitbucket)
+
+---
+
+## Connect Your Repository
+
+1. Sign in to [Vercel](https://vercel.com)
+2. Click **Add New Project**
+3. Import your Git repository
+4. Configure the project settings:
+
+{% img src="/assets/images/docs/vercel-turbo-preset.webp" width="1744" height="854" /%}
+
+### Required Settings
+
+| Setting | Value |
+|---------|-------|
+| Framework Preset | Next.js |
+| Root Directory | `apps/web` |
+| Build Command | (leave default) |
+| Output Directory | (leave default) |
+
+{% alert type="warning" title="Set the root directory" %}
+MakerKit uses a monorepo structure. You must set the root directory to `apps/web` or the build will fail.
+{% /alert %}
+
+---
+
+## Configure Environment Variables
+
+Add your production environment variables in the Vercel project settings.
+
+### Required Variables
+
+Generate these using `pnpm turbo gen env` in your local project:
+
+```bash
+# Application
+NEXT_PUBLIC_SITE_URL=https://yourdomain.com
+NEXT_PUBLIC_PRODUCT_NAME=Your App Name
+NEXT_PUBLIC_SITE_TITLE=Your App Title
+NEXT_PUBLIC_SITE_DESCRIPTION=Your app description
+
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://yourproject.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLIC_KEY=eyJhbGciOiJI...
+SUPABASE_SECRET_KEY=eyJhbGciOiJI...
+
+# Billing (Stripe example)
+NEXT_PUBLIC_BILLING_PROVIDER=stripe
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Email
+MAILER_PROVIDER=resend
+EMAIL_SENDER=noreply@yourdomain.com
+RESEND_API_KEY=re_...
+
+# Webhooks
+SUPABASE_DB_WEBHOOK_SECRET=your-webhook-secret
+```
+
+{% img src="/assets/images/docs/vercel-env-variables-turbo.webp" width="1694" height="1874" /%}
+
+### First Deployment Note
+
+Your first deployment will likely fail if you set `NEXT_PUBLIC_SITE_URL` to a custom domain you haven't configured yet. This is expected. Options:
+
+1. **Use the Vercel URL first**: Set `NEXT_PUBLIC_SITE_URL` to `https://your-project.vercel.app`, deploy, then update to your custom domain later
+2. **Accept the failure**: Deploy once to get the Vercel URL, then update the environment variable and redeploy
+
+---
+
+## Deploy
+
+Click **Deploy** in Vercel. The build process:
+
+1. Installs dependencies with pnpm
+2. Builds the Next.js application
+3. Validates environment variables (using Zod schemas)
+4. Deploys to Vercel's edge network
+
+### Build Validation
+
+MakerKit validates environment variables at build time. If variables are missing, the build fails with specific error messages:
+
+```
+Error: Required environment variable STRIPE_SECRET_KEY is missing
+```
+
+Check the build logs to identify missing variables, add them in Vercel settings, and redeploy.
+
+---
+
+## Post-Deployment Setup
+
+After successful deployment:
+
+### 1. Update Supabase URLs
+
+In your Supabase Dashboard (**Authentication > URL Configuration**):
+
+| Field | Value |
+|-------|-------|
+| Site URL | `https://yourdomain.com` |
+| Redirect URLs | `https://yourdomain.com/auth/callback**` |
+
+### 2. Configure Billing Webhooks
+
+Point your billing provider's webhooks to your Vercel deployment:
+
+- **Stripe**: `https://yourdomain.com/api/billing/webhook`
+- **Lemon Squeezy**: `https://yourdomain.com/api/billing/webhook`
+
+### 3. Set Up Database Webhooks
+
+Configure the Supabase database webhook to point to:
+
+```
+https://yourdomain.com/api/db/webhook
+```
+
+See the [Supabase deployment guide](/docs/next-supabase-turbo/going-to-production/supabase#configure-database-webhooks) for details.
+
+---
+
+## Custom Domain
+
+To use a custom domain:
+
+1. Go to your Vercel project **Settings > Domains**
+2. Add your domain
+3. Configure DNS records as instructed by Vercel
+4. Update `NEXT_PUBLIC_SITE_URL` to your custom domain
+5. Update Supabase Site URL and Redirect URLs
+
+---
+
+## Edge Functions Deployment (Optional)
+
+Vercel supports Edge Functions for faster cold starts and lower latency. This requires some configuration changes.
+
+### When to Use Edge Functions
+
+**Benefits**:
+- Zero cold starts
+- Lower latency (runs closer to users)
+- Lower costs for high-traffic applications
+
+**Trade-offs**:
+- Limited Node.js API support
+- Potentially higher database latency (depends on region setup)
+- Requires HTTP-based mailer (nodemailer not supported)
+- Requires remote CMS (local Keystatic not supported)
+
+### Configuration Changes
+
+Apply the same changes as [Cloudflare deployment](/docs/next-supabase-turbo/going-to-production/cloudflare):
+
+#### 1. Switch to HTTP-Based Mailer
+
+The default nodemailer uses Node.js APIs unavailable in Edge runtime. Use Resend instead:
+
+```bash
+MAILER_PROVIDER=resend
+RESEND_API_KEY=re_...
+```
+
+#### 2. Switch CMS Mode
+
+Keystatic's local mode uses the file system, which isn't available in Edge runtime. Options:
+
+- **WordPress**: Set `CMS_CLIENT=wordpress`
+- **Keystatic GitHub mode**: Configure Keystatic to use GitHub as the data source
+
+See the [CMS documentation](/docs/next-supabase-turbo/content/cms) for setup instructions.
+
+#### 3. Update Stripe Client (if using Stripe)
+
+Open `packages/billing/stripe/src/services/stripe-sdk.ts` and add the `httpClient` option to the Stripe constructor:
+
+```typescript
+return new Stripe(stripeServerEnv.secretKey, {
+  apiVersion: STRIPE_API_VERSION,
+  httpClient: Stripe.createFetchHttpClient(), // ADD THIS LINE
+});
+```
+
+{% alert type="warning" title="Manual change required" %}
+This modification is not included in MakerKit by default. Add the `httpClient` line when deploying to Vercel Edge Functions.
+{% /alert %}
+
+#### 4. Use Console Logger
+
+Pino logger isn't compatible with Edge runtime:
+
+```bash
+LOGGER=console
+```
+
+---
+
+## Multiple Apps Deployment
+
+If you have multiple apps in your monorepo, Vercel automatically deploys the `web` app.
+
+For additional apps, customize the build command in Vercel project settings:
+
+```bash
+cd ../.. && turbo run build --filter=<app-name>
+```
+
+Replace `<app-name>` with your app's package name (from its `package.json`).
+
+Set the root directory to your app's path (e.g., `apps/admin`).
+
+For more details, see the [Vercel Turborepo documentation](https://vercel.com/docs/monorepos/turborepo).
+
+---
+
+## Troubleshooting
+
+### Build fails with "command not found: pnpm"
+
+Vercel may default to npm. In your project settings, explicitly set:
+
+- **Install Command**: `pnpm i`
+- **Build Command**: `pnpm run build`
+
+### Build fails with missing dependencies
+
+Ensure your `package.json` dependencies are correctly listed. Turborepo should handle monorepo dependencies automatically.
+
+### Environment variable validation fails
+
+MakerKit uses Zod to validate environment variables. The error message shows which variable is missing or invalid. Add or correct it in Vercel settings.
+
+### Preview deployments have authentication issues
+
+Vercel preview deployments use unique URLs that may not match your Supabase Redirect URLs. Options:
+
+1. Add a wildcard pattern to Supabase Redirect URLs: `https://*-your-project.vercel.app/auth/callback**`
+2. Disable authentication features in preview environments
+
+### Webhooks not received on preview deployments
+
+Preview deployment URLs are not publicly accessible by default. Database and billing webhooks will only work on production deployments with public URLs.
+
+---
+
+## Performance Optimization
+
+### Enable ISR Caching
+
+MakerKit supports Incremental Static Regeneration for marketing pages. This is configured by default in the `next.config.mjs`.
+
+### Configure Regions
+
+In `vercel.json` (create in project root if needed):
+
+```json
+{
+  "regions": ["iad1"]
+}
+```
+
+Choose a region close to your Supabase database for lower latency.
+
+### Monitor with Vercel Analytics
+
+Enable Vercel Analytics in your project settings for performance monitoring. MakerKit is compatible with Vercel's built-in analytics.
+
+---
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "What's the cost of hosting on Vercel?", "answer": "Vercel's Hobby tier is free and works for personal projects and low-traffic apps. The Pro tier ($20/month) adds team features, more bandwidth, and commercial use rights. Most MakerKit apps start on Hobby and upgrade when they get traction."},
+     {"question": "How do I handle preview deployments with Supabase?", "answer": "Preview deployments get unique URLs that won't match your Supabase redirect URLs. Add a wildcard pattern like 'https://*-yourproject.vercel.app/auth/callback**' to your Supabase Redirect URLs, or create a separate Supabase project for staging."},
+     {"question": "Why is my build failing with environment variable errors?", "answer": "MakerKit validates environment variables at build time using Zod schemas. Check the build logs for the specific variable name, add it in Vercel's Environment Variables settings, and redeploy. Variables prefixed with NEXT_PUBLIC_ must be set before building."},
+     {"question": "How do I deploy multiple apps from the monorepo?", "answer": "Create separate Vercel projects for each app. Set the Root Directory to the app's path (e.g., 'apps/admin') and customize the build command to target that specific app with Turborepo's filter flag."}
+   ]
+/%}
+
+---
+
+## Next Steps
+
+- [Environment Variables Reference](/docs/next-supabase-turbo/going-to-production/production-environment-variables): Complete variable list with Zod validation
+- [Supabase Configuration](/docs/next-supabase-turbo/going-to-production/supabase): Database, RLS policies, and webhook setup
+- [Cloudflare Deployment](/docs/next-supabase-turbo/going-to-production/cloudflare): Alternative deployment with Edge runtime
+- [Monitoring Setup](/docs/next-supabase-turbo/monitoring/overview): Error tracking with Sentry or PostHog

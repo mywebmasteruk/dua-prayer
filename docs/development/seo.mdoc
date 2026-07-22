@@ -1,0 +1,432 @@
+---
+status: "published"
+label: "SEO"
+title: "SEO Configuration for the Next.js Supabase Starter Kit"
+description: "Configure sitemaps, metadata, structured data, and search engine optimization for your Makerkit SaaS application."
+order: 10
+---
+
+SEO in Makerkit starts with Next.js Metadata API for page-level optimization, an auto-generated sitemap at `/sitemap.xml`, and proper robots.txt configuration. The kit handles technical SEO out of the box, so you can focus on content quality and backlink strategy.
+
+{% sequence title="SEO Configuration" description="Set up search engine optimization for your SaaS" %}
+
+[Configure page metadata](#page-metadata)
+
+[Customize the sitemap](#sitemap-configuration)
+
+[Add structured data](#structured-data)
+
+[Submit to Google Search Console](#google-search-console)
+
+{% /sequence %}
+
+## Page Metadata
+
+### Next.js Metadata API
+
+Use the Next.js Metadata API to set page-level SEO:
+
+```tsx {% title="apps/web/app/[locale]/(marketing)/pricing/page.tsx" %}
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Pricing | Your SaaS Name',
+  description: 'Simple, transparent pricing. Start free, upgrade when you need more.',
+  openGraph: {
+    title: 'Pricing | Your SaaS Name',
+    description: 'Simple, transparent pricing for teams of all sizes.',
+    images: ['/images/og/pricing.png'],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Pricing | Your SaaS Name',
+    description: 'Simple, transparent pricing for teams of all sizes.',
+    images: ['/images/og/pricing.png'],
+  },
+};
+
+export default function PricingPage() {
+  // ...
+}
+```
+
+### Dynamic Metadata
+
+For pages with dynamic content, use `generateMetadata`:
+
+```tsx {% title="apps/web/app/[locale]/(marketing)/blog/[slug]/page.tsx" %}
+import type { Metadata } from 'next';
+
+import { createCmsClient } from '@kit/cms';
+
+interface Props {
+  params: Promise<{ slug: string }>;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const cms = await createCmsClient();
+  const post = await cms.getContentBySlug({ slug, collection: 'posts' });
+
+  return {
+    title: `${post.title} | Your SaaS Blog`,
+    description: post.description,
+    openGraph: {
+      title: post.title,
+      description: post.description,
+      images: [post.image],
+      type: 'article',
+      publishedTime: post.publishedAt,
+    },
+  };
+}
+```
+
+### Global Metadata
+
+Set default metadata in your root layout at `apps/web/app/layout.tsx`:
+
+```tsx {% title="apps/web/app/layout.tsx" %}
+import type { Metadata } from 'next';
+
+import appConfig from '~/config/app.config';
+
+export const metadata: Metadata = {
+  title: {
+    default: appConfig.name,
+    template: `%s | ${appConfig.name}`,
+  },
+  description: appConfig.description,
+  metadataBase: new URL(appConfig.url),
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    siteName: appConfig.name,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+```
+
+## Sitemap Configuration
+
+Makerkit auto-generates a sitemap at `/sitemap.xml`. The configuration lives in `apps/web/app/sitemap.xml/route.ts`.
+
+### Adding Static Pages
+
+Add new pages to the `getPaths` function:
+
+```tsx {% title="apps/web/app/sitemap.xml/route.ts" %}
+import appConfig from '~/config/app.config';
+
+function getPaths() {
+  const paths = [
+    '/',
+    '/pricing',
+    '/faq',
+    '/blog',
+    '/docs',
+    '/contact',
+    '/about',          // Add new pages
+    '/features',
+    '/privacy-policy',
+    '/terms-of-service',
+    '/cookie-policy',
+  ];
+
+  return paths.map((path) => ({
+    loc: new URL(path, appConfig.url).href,
+    lastmod: new Date().toISOString(),
+  }));
+}
+```
+
+### Dynamic Content
+
+Blog posts and documentation pages are automatically added to the sitemap. The CMS integration handles this:
+
+```tsx
+// Blog posts are added automatically
+const posts = await cms.getContentItems({ collection: 'posts' });
+
+posts.forEach((post) => {
+  sitemap.push({
+    loc: new URL(`/blog/${post.slug}`, appConfig.url).href,
+    lastmod: post.updatedAt || post.publishedAt,
+  });
+});
+```
+
+### Excluding Pages
+
+Exclude pages from the sitemap by not including them in `getPaths()`. For pages that should not be indexed at all, use the `robots` metadata:
+
+```tsx
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
+```
+
+## Structured Data
+
+Add JSON-LD structured data for rich search results. See the [Next.js JSON-LD guide](https://nextjs.org/docs/app/guides/json-ld) for the recommended approach.
+
+### Organization Schema
+
+Add to your home page or layout:
+
+```tsx {% title="apps/web/app/[locale]/(marketing)/page.tsx" %}
+// JSON-LD structured data using a script tag
+
+export default function HomePage() {
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: 'Your SaaS Name',
+          url: 'https://yoursaas.com',
+          logo: 'https://yoursaas.com/logo.png',
+          sameAs: [
+            'https://twitter.com/yoursaas',
+            'https://github.com/yoursaas',
+          ],
+          }),
+        }}
+      />
+      {/* Page content */}
+    </>
+  );
+}
+```
+
+### Product Schema
+
+Add to your pricing page:
+
+```tsx {% title="apps/web/app/[locale]/(marketing)/pricing/page.tsx" %}
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'Your SaaS Name',
+      applicationCategory: 'BusinessApplication',
+      offers: {
+        '@type': 'AggregateOffer',
+        lowPrice: '0',
+        highPrice: '99',
+        priceCurrency: 'USD',
+        offerCount: 3,
+      },
+    }),
+  }}
+/>
+```
+
+### FAQ Schema
+
+Use the Markdoc FAQ node for automatic FAQ schema:
+
+```markdown
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "How do I get started?", "answer": "Sign up for a free account..."},
+     {"question": "Can I cancel anytime?", "answer": "Yes, you can cancel..."}
+   ]
+/%}
+```
+
+### Article Schema
+
+Add to blog posts:
+
+```tsx
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Article',
+      headline: post.title,
+      description: post.description,
+      image: post.image,
+      datePublished: post.publishedAt,
+      dateModified: post.updatedAt,
+      author: {
+        '@type': 'Person',
+        name: post.author,
+      },
+    }),
+  }}
+/>
+```
+
+## Robots.txt
+
+The robots.txt is generated dynamically at `apps/web/app/robots.ts`:
+
+```typescript {% title="apps/web/app/robots.ts" %}
+import type { MetadataRoute } from 'next';
+
+export default function robots(): MetadataRoute.Robots {
+  return {
+    rules: {
+      userAgent: '*',
+      allow: '/',
+      disallow: ['/home/', '/admin/', '/api/'],
+    },
+    sitemap: 'https://yoursaas.com/sitemap.xml',
+  };
+}
+```
+
+Update the sitemap URL to your production domain.
+
+## Google Search Console
+
+### Verification
+
+1. Go to [Google Search Console](https://search.google.com/search-console)
+2. Add your property (URL prefix method)
+3. Choose verification method:
+   - **HTML tag**: Add to your root layout's metadata
+   - **HTML file**: Upload to `public/`
+
+```tsx
+// HTML tag verification
+export const metadata: Metadata = {
+  verification: {
+    google: 'your-verification-code',
+  },
+};
+```
+
+### Submit Sitemap
+
+After verification:
+
+1. Navigate to **Sitemaps** in Search Console
+2. Enter `sitemap.xml` in the input field
+3. Click **Submit**
+
+Google will crawl and index your sitemap within a few days.
+
+### Monitor Indexing
+
+Check Search Console regularly for:
+
+- **Coverage**: Pages indexed vs. excluded
+- **Enhancements**: Structured data validation
+- **Core Web Vitals**: Performance metrics
+- **Mobile Usability**: Mobile-friendly issues
+
+## SEO Best Practices
+
+### Content Quality
+
+Content quality matters more than technical SEO. Focus on:
+
+- **Helpful content**: Solve problems your customers search for
+- **Unique value**: Offer insights competitors don't have
+- **Regular updates**: Keep content fresh and accurate
+- **Comprehensive coverage**: Answer related questions
+
+### Keyword Strategy
+
+| Element | Recommendation |
+|---------|----------------|
+| Title | Primary keyword near the beginning |
+| Description | Include keyword naturally, focus on click-through |
+| H1 | One per page, include primary keyword |
+| URL | Short, descriptive, include keyword |
+| Content | Use variations naturally, don't stuff |
+
+### Image Optimization
+
+```tsx
+import Image from 'next/image';
+
+<Image
+  src="/images/feature-screenshot.webp"
+  alt="Dashboard showing project analytics with team activity"
+  width={1200}
+  height={630}
+  priority={isAboveFold}
+/>
+```
+
+- Use WebP format for better compression
+- Include descriptive alt text with keywords
+- Use descriptive filenames (`project-dashboard.webp` not `img1.webp`)
+- Size images appropriately for their display size
+
+### Internal Linking
+
+Link between related content:
+
+```tsx
+// In your blog post about authentication
+<p>
+  Learn more about{' '}
+  <Link href="/docs/authentication/setup">
+    setting up authentication
+  </Link>{' '}
+  in our documentation.
+</p>
+```
+
+### Page Speed
+
+Makerkit is optimized for performance out of the box:
+
+- Next.js automatic code splitting
+- Image optimization with `next/image`
+- Font optimization with `next/font`
+- Static generation for marketing pages
+
+Check your scores with [PageSpeed Insights](https://pagespeed.web.dev/).
+
+## Backlinks
+
+Backlinks remain the strongest ranking factor. Strategies that work:
+
+| Strategy | Effort | Impact |
+|----------|--------|--------|
+| Create linkable content (guides, tools, research) | High | High |
+| Guest posting on relevant blogs | Medium | Medium |
+| Product directories (Product Hunt, etc.) | Low | Medium |
+| Open source contributions | Medium | Medium |
+| Podcast appearances | Medium | Medium |
+
+Focus on quality over quantity. One link from a high-authority site beats dozens of low-quality links.
+
+## Timeline Expectations
+
+SEO takes time. Typical timelines:
+
+| Milestone | Timeline |
+|-----------|----------|
+| Initial indexing | 1-2 weeks |
+| Rankings for low-competition terms | 1-3 months |
+| Rankings for medium-competition terms | 3-6 months |
+| Rankings for high-competition terms | 6-12+ months |
+
+Keep creating content and building backlinks. Results compound over time.
+
+## Related Resources
+
+- [Marketing Pages](/docs/next-supabase-turbo/development/marketing-pages) for building optimized landing pages
+- [CMS Setup](/docs/next-supabase-turbo/content/cms) for content marketing
+- [App Configuration](/docs/next-supabase-turbo/configuration/application-configuration) for base URL and metadata settings

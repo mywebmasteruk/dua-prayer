@@ -1,0 +1,495 @@
+---
+status: "published"
+title: "Using Drizzle as a client for interacting with Supabase"
+label: "Drizzle"
+order: 6
+description: "Add Drizzle ORM to your MakerKit project for type-safe database queries while respecting Supabase Row Level Security."
+---
+
+Drizzle ORM is a TypeScript-first database toolkit that provides type-safe query building and automatic TypeScript type inference from your PostgreSQL database. When combined with Supabase, you get the best of both worlds: Drizzle's query builder with Supabase's Row Level Security.
+
+Drizzle ORM provides type-safe database queries for PostgreSQL. With MakerKit's RLS-aware client, you get full TypeScript inference while respecting Supabase Row Level Security policies. This guide shows how to add Drizzle to your project, generate types from your existing database, and query data with proper RLS enforcement.
+
+MakerKit uses the standard [Supabase client](/docs/next-supabase-turbo/data-fetching/supabase-clients) by default. This guide covers adding Drizzle as an alternative query layer while keeping your RLS policies intact. For more data fetching patterns, see the [data fetching overview](/docs/next-supabase-turbo/data-fetching). Tested with Drizzle ORM 0.45.x and drizzle-kit 0.31.x (January 2025).
+
+The RLS integration is the tricky part. Most Drizzle tutorials skip it because they assume you're either using service role (bypassing RLS) or don't need row-level permissions. For a multi-tenant SaaS, you need both: type-safe queries that still respect your security policies.
+
+This guide adapts the [official Drizzle + Supabase tutorial](https://orm.drizzle.team/docs/tutorials/drizzle-with-supabase) with MakerKit-specific patterns.
+
+## When to Use Drizzle
+
+**Use Drizzle when:**
+- You need complex joins across multiple tables
+- You want full TypeScript inference on query results
+- You're writing many database queries and IDE autocomplete matters
+- You prefer SQL-like syntax over the Supabase query builder
+
+**Stick with Supabase client when:**
+- You need real-time subscriptions
+- You're doing file storage operations
+- You're working with auth flows
+- Simple CRUD is sufficient
+
+## Prerequisites
+
+- Working MakerKit project with Supabase running locally
+- Basic TypeScript knowledge
+- Database with existing tables (we'll generate the schema from your DB)
+
+## Step 1: Install Dependencies
+
+Add the required packages to the `@kit/supabase` package:
+
+```bash
+pnpm --filter "@kit/supabase" add drizzle-orm postgres jwt-decode
+pnpm --filter "@kit/supabase" add -D drizzle-kit
+```
+
+**Package breakdown:**
+- `drizzle-orm` - The ORM itself (runtime dependency)
+- `postgres` - postgres.js driver, faster than node-postgres for this use case
+- `jwt-decode` - Decodes Supabase JWT to extract user role for RLS
+- `drizzle-kit` - CLI for schema introspection and migrations (dev only)
+
+## Step 2: Create Drizzle Configuration
+
+Create `packages/supabase/drizzle.config.js`:
+
+```javascript {% title="packages/supabase/drizzle.config.js" %}
+import { defineConfig } from 'drizzle-kit';
+
+export default defineConfig({
+  schema: './src/drizzle/schema.ts',
+  out: './src/drizzle',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+  },
+  schemaFilter: ['public'],
+  verbose: true,
+  strict: true,
+});
+```
+
+**Configuration notes:**
+- `schemaFilter: ['public']` pulls only the public schema where your application tables live. Supabase's `auth` schema tables require a separate reference (covered in Step 5).
+- `schema` points to where the generated schema will be imported from. The `out` directory is where drizzle-kit writes the generated files.
+- If you need to pull from multiple schemas (e.g., a custom `app` schema), add them to the array: `['public', 'app']`.
+
+Drizzle Kit will generate a `schema.ts` file containing TypeScript types that match your database structure. This enables full type inference on all your queries.
+
+## Step 3: Update package.json
+
+Add the scripts and exports to `packages/supabase/package.json`:
+
+```json {% title="packages/supabase/package.json" %}
+{
+  "scripts": {
+    "drizzle": "drizzle-kit",
+    "pull": "drizzle-kit pull --config drizzle.config.js"
+  },
+  "exports": {
+    "./drizzle-client": "./src/clients/drizzle-client.ts",
+    "./drizzle-schema": "./src/drizzle/schema.ts"
+  }
+}
+```
+
+The `pull` script introspects your database and generates the TypeScript schema. The exports make the Drizzle client and schema available throughout your monorepo.
+
+## Step 4: Create the Drizzle Client
+
+This is where MakerKit differs from standard Drizzle setups. We need two clients:
+
+1. **Admin client** - Bypasses RLS for webhooks, admin operations, and background jobs
+2. **RLS client** - Sets JWT claims in a transaction to respect your security policies
+
+Create `packages/supabase/src/clients/drizzle-client.ts`:
+
+```typescript {% title="packages/supabase/src/clients/drizzle-client.ts" %}
+import 'server-only';
+
+import { DrizzleConfig, sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { JwtPayload, jwtDecode } from 'jwt-decode';
+import postgres from 'postgres';
+import * as z from 'zod';
+
+import * as schema from '../drizzle/schema';
+import { getSupabaseServerClient } from './server-client';
+
+const SUPABASE_DATABASE_URL = z
+  .string({
+    description: 'The URL of the Supabase database.',
+    required_error: 'SUPABASE_DATABASE_URL is required',
+  })
+  .url()
+  .parse(process.env.SUPABASE_DATABASE_URL!);
+
+const config = {
+  casing: 'snake_case',
+  schema,
+} satisfies DrizzleConfig<typeof schema>;
+
+// Admin client bypasses RLS
+const adminClient = drizzle({
+  client: postgres(SUPABASE_DATABASE_URL, { prepare: false }),
+  ...config,
+});
+
+// RLS protected client
+const rlsClient = drizzle({
+  client: postgres(SUPABASE_DATABASE_URL, { prepare: false }),
+  ...config,
+});
+
+/**
+ * Returns admin Drizzle client that bypasses RLS.
+ * Use for webhooks, admin operations, and migrations.
+ */
+export function getDrizzleSupabaseAdminClient() {
+  return adminClient;
+}
+
+/**
+ * Returns RLS-aware Drizzle client.
+ * All queries must run inside runTransaction to respect RLS policies.
+ */
+export async function getDrizzleSupabaseClient() {
+  const client = getSupabaseServerClient();
+  const { data } = await client.auth.getSession();
+  const accessToken = data.session?.access_token ?? '';
+  const token = decode(accessToken);
+
+  const runTransaction = ((transaction, txConfig) => {
+    return rlsClient.transaction(async (tx) => {
+      try {
+        // Set Supabase auth context for RLS
+        await tx.execute(sql`
+          select set_config('request.jwt.claims', '${sql.raw(
+            JSON.stringify(token),
+          )}', TRUE);
+          select set_config('request.jwt.claim.sub', '${sql.raw(
+            token.sub ?? '',
+          )}', TRUE);
+          set local role ${sql.raw(token.role ?? 'anon')};
+        `);
+
+        return await transaction(tx);
+      } finally {
+        // Reset context
+        await tx.execute(sql`
+          select set_config('request.jwt.claims', NULL, TRUE);
+          select set_config('request.jwt.claim.sub', NULL, TRUE);
+          reset role;
+        `);
+      }
+    }, txConfig);
+  }) as typeof rlsClient.transaction;
+
+  return { runTransaction };
+}
+
+function decode(accessToken: string) {
+  try {
+    return jwtDecode<JwtPayload & { role: string }>(accessToken);
+  } catch {
+    return { role: 'anon' } as JwtPayload & { role: string };
+  }
+}
+
+// Export type for external use
+export type DrizzleDatabase = typeof rlsClient;
+```
+
+**Why `prepare: false`?** Supabase's connection pooler (Transaction mode) doesn't support prepared statements. Without this flag, you'll get "prepared statement already exists" errors in production.
+
+**Why transactions for RLS?** PostgreSQL's `set_config` and `SET LOCAL ROLE` only persist within a transaction. If you run queries outside a transaction, the JWT context isn't set and RLS policies see an anonymous user.
+
+## Step 5: Generate the Schema
+
+With your local Supabase running, generate the TypeScript schema:
+
+```bash
+pnpm --filter "@kit/supabase" pull
+```
+
+Expected output:
+
+```
+Pulling from ['public'] list of schemas
+
+Using 'postgres' driver for database querying
+[✓] 14 tables fetched
+[✓] 104 columns fetched
+[✓] 9 enums fetched
+[✓] 18 indexes fetched
+[✓] 23 foreign keys fetched
+[✓] 28 policies fetched
+[✓] 3 check constraints fetched
+[✓] 2 views fetched
+
+[✓] Your schema file is ready ➜ src/drizzle/schema.ts
+[✓] Your relations file is ready ➜ src/drizzle/relations.ts
+```
+
+### Add the Auth Schema Reference
+
+Some MakerKit tables reference `auth.users`. Since we only pulled `public`, add this to the top of `packages/supabase/src/drizzle/schema.ts`:
+
+```typescript {% title="packages/supabase/src/drizzle/schema.ts" %}
+/* eslint-disable */
+import { pgSchema, uuid } from 'drizzle-orm/pg-core';
+
+// Reference to auth.users for foreign key constraints
+const authSchema = pgSchema('auth');
+
+export const usersInAuth = authSchema.table('users', {
+  id: uuid('id').primaryKey(),
+});
+
+// ... rest of generated schema
+```
+
+The `/* eslint-disable */` comment prevents lint errors on the generated code. The `authSchema` reference allows foreign key relationships to work correctly.
+
+### Verify the Schema
+
+After generating, check that `packages/supabase/src/drizzle/schema.ts` contains your tables. You should see exports like `accounts`, `subscriptions`, and other tables from your database.
+
+## Step 6: Configure Environment Variable
+
+Add `SUPABASE_DATABASE_URL` to your [environment variables](/docs/next-supabase-turbo/configuration/environment-variables). For local development, add to `.env.development`:
+
+```bash {% title=".env.development" %}
+SUPABASE_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+```
+
+{% alert type="warning" title="Keep SUPABASE_DATABASE_URL private" %}
+This URL contains database credentials. Never commit it to your repository. For production, set it through your hosting provider's environment variables (Vercel, Railway, etc.).
+{% /alert %}
+
+Find your production connection string in Supabase Dashboard → Project Settings → Database. Use the **connection pooler** URL in Transaction mode.
+
+## Using the Drizzle Client
+
+### In Server Components
+
+```typescript
+import { getDrizzleSupabaseClient } from '@kit/supabase/drizzle-client';
+import { accounts } from '@kit/supabase/drizzle-schema';
+
+async function AccountsList() {
+  const client = await getDrizzleSupabaseClient();
+
+  // All queries run inside runTransaction to respect RLS
+  const data = await client.runTransaction((tx) => {
+    return tx.select().from(accounts);
+  });
+
+  return (
+    <ul>
+      {data.map((account) => (
+        <li key={account.id}>{account.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### In Server Actions
+
+Use with the [authActionClient utility](/docs/next-supabase-turbo/data-fetching/server-actions) for authentication and validation:
+
+```typescript
+'use server';
+
+import { getDrizzleSupabaseClient } from '@kit/supabase/drizzle-client';
+import { tasks } from '@kit/supabase/drizzle-schema';
+import { authActionClient } from '@kit/next/safe-action';
+import * as z from 'zod';
+
+const CreateTaskSchema = z.object({
+  title: z.string().min(1),
+  accountId: z.string().uuid(),
+});
+
+export const createTaskAction = authActionClient
+  .inputSchema(CreateTaskSchema)
+  .action(async ({ parsedInput: data }) => {
+    const client = await getDrizzleSupabaseClient();
+
+    const [task] = await client.runTransaction((tx) => {
+      return tx
+        .insert(tasks)
+        .values({ title: data.title, accountId: data.accountId })
+        .returning();
+    });
+
+    return { task };
+  });
+```
+
+### Using the Admin Client
+
+For operations that bypass RLS (webhooks, admin tasks, background jobs):
+
+```typescript
+import { getDrizzleSupabaseAdminClient } from '@kit/supabase/drizzle-client';
+import { accounts } from '@kit/supabase/drizzle-schema';
+import { eq } from 'drizzle-orm';
+
+async function deleteAccountAdmin(accountId: string) {
+  const db = getDrizzleSupabaseAdminClient();
+
+  // Bypasses RLS - use only for admin operations
+  await db.delete(accounts).where(eq(accounts.id, accountId));
+}
+```
+
+{% alert type="warning" title="Admin client bypasses RLS" %}
+The admin client ignores all Row Level Security policies. Use it only for operations that genuinely need elevated permissions. For user-facing features, always use the RLS client with `runTransaction`.
+{% /alert %}
+
+## Common Query Patterns
+
+### Queries with Filters
+
+```typescript
+import { eq, and, gt } from 'drizzle-orm';
+import { tasks } from '@kit/supabase/drizzle-schema';
+
+const client = await getDrizzleSupabaseClient();
+
+const recentTasks = await client.runTransaction((tx) => {
+  return tx
+    .select()
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.accountId, accountId),
+        gt(tasks.createdAt, lastWeek)
+      )
+    );
+});
+// Returns: Array<{ id: string; title: string; accountId: string; createdAt: Date; ... }>
+```
+
+### Joins
+
+```typescript
+import { eq } from 'drizzle-orm';
+import { tasks, accounts } from '@kit/supabase/drizzle-schema';
+
+// Assumes client from getDrizzleSupabaseClient() is in scope
+const tasksWithAccounts = await client.runTransaction((tx) => {
+  return tx
+    .select({
+      task: tasks,
+      account: accounts,
+    })
+    .from(tasks)
+    .leftJoin(accounts, eq(tasks.accountId, accounts.id));
+});
+// Returns: Array<{ task: Task; account: Account | null }>
+```
+
+### Aggregations
+
+```typescript
+import { count, sql, eq } from 'drizzle-orm';
+import { tasks } from '@kit/supabase/drizzle-schema';
+
+// Assumes client from getDrizzleSupabaseClient() is in scope
+const stats = await client.runTransaction((tx) => {
+  return tx
+    .select({
+      total: count(),
+      completed: sql<number>`count(*) filter (where completed = true)`,
+    })
+    .from(tasks)
+    .where(eq(tasks.accountId, accountId));
+});
+// Returns: [{ total: 42, completed: 18 }]
+```
+
+## Common Pitfalls
+
+**1. Running queries outside `runTransaction`**
+
+The RLS client doesn't expose direct query methods. You must use `runTransaction`:
+
+```typescript
+// Wrong - this doesn't exist
+const data = await client.select().from(tasks);
+
+// Correct
+const data = await client.runTransaction((tx) => {
+  return tx.select().from(tasks);
+});
+```
+
+**2. Forgetting `prepare: false`**
+
+Supabase's connection pooler doesn't support prepared statements. Without this flag:
+
+```
+Error: prepared statement "s1" already exists
+```
+
+**3. Schema out of sync**
+
+After database changes, re-run `pnpm --filter "@kit/supabase" pull` to regenerate the schema. Remember to re-add the auth schema reference at the top of the file.
+
+**4. Bundling in client components**
+
+The Drizzle client uses `server-only`. If you accidentally import it in a client component:
+
+```
+Error: This module cannot be imported from a Client Component
+```
+
+Move your database logic to a Server Component, Server Action, or Route Handler.
+
+**5. Using the wrong environment variable**
+
+The Drizzle client expects `SUPABASE_DATABASE_URL` (your production connection pooler URL). The `drizzle.config.js` uses `DATABASE_URL` for local CLI operations like `pull`. For local development, both can point to `postgresql://postgres:postgres@127.0.0.1:54322/postgres`. In production, `SUPABASE_DATABASE_URL` should be your Supabase connection pooler URL in Transaction mode.
+
+## Migrations with Drizzle
+
+The default setup uses schema introspection (`pull`). If you want Drizzle to manage migrations instead:
+
+1. Move the `src/drizzle` folder to your project root
+2. Update `drizzle.config.js` paths
+3. Use `drizzle-kit generate` to create migrations
+4. Use `drizzle-kit migrate` to apply them
+
+For most MakerKit projects, sticking with Supabase migrations and using Drizzle only as a query builder keeps things simpler. See the [migrations documentation](/docs/next-supabase-turbo/development/migrations) for the standard approach.
+
+## Server-Only Requirement
+
+The Drizzle client can only run on the server. Use it in:
+- Server Components
+- [Server Actions](/docs/next-supabase-turbo/data-fetching/server-actions)
+- [Route Handlers](/docs/next-supabase-turbo/data-fetching/route-handlers)
+
+The `'server-only'` import at the top of the client file enforces this at build time.
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Does Drizzle work with Supabase RLS?", "answer": "Yes. The getDrizzleSupabaseClient function sets JWT claims inside a transaction, so your RLS policies evaluate correctly. All queries must run inside runTransaction for RLS to apply."},
+     {"question": "Can I use Drizzle for migrations with Supabase?", "answer": "You can, but it's not recommended for MakerKit projects. The kit uses Supabase migrations for schema changes. Use Drizzle as a query builder and keep using Supabase CLI for migrations."},
+     {"question": "Why do I need runTransaction for every query?", "answer": "PostgreSQL's set_config and SET LOCAL ROLE only persist within a transaction. Without the transaction wrapper, the JWT context isn't set and RLS policies see an anonymous user."},
+     {"question": "What's the difference between admin and RLS client?", "answer": "getDrizzleSupabaseAdminClient bypasses all RLS policies - use it for webhooks, admin tasks, and background jobs. getDrizzleSupabaseClient respects RLS and should be used for all user-facing features."},
+     {"question": "Why do I get 'prepared statement already exists' errors?", "answer": "Supabase's connection pooler in Transaction mode doesn't support prepared statements. Add prepare: false to your postgres client options as shown in the setup."}
+   ]
+/%}
+
+## Related Documentation
+
+- [Data Fetching Overview](/docs/next-supabase-turbo/data-fetching) - All data fetching patterns in MakerKit
+- [Supabase Clients](/docs/next-supabase-turbo/data-fetching/supabase-clients) - Understanding client types and RLS
+- [Server Actions](/docs/next-supabase-turbo/data-fetching/server-actions) - Using authActionClient with database operations
+- [Database Schema](/docs/next-supabase-turbo/development/database-schema) - MakerKit's database structure
+- [Drizzle ORM Documentation](https://orm.drizzle.team/docs/overview) - Full API reference

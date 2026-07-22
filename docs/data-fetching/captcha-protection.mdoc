@@ -1,0 +1,212 @@
+---
+status: "published"
+description: "Learn how to set up captcha protection for your API routes."
+title: "Captcha Protection for your API Routes"
+label: "Captcha Protection"
+order: 7
+---
+
+For captcha protection, we use [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile).
+
+{% sequence title="How to set up captcha protection for your API routes" description="Learn how to set up captcha protection for your API routes" %}
+
+[Setting up the environment variables](#setting-up-the-environment-variables)
+
+[Enabling the captcha protection](#enabling-the-captcha-protection)
+
+[Using captcha in your components](#using-captcha-in-your-components)
+
+[Verifying the token](#verifying-the-token)
+
+{% /sequence %}
+
+## Setting up the environment variables
+
+To enable it, you need to set the following environment variables:
+
+```bash
+CAPTCHA_SECRET_TOKEN=
+NEXT_PUBLIC_CAPTCHA_SITE_KEY=
+NEXT_PUBLIC_CAPTCHA_WIDGET_SIZE=invisible
+```
+
+You can find the `CAPTCHA_SECRET_TOKEN` in the Turnstile configuration. The `NEXT_PUBLIC_CAPTCHA_SITE_KEY` is public and safe to share. Instead, the `CAPTCHA_SECRET_TOKEN` should be kept secret.
+
+`NEXT_PUBLIC_CAPTCHA_WIDGET_SIZE` controls the visual appearance of the Turnstile widget. The default is `invisible`, which is correct for **Non-interactive** and **Invisible** site key types. If you use a **Managed** site key (where Cloudflare may require the user to interact with a checkbox), set this to `normal` or `compact` so the widget is visible.
+
+This guide assumes you have correctly set up your Turnstile configuration. If you haven't, please refer to the https://developers.cloudflare.com/turnstile.
+
+## Enabling the captcha protection
+
+When you set the token in the environment variables, the kit will automatically protect your API routes with captcha.
+
+**Important:** You also need to set the token in the Supabase Dashboard!
+
+## Using Captcha in Your Components
+
+The kit provides two clean APIs for captcha integration depending on your use case.
+
+### Option 1: Using the useCaptcha Hook
+
+For auth containers and simple forms, use the useCaptcha hook for zero-boilerplate captcha integration:
+
+```tsx
+import { useCaptcha } from '@kit/auth/captcha/client';
+
+function MyComponent({ captchaSiteKey }) {
+  const captcha = useCaptcha({ siteKey: captchaSiteKey });
+
+  const handleSubmit = async (data) => {
+    try {
+      await myServerAction({
+        ...data,
+        captchaToken: captcha.token,
+      });
+    } finally {
+      // Always reset after submission
+      captcha.reset();
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {captcha.field}
+      <button type="submit">Submit</button>
+    </form>
+  );
+}
+```
+
+The useCaptcha hook returns:
+- `token` - The current captcha token
+- `reset()` - Function to reset the captcha widget
+- `field` - The captcha component to render
+
+### Option 2: React Hook Form Integration
+
+For forms using react-hook-form, use the CaptchaField component with automatic form integration:
+
+```tsx
+import { useForm } from 'react-hook-form';
+import { CaptchaField } from '@kit/auth/captcha/client';
+
+function MyForm() {
+  const form = useForm({
+    defaultValues: {
+      message: '',
+      captchaToken: '',
+    },
+  });
+
+  const handleSubmit = async (data) => {
+    try {
+      await myServerAction(data);
+      form.reset(); // Automatically resets captcha too
+    } catch (error) {
+      // Handle error
+    }
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleSubmit)}>
+        {/* Your form fields */}
+
+        <CaptchaField
+          siteKey={config.captchaSiteKey}
+          control={form.control}
+          name="captchaToken"
+        />
+
+        <button type="submit">Submit</button>
+      </form>
+    </Form>
+  );
+}
+```
+
+When using React Hook Form integration:
+- The captcha token is automatically set in the form state
+- Calling form.reset() automatically resets the captcha
+- No manual state management needed
+
+## Using with Server Actions
+
+Define your server action schema to include the captchaToken:
+
+```tsx
+import * as z from 'zod';
+import { captchaActionClient } from '@kit/next/safe-action';
+
+const MySchema = z.object({
+  message: z.string(),
+  captchaToken: z.string(),
+});
+
+export const myServerAction = captchaActionClient
+  .inputSchema(MySchema)
+  .action(async ({ parsedInput: data, ctx: { user } }) => {
+    // Your action code - captcha is automatically verified
+    console.log(data.message);
+  });
+```
+
+The `captchaActionClient` automatically:
+
+1. Extracts the `captchaToken` from the data
+2. Verifies it with Cloudflare Turnstile
+3. Throws an error if verification fails
+
+### Important Notes
+
+- **Token Validity**: A captcha token is valid for one request only
+- **Always Reset:** Always call captcha.reset() (or form.reset() with RHF) after submission, whether successful or not
+- **Automatic Renewal**: The library automatically renews tokens when needed, but you must reset after consumption
+
+## Verifying the Token Manually
+
+If you need to verify the captcha token manually server-side (e.g., in API routes), use:
+
+```tsx
+import { verifyCaptchaToken } from '@kit/auth/captcha/server';
+
+async function myApiHandler(request: Request) {
+  const token = request.headers.get('x-captcha-token');
+
+  // Throws an error if invalid
+  await verifyCaptchaToken(token);
+
+  // Your API logic
+}
+```
+
+Note: If you use `captchaActionClient` or `enhanceRouteHandler` with captcha: true, verification is automatic and you don't need to call verifyCaptchaToken manually.
+
+## Upgrading from v2
+
+{% callout title="Differences with v2" %}
+In v2, captcha-protected actions used `enhanceAction` with `{ captcha: true }`. In v3, use `captchaActionClient` from `@kit/next/safe-action` which handles captcha verification automatically. Zod imports also changed from `import { z } from 'zod'` to `import * as z from 'zod'`.
+
+For the full migration guide, see [Upgrading from v2 to v3](/docs/next-supabase-turbo/installation/v3-migration).
+{% /callout %}
+
+## Migration from old API (prior to v2.18.3)
+
+If you're migrating from the old `useCaptchaToken` hook:
+
+Before:
+
+```tsx
+import { useCaptchaToken } from '@kit/auth/captcha/client';
+
+const { captchaToken, resetCaptchaToken } = useCaptchaToken();
+// Manual state management required
+```
+
+After:
+
+```tsx
+import { useCaptcha } from '@kit/auth/captcha/client';
+
+const captcha = useCaptcha({ siteKey: captchaSiteKey });
+```

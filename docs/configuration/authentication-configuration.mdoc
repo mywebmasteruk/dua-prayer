@@ -1,0 +1,247 @@
+---
+status: "published"
+label: "Authentication Configuration"
+title: "Authentication Configuration: Password, Magic Link, OAuth, Passkeys, MFA"
+description: "Configure email/password, magic link, OTP, passkeys, and OAuth authentication in the Next.js Supabase SaaS Kit. Set up password requirements, identity linking, and CAPTCHA protection."
+order: 2
+---
+
+The authentication configuration at `apps/web/config/auth.config.ts` controls which sign-in methods are available and how they behave. Configure using environment variables to enable password, magic link, OTP, or OAuth authentication.
+
+{% alert type="default" title="Quick Setup" %}
+Password authentication is enabled by default. To switch to magic link or add OAuth providers, set the corresponding environment variables and configure the providers in your Supabase Dashboard.
+{% /alert %}
+
+## Authentication Methods
+
+| Method | Environment Variable | Default | Description |
+|--------|---------------------|---------|-------------|
+| Password | `NEXT_PUBLIC_AUTH_PASSWORD` | `true` | Traditional email/password |
+| Magic Link | `NEXT_PUBLIC_AUTH_MAGIC_LINK` | `false` | Passwordless email links |
+| OTP | `NEXT_PUBLIC_AUTH_OTP` | `false` | One-time password codes |
+| Passkey | `NEXT_PUBLIC_AUTH_PASSKEY` | `false` | WebAuthn passkeys (biometrics / security keys) |
+| OAuth | Configure in code | `['google']` | Third-party providers |
+
+## Basic Configuration
+
+```bash
+# Enable password authentication (default)
+NEXT_PUBLIC_AUTH_PASSWORD=true
+NEXT_PUBLIC_AUTH_MAGIC_LINK=false
+NEXT_PUBLIC_AUTH_OTP=false
+NEXT_PUBLIC_AUTH_PASSKEY=false
+```
+
+## Switching to Magic Link
+
+```bash
+NEXT_PUBLIC_AUTH_PASSWORD=false
+NEXT_PUBLIC_AUTH_MAGIC_LINK=true
+```
+
+## Switching to OTP
+
+```bash
+NEXT_PUBLIC_AUTH_PASSWORD=false
+NEXT_PUBLIC_AUTH_OTP=true
+```
+
+When using OTP, update your Supabase email templates in `apps/web/supabase/config.toml`:
+
+```toml
+[auth.email.template.confirmation]
+subject = "Confirm your email"
+content_path = "./supabase/templates/otp.html"
+
+[auth.email.template.magic_link]
+subject = "Sign in to Makerkit"
+content_path = "./supabase/templates/otp.html"
+```
+
+Also update the templates in your Supabase Dashboard under **Authentication > Templates** for production.
+
+## Passkeys
+
+Passkeys let users sign in with WebAuthn — using their device's biometrics (Face ID, Touch ID, Windows Hello) or a hardware security key — instead of a password. Passkeys are **disabled by default**.
+
+```bash
+# Enable the passkey sign-in option
+NEXT_PUBLIC_AUTH_PASSKEY=true
+```
+
+When enabled, a "Sign in with Passkey" button appears on the sign-in page alongside the other methods, and a **Passkeys** card appears in the personal account settings where users can register and remove their passkeys.
+
+{% alert type="warning" title="Enable WebAuthn in Supabase" %}
+The passkey option only renders the UI. You must also enable WebAuthn for your project in the Supabase Dashboard under **Authentication > Sign In / Providers**. Passkeys require a secure context (HTTPS, or `localhost` during development).
+{% /alert %}
+
+### How passkeys work in the kit
+
+Passkeys are powered by Supabase's experimental WebAuthn APIs, which are opted into on the browser client (`packages/supabase/src/clients/browser-client.ts`):
+
+```typescript
+createBrowserClient(url, key, {
+  auth: {
+    experimental: {
+      passkey: true,
+    },
+  },
+});
+```
+
+The relevant building blocks are:
+
+- `useSignInWithPasskey()` — signs an existing user in with `supabase.auth.signInWithPasskey()`
+- `useRegisterPasskey(userId)` — registers a passkey for the signed-in user with `supabase.auth.registerPasskey()`
+- `useFetchPasskeys(userId)` / `useDeletePasskey(userId)` — list and remove passkeys via `supabase.auth.passkey.*`
+
+Because passkeys authenticate an **existing** account, the sign-in button only appears on the sign-in page (not on sign-up). Users first register a passkey from their account settings, then use it to sign in. See [Supabase's passkeys guide](https://supabase.com/docs/guides/auth/passkeys) for more details.
+
+## OAuth Providers
+
+### Supported Providers
+
+The kit supports all Supabase OAuth providers:
+
+| Provider | ID | Provider | ID |
+|----------|-----|----------|-----|
+| Apple | `apple` | Kakao | `kakao` |
+| Azure | `azure` | Keycloak | `keycloak` |
+| Bitbucket | `bitbucket` | LinkedIn | `linkedin` |
+| Discord | `discord` | LinkedIn OIDC | `linkedin_oidc` |
+| Facebook | `facebook` | Notion | `notion` |
+| Figma | `figma` | Slack | `slack` |
+| GitHub | `github` | Spotify | `spotify` |
+| GitLab | `gitlab` | Twitch | `twitch` |
+| Google | `google` | Twitter | `twitter` |
+| Fly | `fly` | WorkOS | `workos` |
+| | | Zoom | `zoom` |
+
+### Configuring OAuth Providers
+
+OAuth providers are configured in two places:
+
+1. **Supabase Dashboard**: Enable and configure credentials (Client ID, Client Secret)
+2. **Code**: Display in the sign-in UI
+
+Edit `apps/web/config/auth.config.ts` to change which providers appear:
+
+```typescript
+providers: {
+  password: process.env.NEXT_PUBLIC_AUTH_PASSWORD === 'true',
+  magicLink: process.env.NEXT_PUBLIC_AUTH_MAGIC_LINK === 'true',
+  otp: process.env.NEXT_PUBLIC_AUTH_OTP === 'true',
+  passkey: process.env.NEXT_PUBLIC_AUTH_PASSKEY === 'true',
+  oAuth: ['google', 'github'],  // Add providers here
+}
+```
+
+{% alert type="warning" title="Provider Configuration" %}
+Adding a provider to the array only displays it in the UI. You must also configure the provider in your Supabase Dashboard with valid credentials. See [Supabase's OAuth documentation](https://supabase.com/docs/guides/auth/social-login).
+{% /alert %}
+
+### OAuth Scopes
+
+Some providers require specific scopes. Configure them in `packages/features/auth/src/components/oauth-providers.tsx`:
+
+```tsx
+const OAUTH_SCOPES: Partial<Record<Provider, string>> = {
+  azure: 'email',
+  keycloak: 'openid',
+  // add your OAuth providers here
+};
+```
+
+The kit ships with Azure and Keycloak scopes configured. Add additional providers as needed based on their OAuth requirements.
+
+### Local Development OAuth
+
+For local OAuth testing, configure your providers in `apps/web/supabase/config.toml`. See [Supabase's local development OAuth guide](https://supabase.com/docs/guides/local-development/managing-config).
+
+## Identity Linking
+
+Allow users to link multiple authentication methods (e.g., link Google to an existing email account):
+
+```bash
+NEXT_PUBLIC_AUTH_IDENTITY_LINKING=true
+```
+
+This must also be enabled in your Supabase Dashboard under **Authentication > Settings**.
+
+## Password Requirements
+
+Enforce password strength rules:
+
+```bash
+NEXT_PUBLIC_PASSWORD_REQUIRE_UPPERCASE=true
+NEXT_PUBLIC_PASSWORD_REQUIRE_NUMBERS=true
+NEXT_PUBLIC_PASSWORD_REQUIRE_SPECIAL_CHARS=true
+```
+
+These rules validate:
+1. At least one uppercase letter
+2. At least one number
+3. At least one special character
+
+## CAPTCHA Protection
+
+Protect authentication forms with Cloudflare Turnstile:
+
+```bash
+NEXT_PUBLIC_CAPTCHA_SITE_KEY=your-site-key
+CAPTCHA_SECRET_TOKEN=your-secret-token
+```
+
+Get your keys from the [Cloudflare Turnstile dashboard](https://dash.cloudflare.com/?to=/:account/turnstile).
+
+## Terms and Conditions
+
+Display a terms checkbox during sign-up:
+
+```bash
+NEXT_PUBLIC_DISPLAY_TERMS_AND_CONDITIONS_CHECKBOX=true
+```
+
+## MFA (Multi-Factor Authentication)
+
+MFA is built into Supabase Auth. To enforce MFA for specific operations:
+
+1. Enable MFA in your Supabase Dashboard
+2. Customize RLS policies per [Supabase's MFA documentation](https://supabase.com/blog/mfa-auth-via-rls)
+
+The super admin dashboard already requires MFA for access.
+
+## How It Works
+
+The configuration file parses environment variables through a Zod schema:
+
+```typescript
+const authConfig = AuthConfigSchema.parse({
+  captchaTokenSiteKey: process.env.NEXT_PUBLIC_CAPTCHA_SITE_KEY,
+  displayTermsCheckbox:
+    process.env.NEXT_PUBLIC_DISPLAY_TERMS_AND_CONDITIONS_CHECKBOX === 'true',
+  enableIdentityLinking:
+    process.env.NEXT_PUBLIC_AUTH_IDENTITY_LINKING === 'true',
+  providers: {
+    password: process.env.NEXT_PUBLIC_AUTH_PASSWORD === 'true',
+    magicLink: process.env.NEXT_PUBLIC_AUTH_MAGIC_LINK === 'true',
+    otp: process.env.NEXT_PUBLIC_AUTH_OTP === 'true',
+    passkey: process.env.NEXT_PUBLIC_AUTH_PASSKEY === 'true',
+    oAuth: ['google'],
+  },
+});
+```
+
+## Common Pitfalls
+
+1. **OAuth not working**: Ensure the provider is configured in both the code and Supabase Dashboard with matching credentials.
+2. **Magic link emails not arriving**: Check your email configuration and Supabase email templates. For local development, emails go to Mailpit at `localhost:54324`.
+3. **OTP using wrong template**: Both OTP and magic link use the same Supabase email template type. Use `otp.html` for OTP or `magic-link.html` for magic links, but not both simultaneously.
+4. **Identity linking fails**: Must be enabled in both environment variables and Supabase Dashboard.
+
+## Related Topics
+
+- [Authentication API](/docs/next-supabase-turbo/api/authentication-api) - Check user authentication status in code
+- [Production Authentication](/docs/next-supabase-turbo/going-to-production/authentication) - Configure authentication for production
+- [Authentication Emails](/docs/next-supabase-turbo/emails/authentication-emails) - Customize email templates
+- [Environment Variables](/docs/next-supabase-turbo/configuration/environment-variables) - Complete variable reference

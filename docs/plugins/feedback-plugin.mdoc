@@ -1,0 +1,70 @@
+---
+status: "published"
+title: 'Add a Feedback Widget plugin to your Next.js Supabase SaaS Starter kit'
+label: 'Feedback Widget'
+order: 5
+description: 'Add a Feedback Widget plugin to your Next.js Supabase SaaS Starter kit'
+---
+
+This plugin is a lighter version of the Roadmap plugin. It is recommended to install the Roadmap plugin if you need more features.
+
+The feedback plugin allows you to add a feedback widget to your app. Users can provide feedback on your app, and you can view and manage feedback submissions in the admin panel.
+
+### Installation
+
+Pull the plugin from the main repository:
+
+```
+npx @makerkit/cli@latest plugins add feedback
+```
+
+The codemod will automatically:
+- Add the `@kit/feedback` dependency and install packages
+- Add the feedback sidebar item to the admin panel
+- Create the translation file at `apps/web/i18n/messages/en/feedback.json`
+- Add the `feedback` namespace to your i18n settings
+- Create the Supabase migration file for the feedback table
+
+### Run the migrations
+
+After installation, run the migration and regenerate types:
+
+```
+pnpm run supabase:web:reset
+pnpm run supabase:web:typegen
+```
+
+### Import the component
+
+Now, you can import the component from the plugin:
+
+```tsx
+import { FeedbackPopup } from '@kit/feedback';
+```
+
+And use it in your app:
+
+```tsx
+<FeedbackPopup>
+    <Button>Gimme feedback</Button>
+</FeedbackPopup>
+```
+
+You can also import the form alone - so you can customize its appearance:
+
+```tsx
+import {FeedbackForm} from '@kit/feedback';
+```
+
+And use it in your app:
+
+```tsx
+<FeedbackForm/>
+```
+
+## Admin Panel
+
+The admin pages and sidebar item are automatically set up by the CLI. You can find them at:
+
+- `apps/web/app/[locale]/admin/feedback/page.tsx` — Feedback submissions list
+- `apps/web/app/[locale]/admin/feedback/[id]/page.tsx` — Submission detail page

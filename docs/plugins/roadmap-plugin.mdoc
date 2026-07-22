@@ -1,0 +1,75 @@
+---
+status: "published"
+title: 'Roadmap Plugin in the Next.js Supabase SaaS Starter kit'
+label: 'Roadmap Plugin'
+order: 2
+description: 'Learn how to install the Roadmap plugin in the Next.js Supabase SaaS Starter kit.'
+---
+
+This plugin allows you to create a roadmap for your project and display it on your website.
+
+Your users can see what features are planned, in progress, and completed and suggest new features or comment on existing ones.
+
+## Functionality
+
+The plugin provides the following functionality:
+
+1. Display the feature requests on the website.
+2. Allow users to suggest new features.
+3. Allow users to comment on existing features.
+4. Display the Feature Requests in the Admin panel.
+5. Allow Admins to manage the Feature Requests, update their status, and delete them.
+6. Allow Admins to manage the comments on the Feature Requests.
+
+## Installation
+
+To install the plugin, run the following command:
+
+```bash
+npx @makerkit/cli plugins add
+```
+
+Since this plugin depends on the Kanban plugin, you need to install both. Please select the `kanban` plugin from the list of available plugins.
+
+Then, please select the `roadmap` plugin from the list of available plugins.
+
+The codemod will automatically:
+- Add the `@kit/roadmap` dependency and install packages
+- Create the translation file at `apps/web/i18n/messages/en/roadmap.json`
+- Add the `roadmap` namespace to your i18n settings
+- Add the roadmap sidebar item to the admin panel
+- Create the Supabase migration file for the roadmap tables
+
+### Run the migrations
+
+After installation, run the migration and regenerate types:
+
+```bash
+pnpm run supabase:web:reset
+pnpm run supabase:web:typegen
+```
+
+## Displaying the Roadmap and Feature Requests
+
+To display the roadmap and feature requests on your website, add the following code to the `apps/web/app/[locale]/(marketing)/roadmap/page.tsx` file:
+
+```tsx
+import { RoadmapPage } from "@kit/roadmap/server";
+
+export default RoadmapPage;
+```
+
+Let's now add the comments GET route at `apps/web/app/[locale]/(marketing)/roadmap/comments/route.ts`:
+
+```tsx
+import { createFetchCommentsRouteHandler } from '@kit/roadmap/route-handler';
+
+export const GET = createFetchCommentsRouteHandler;
+```
+
+## Admin Pages
+
+The admin pages and sidebar item are automatically set up by the CLI. You can find them at:
+
+- `apps/web/app/[locale]/admin/roadmap/page.tsx` — Feature requests list
+- `apps/web/app/[locale]/admin/roadmap/[id]/page.tsx` — Feature request detail page

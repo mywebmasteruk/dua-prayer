@@ -1,0 +1,364 @@
+---
+status: "published"
+label: "Adding a Turborepo Package"
+title: "Add a Shared Package to Your Makerkit Monorepo"
+description: "Create reusable packages for shared business logic, utilities, or components across your Turborepo monorepo applications."
+order: 14
+---
+
+Create shared packages in your Makerkit monorepo using `turbo gen` to scaffold a new package at `packages/@kit/<name>`. Shared packages let you reuse business logic, utilities, or components across multiple applications while maintaining a single source of truth.
+
+{% alert type="default" title="When to Create a Package" %}
+Create a package when you have code that needs to be shared across multiple applications or when you want to enforce clear boundaries between different parts of your codebase. For code used only in `apps/web`, a folder within the app is simpler.
+{% /alert %}
+
+{% sequence title="Create a Shared Package" description="Add a new package to your monorepo" %}
+
+[Generate the package](#step-1-generate-the-package)
+
+[Configure exports](#step-2-configure-exports)
+
+[Add to Next.js config](#step-3-add-to-nextjs-config)
+
+[Use in your application](#step-4-use-the-package)
+
+{% /sequence %}
+
+## When to Create a Package
+
+Create a shared package when:
+
+- **Multiple applications**: Code needs to be used across `apps/web` and other applications
+- **Clear boundaries**: You want to enforce separation between different domains
+- **Reusable utilities**: Generic utilities that could be used in any application
+- **Shared types**: TypeScript types shared across the codebase
+
+Keep code in `apps/web` when:
+
+- It's only used in one application
+- It's tightly coupled to specific routes or pages
+- Creating a package adds complexity without benefit
+
+## Step 1: Generate the Package
+
+Use the Turborepo generator to scaffold a new package:
+
+```bash
+turbo gen
+```
+
+Follow the prompts:
+
+1. Select **"Create a new package"**
+2. Enter the package name (e.g., `analytics`)
+3. Optionally add dependencies
+
+The generator creates a package at `packages/@kit/analytics` with this structure:
+
+```
+packages/@kit/analytics/
+├── src/
+│   └── index.ts
+├── package.json
+└── tsconfig.json
+```
+
+### Package.json Structure
+
+```json {% title="packages/@kit/analytics/package.json" %}
+{
+  "name": "@kit/analytics",
+  "version": "0.0.1",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}
+```
+
+## Step 2: Configure Exports
+
+### Single Export (Simple)
+
+For packages with a single entry point, export everything from `index.ts`:
+
+```typescript {% title="packages/@kit/analytics/src/index.ts" %}
+export { trackEvent, trackPageView } from './tracking';
+export { AnalyticsProvider } from './provider';
+export type { AnalyticsEvent, AnalyticsConfig } from './types';
+```
+
+Import in your application:
+
+```typescript
+import { trackEvent, AnalyticsProvider } from '@kit/analytics';
+```
+
+### Multiple Exports (Tree-Shaking)
+
+For packages with client and server code, use multiple exports for better tree-shaking:
+
+```json {% title="packages/@kit/analytics/package.json" %}
+{
+  "name": "@kit/analytics",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./server": "./src/server.ts"
+  }
+}
+```
+
+Create separate entry points:
+
+```typescript {% title="packages/@kit/analytics/src/client.ts" %}
+// Client-side analytics (runs in browser)
+export { useAnalytics } from './hooks/use-analytics';
+export { AnalyticsProvider } from './components/provider';
+```
+
+```typescript {% title="packages/@kit/analytics/src/server.ts" %}
+// Server-side analytics (runs on server only)
+export { trackServerEvent } from './server/tracking';
+export { getAnalyticsClient } from './server/client';
+```
+
+Import the specific export:
+
+```typescript
+// In a Client Component
+import { useAnalytics } from '@kit/analytics/client';
+
+// In a Server Component or Server Action
+import { trackServerEvent } from '@kit/analytics/server';
+```
+
+### When to Use Multiple Exports
+
+Use multiple exports when:
+
+- **Client/server separation**: Code that should only run in one environment
+- **Large packages**: Reduce bundle size by allowing apps to import only what they need
+- **Optional features**: Features that not all consumers need
+
+## Step 3: Add to Next.js Config
+
+For hot module replacement (HMR) to work during development, add your package to the `INTERNAL_PACKAGES` array in `apps/web/next.config.mjs`:
+
+```javascript {% title="apps/web/next.config.mjs" %}
+const INTERNAL_PACKAGES = [
+  '@kit/ui',
+  '@kit/auth',
+  '@kit/supabase',
+  // ... existing packages
+  '@kit/analytics',  // Add your new package
+];
+```
+
+This tells Next.js to:
+1. Transpile the package (since it's TypeScript)
+2. Watch for changes and trigger HMR
+3. Include it in the build optimization
+
+## Step 4: Use the Package
+
+### Add as Dependency
+
+Add the package to your application's dependencies:
+
+```json {% title="apps/web/package.json" %}
+{
+  "dependencies": {
+    "@kit/analytics": "workspace:*"
+  }
+}
+```
+
+Run `pnpm install` to link the workspace package.
+
+### Import and Use
+
+```typescript {% title="apps/web/app/layout.tsx" %}
+import { AnalyticsProvider } from '@kit/analytics';
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        <AnalyticsProvider>
+          {children}
+        </AnalyticsProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+```typescript {% title="apps/web/app/home/page.tsx" %}
+import { trackPageView } from '@kit/analytics';
+
+export default function HomePage() {
+  trackPageView({ page: 'home' });
+
+  return <div>Welcome</div>;
+}
+```
+
+## Package Development Patterns
+
+### Adding Dependencies
+
+Add dependencies to your package:
+
+```bash
+pnpm --filter @kit/analytics add zod
+```
+
+### Using Other Workspace Packages
+
+Reference other workspace packages:
+
+```json {% title="packages/@kit/analytics/package.json" %}
+{
+  "dependencies": {
+    "@kit/shared": "workspace:*"
+  }
+}
+```
+
+### TypeScript Configuration
+
+The package's `tsconfig.json` should extend the root configuration:
+
+```json {% title="packages/@kit/analytics/tsconfig.json" %}
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"]
+}
+```
+
+### Testing Packages
+
+Add tests alongside your package code:
+
+```
+packages/@kit/analytics/
+├── src/
+│   ├── index.ts
+│   └── tracking.ts
+└── tests/
+    └── tracking.test.ts
+```
+
+Run tests:
+
+```bash
+pnpm --filter @kit/analytics test
+```
+
+## Example: Creating a Feature Package
+
+Here's a complete example of creating a `notifications` package:
+
+### 1. Generate
+
+```bash
+turbo gen
+# Name: notifications
+```
+
+### 2. Structure
+
+```
+packages/@kit/notifications/
+├── src/
+│   ├── index.ts
+│   ├── client.ts
+│   ├── server.ts
+│   ├── components/
+│   │   └── notification-bell.tsx
+│   ├── hooks/
+│   │   └── use-notifications.ts
+│   └── server/
+│       └── send-notification.ts
+└── package.json
+```
+
+### 3. Exports
+
+```json {% title="packages/@kit/notifications/package.json" %}
+{
+  "name": "@kit/notifications",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./server": "./src/server.ts"
+  },
+  "dependencies": {
+    "@kit/supabase": "workspace:*"
+  }
+}
+```
+
+### 4. Implementation
+
+```typescript {% title="packages/@kit/notifications/src/client.ts" %}
+export { NotificationBell } from './components/notification-bell';
+export { useNotifications } from './hooks/use-notifications';
+```
+
+```typescript {% title="packages/@kit/notifications/src/server.ts" %}
+export { sendNotification } from './server/send-notification';
+```
+
+### 5. Use
+
+```typescript
+// Client Component
+import { NotificationBell } from '@kit/notifications/client';
+
+// Server Action
+import { sendNotification } from '@kit/notifications/server';
+```
+
+## Troubleshooting
+
+**Module not found**
+
+1. Ensure the package is in `INTERNAL_PACKAGES` in `next.config.mjs`
+2. Run `pnpm install` to link workspace packages
+3. Check the export path matches your import
+
+**Types not resolving**
+
+Ensure `tsconfig.json` includes the package paths:
+
+```json
+{
+  "compilerOptions": {
+    "paths": {
+      "@kit/*": ["./packages/@kit/*/src"]
+    }
+  }
+}
+```
+
+**HMR not working**
+
+Verify the package is listed in `INTERNAL_PACKAGES` and restart the dev server.
+
+## Related Resources
+
+- [Adding Turborepo Apps](/docs/next-supabase-turbo/development/adding-turborepo-app) for creating new applications
+- [Technical Details](/docs/next-supabase-turbo/installation/technical-details) for monorepo architecture

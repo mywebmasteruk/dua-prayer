@@ -1,0 +1,3 @@
+[mcp_servers.makerkit]
+command = "node"
+args = ["packages/mcp-server/build/index.cjs"]

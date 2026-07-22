@@ -1,0 +1,629 @@
+---
+status: "published"
+label: "Custom CMS"
+title: "Building a Custom CMS Client for the Next.js Supabase SaaS Kit"
+description: "Implement the CMS interface to integrate Sanity, Contentful, Strapi, Payload, or any headless CMS with Makerkit."
+order: 5
+---
+
+Makerkit's CMS interface is designed to be extensible. If you're using a CMS that isn't supported out of the box, you can create your own client by implementing the `CmsClient` abstract class.
+
+This guide walks through building a custom CMS client using a fictional HTTP API as an example. The same pattern works for Sanity, Contentful, Strapi, Payload, or any headless CMS.
+
+## The CMS Interface
+
+Your client must implement these methods:
+
+```tsx
+import { Cms, CmsClient } from '@kit/cms-types';
+
+export abstract class CmsClient {
+  // Fetch multiple content items with filtering and pagination
+  abstract getContentItems(
+    options?: Cms.GetContentItemsOptions
+  ): Promise<{
+    total: number;
+    items: Cms.ContentItem[];
+  }>;
+
+  // Fetch a single content item by slug
+  abstract getContentItemBySlug(params: {
+    slug: string;
+    collection: string;
+    status?: Cms.ContentItemStatus;
+  }): Promise<Cms.ContentItem | undefined>;
+
+  // Fetch categories
+  abstract getCategories(
+    options?: Cms.GetCategoriesOptions
+  ): Promise<Cms.Category[]>;
+
+  // Fetch a single category by slug
+  abstract getCategoryBySlug(
+    slug: string
+  ): Promise<Cms.Category | undefined>;
+
+  // Fetch tags
+  abstract getTags(
+    options?: Cms.GetTagsOptions
+  ): Promise<Cms.Tag[]>;
+
+  // Fetch a single tag by slug
+  abstract getTagBySlug(
+    slug: string
+  ): Promise<Cms.Tag | undefined>;
+}
+```
+
+## Type Definitions
+
+The CMS types are defined in `packages/cms/types/src/cms-client.ts`:
+
+```tsx
+export namespace Cms {
+  export interface ContentItem {
+    id: string;
+    title: string;
+    label: string | undefined;
+    url: string;
+    description: string | undefined;
+    content: unknown;
+    publishedAt: string;
+    image: string | undefined;
+    status: ContentItemStatus;
+    slug: string;
+    categories: Category[];
+    tags: Tag[];
+    order: number;
+    children: ContentItem[];
+    parentId: string | undefined;
+    collapsible?: boolean;
+    collapsed?: boolean;
+  }
+
+  export type ContentItemStatus = 'draft' | 'published' | 'review' | 'pending';
+
+  export interface Category {
+    id: string;
+    name: string;
+    slug: string;
+  }
+
+  export interface Tag {
+    id: string;
+    name: string;
+    slug: string;
+  }
+
+  export interface GetContentItemsOptions {
+    collection: string;
+    limit?: number;
+    offset?: number;
+    categories?: string[];
+    tags?: string[];
+    content?: boolean;
+    parentIds?: string[];
+    language?: string | undefined;
+    sortDirection?: 'asc' | 'desc';
+    sortBy?: 'publishedAt' | 'order' | 'title';
+    status?: ContentItemStatus;
+  }
+
+  export interface GetCategoriesOptions {
+    slugs?: string[];
+    limit?: number;
+    offset?: number;
+  }
+
+  export interface GetTagsOptions {
+    slugs?: string[];
+    limit?: number;
+    offset?: number;
+  }
+}
+```
+
+## Example Implementation
+
+Here's a complete example for a fictional HTTP API:
+
+```tsx {% title="packages/cms/my-cms/src/my-cms-client.ts" %}
+import { Cms, CmsClient } from '@kit/cms-types';
+
+const API_URL = process.env.MY_CMS_API_URL;
+const API_KEY = process.env.MY_CMS_API_KEY;
+
+export function createMyCmsClient() {
+  return new MyCmsClient();
+}
+
+class MyCmsClient extends CmsClient {
+  private async fetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`,
+        ...options?.headers,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`CMS API error: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  async getContentItems(
+    options: Cms.GetContentItemsOptions
+  ): Promise<{ total: number; items: Cms.ContentItem[] }> {
+    const params = new URLSearchParams();
+
+    params.set('collection', options.collection);
+
+    if (options.limit) {
+      params.set('limit', options.limit.toString());
+    }
+
+    if (options.offset) {
+      params.set('offset', options.offset.toString());
+    }
+
+    if (options.status) {
+      params.set('status', options.status);
+    }
+
+    if (options.sortBy) {
+      params.set('sort_by', options.sortBy);
+    }
+
+    if (options.sortDirection) {
+      params.set('sort_direction', options.sortDirection);
+    }
+
+    if (options.categories?.length) {
+      params.set('categories', options.categories.join(','));
+    }
+
+    if (options.tags?.length) {
+      params.set('tags', options.tags.join(','));
+    }
+
+    if (options.language) {
+      params.set('language', options.language);
+    }
+
+    const data = await this.fetch<{
+      total: number;
+      items: ApiContentItem[];
+    }>(`/content?${params.toString()}`);
+
+    return {
+      total: data.total,
+      items: data.items.map(this.mapContentItem),
+    };
+  }
+
+  async getContentItemBySlug(params: {
+    slug: string;
+    collection: string;
+    status?: Cms.ContentItemStatus;
+  }): Promise<Cms.ContentItem | undefined> {
+    try {
+      const queryParams = new URLSearchParams({
+        collection: params.collection,
+      });
+
+      if (params.status) {
+        queryParams.set('status', params.status);
+      }
+
+      const data = await this.fetch<ApiContentItem>(
+        `/content/${params.slug}?${queryParams.toString()}`
+      );
+
+      return this.mapContentItem(data);
+    } catch (error) {
+      // Return undefined for 404s
+      return undefined;
+    }
+  }
+
+  async getCategories(
+    options?: Cms.GetCategoriesOptions
+  ): Promise<Cms.Category[]> {
+    const params = new URLSearchParams();
+
+    if (options?.limit) {
+      params.set('limit', options.limit.toString());
+    }
+
+    if (options?.offset) {
+      params.set('offset', options.offset.toString());
+    }
+
+    if (options?.slugs?.length) {
+      params.set('slugs', options.slugs.join(','));
+    }
+
+    const data = await this.fetch<ApiCategory[]>(
+      `/categories?${params.toString()}`
+    );
+
+    return data.map(this.mapCategory);
+  }
+
+  async getCategoryBySlug(slug: string): Promise<Cms.Category | undefined> {
+    try {
+      const data = await this.fetch<ApiCategory>(`/categories/${slug}`);
+      return this.mapCategory(data);
+    } catch {
+      return undefined;
+    }
+  }
+
+  async getTags(options?: Cms.GetTagsOptions): Promise<Cms.Tag[]> {
+    const params = new URLSearchParams();
+
+    if (options?.limit) {
+      params.set('limit', options.limit.toString());
+    }
+
+    if (options?.offset) {
+      params.set('offset', options.offset.toString());
+    }
+
+    if (options?.slugs?.length) {
+      params.set('slugs', options.slugs.join(','));
+    }
+
+    const data = await this.fetch<ApiTag[]>(`/tags?${params.toString()}`);
+
+    return data.map(this.mapTag);
+  }
+
+  async getTagBySlug(slug: string): Promise<Cms.Tag | undefined> {
+    try {
+      const data = await this.fetch<ApiTag>(`/tags/${slug}`);
+      return this.mapTag(data);
+    } catch {
+      return undefined;
+    }
+  }
+
+  // Map API response to Makerkit's ContentItem interface
+  private mapContentItem(item: ApiContentItem): Cms.ContentItem {
+    return {
+      id: item.id,
+      title: item.title,
+      label: item.label ?? undefined,
+      slug: item.slug,
+      url: `/${item.collection}/${item.slug}`,
+      description: item.excerpt ?? undefined,
+      content: item.body,
+      publishedAt: item.published_at,
+      image: item.featured_image ?? undefined,
+      status: this.mapStatus(item.status),
+      categories: (item.categories ?? []).map(this.mapCategory),
+      tags: (item.tags ?? []).map(this.mapTag),
+      order: item.sort_order ?? 0,
+      parentId: item.parent_id ?? undefined,
+      children: [],
+      collapsible: item.collapsible ?? false,
+      collapsed: item.collapsed ?? false,
+    };
+  }
+
+  private mapCategory(cat: ApiCategory): Cms.Category {
+    return {
+      id: cat.id,
+      name: cat.name,
+      slug: cat.slug,
+    };
+  }
+
+  private mapTag(tag: ApiTag): Cms.Tag {
+    return {
+      id: tag.id,
+      name: tag.name,
+      slug: tag.slug,
+    };
+  }
+
+  private mapStatus(status: string): Cms.ContentItemStatus {
+    switch (status) {
+      case 'live':
+      case 'active':
+        return 'published';
+      case 'draft':
+        return 'draft';
+      case 'pending':
+      case 'scheduled':
+        return 'pending';
+      case 'review':
+        return 'review';
+      default:
+        return 'draft';
+    }
+  }
+}
+
+// API response types (adjust to match your CMS)
+interface ApiContentItem {
+  id: string;
+  title: string;
+  label?: string;
+  slug: string;
+  collection: string;
+  excerpt?: string;
+  body: unknown;
+  published_at: string;
+  featured_image?: string;
+  status: string;
+  categories?: ApiCategory[];
+  tags?: ApiTag[];
+  sort_order?: number;
+  parent_id?: string;
+  collapsible?: boolean;
+  collapsed?: boolean;
+}
+
+interface ApiCategory {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface ApiTag {
+  id: string;
+  name: string;
+  slug: string;
+}
+```
+
+## Registering Your Client
+
+### 1. Add the CMS Type
+
+Update the type definition:
+
+```tsx {% title="packages/cms/types/src/cms.type.ts" %}
+export type CmsType = 'wordpress' | 'keystatic' | 'my-cms';
+```
+
+### 2. Register the Client
+
+Add your client to the registry:
+
+```tsx {% title="packages/cms/core/src/create-cms-client.ts" %}
+import { CmsClient, CmsType } from '@kit/cms-types';
+import { createRegistry } from '@kit/shared/registry';
+
+const CMS_CLIENT = process.env.CMS_CLIENT as CmsType;
+const cmsRegistry = createRegistry<CmsClient, CmsType>();
+
+// Existing registrations...
+cmsRegistry.register('wordpress', async () => {
+  const { createWordpressClient } = await import('@kit/wordpress');
+  return createWordpressClient();
+});
+
+cmsRegistry.register('keystatic', async () => {
+  const { createKeystaticClient } = await import('@kit/keystatic');
+  return createKeystaticClient();
+});
+
+// Register your client
+cmsRegistry.register('my-cms', async () => {
+  const { createMyCmsClient } = await import('@kit/my-cms');
+  return createMyCmsClient();
+});
+
+export async function createCmsClient(type: CmsType = CMS_CLIENT) {
+  return cmsRegistry.get(type);
+}
+```
+
+### 3. Create a Content Renderer (Optional)
+
+If your CMS returns content in a specific format, create a renderer:
+
+```tsx {% title="packages/cms/core/src/content-renderer.tsx" %}
+cmsContentRendererRegistry.register('my-cms', async () => {
+  const { MyCmsContentRenderer } = await import('@kit/my-cms/renderer');
+  return MyCmsContentRenderer;
+});
+```
+
+Example renderer for HTML content:
+
+```tsx {% title="packages/cms/my-cms/src/renderer.tsx" %}
+interface Props {
+  content: unknown;
+}
+
+export function MyCmsContentRenderer({ content }: Props) {
+  if (typeof content !== 'string') {
+    return null;
+  }
+
+  return (
+    <div
+      className="prose prose-lg"
+      dangerouslySetInnerHTML={{ __html: content }}
+    />
+  );
+}
+```
+
+For Markdown content:
+
+```tsx {% title="packages/cms/my-cms/src/renderer.tsx" %}
+import { marked } from 'marked';
+
+interface Props {
+  content: unknown;
+}
+
+export function MyCmsContentRenderer({ content }: Props) {
+  if (typeof content !== 'string') {
+    return null;
+  }
+
+  const html = marked(content);
+
+  return (
+    <div
+      className="prose prose-lg"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
+```
+
+### 4. Set the Environment Variable
+
+```bash
+# .env
+CMS_CLIENT=my-cms
+MY_CMS_API_URL=https://api.my-cms.com
+MY_CMS_API_KEY=your-api-key
+```
+
+## Real-World Examples
+
+### Sanity
+
+```tsx
+import { createClient } from '@sanity/client';
+import { Cms, CmsClient } from '@kit/cms-types';
+
+const client = createClient({
+  projectId: process.env.SANITY_PROJECT_ID,
+  dataset: process.env.SANITY_DATASET,
+  useCdn: true,
+  apiVersion: '2024-01-01',
+});
+
+class SanityClient extends CmsClient {
+  async getContentItems(options: Cms.GetContentItemsOptions) {
+    const query = `*[_type == $collection && status == $status] | order(publishedAt desc) [$start...$end] {
+      _id,
+      title,
+      slug,
+      excerpt,
+      body,
+      publishedAt,
+      mainImage,
+      categories[]->{ _id, title, slug },
+      tags[]->{ _id, title, slug }
+    }`;
+
+    const params = {
+      collection: options.collection,
+      status: options.status ?? 'published',
+      start: options.offset ?? 0,
+      end: (options.offset ?? 0) + (options.limit ?? 10),
+    };
+
+    const items = await client.fetch(query, params);
+    const total = await client.fetch(
+      `count(*[_type == $collection && status == $status])`,
+      params
+    );
+
+    return {
+      total,
+      items: items.map(this.mapContentItem),
+    };
+  }
+
+  // ... implement other methods
+}
+```
+
+### Contentful
+
+```tsx
+import { createClient } from 'contentful';
+import { Cms, CmsClient } from '@kit/cms-types';
+
+const client = createClient({
+  space: process.env.CONTENTFUL_SPACE_ID!,
+  accessToken: process.env.CONTENTFUL_ACCESS_TOKEN!,
+});
+
+class ContentfulClient extends CmsClient {
+  async getContentItems(options: Cms.GetContentItemsOptions) {
+    const response = await client.getEntries({
+      content_type: options.collection,
+      limit: options.limit ?? 10,
+      skip: options.offset ?? 0,
+      order: ['-fields.publishedAt'],
+    });
+
+    return {
+      total: response.total,
+      items: response.items.map(this.mapContentItem),
+    };
+  }
+
+  // ... implement other methods
+}
+```
+
+## Testing Your Client
+
+Create tests to verify your implementation:
+
+```tsx {% title="packages/cms/my-cms/src/__tests__/my-cms-client.test.ts" %}
+import { describe, it, expect, beforeAll } from 'vitest';
+import { createMyCmsClient } from '../my-cms-client';
+
+describe('MyCmsClient', () => {
+  const client = createMyCmsClient();
+
+  it('fetches content items', async () => {
+    const { items, total } = await client.getContentItems({
+      collection: 'posts',
+      limit: 5,
+    });
+
+    expect(items).toBeInstanceOf(Array);
+    expect(typeof total).toBe('number');
+
+    if (items.length > 0) {
+      expect(items[0]).toHaveProperty('id');
+      expect(items[0]).toHaveProperty('title');
+      expect(items[0]).toHaveProperty('slug');
+    }
+  });
+
+  it('fetches a single item by slug', async () => {
+    const item = await client.getContentItemBySlug({
+      slug: 'test-post',
+      collection: 'posts',
+    });
+
+    if (item) {
+      expect(item.slug).toBe('test-post');
+    }
+  });
+
+  it('returns undefined for non-existent slugs', async () => {
+    const item = await client.getContentItemBySlug({
+      slug: 'non-existent-slug-12345',
+      collection: 'posts',
+    });
+
+    expect(item).toBeUndefined();
+  });
+});
+```
+
+## Next Steps
+
+- [CMS API Reference](/docs/next-supabase-turbo/content/cms-api): Full API documentation
+- [CMS Overview](/docs/next-supabase-turbo/content/cms): Compare CMS providers
+- Check the [Keystatic implementation](https://github.com/makerkit/next-supabase-saas-kit-turbo/tree/main/packages/cms/keystatic) for a complete example

@@ -1,0 +1,41 @@
+{
+  "name": "@kit/billing-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "typesVersions": {
+    "*": {
+      "*": [
+        "src/*"
+      ]
+    }
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./components": "./src/components/index.ts",
+    "./checkout": "./src/components/embedded-checkout.tsx",
+    "./marketing": "./src/components/marketing.tsx"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .turbo node_modules",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@hookform/resolvers": "catalog:",
+    "@kit/billing": "workspace:*",
+    "@kit/lemon-squeezy": "workspace:*",
+    "@kit/shared": "workspace:*",
+    "@kit/stripe": "workspace:*",
+    "@kit/supabase": "workspace:*",
+    "@kit/tsconfig": "workspace:*",
+    "@kit/ui": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "@types/react": "catalog:",
+    "date-fns": "catalog:",
+    "lucide-react": "catalog:",
+    "next": "catalog:",
+    "next-intl": "catalog:",
+    "react": "catalog:",
+    "react-hook-form": "catalog:",
+    "zod": "catalog:"
+  }
+}

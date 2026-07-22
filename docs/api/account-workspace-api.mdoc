@@ -1,0 +1,473 @@
+---
+status: "published"
+label: "Team Workspace API"
+order: 4
+title: "Team Workspace API | Next.js Supabase SaaS Kit"
+description: "Access team account context in MakerKit layouts. Load team data, member permissions, subscription status, and role hierarchy with the Team Workspace API."
+---
+
+The Team Workspace API provides team account context for pages under `/home/[account]`. It loads team data, the user's role and permissions, subscription status, and all accounts the user belongs to, making this information available to both server and client components.
+
+{% sequence title="Team Workspace API Reference" description="Access team workspace data in layouts and components" %}
+
+[loadTeamWorkspace (Server)](#loadteamworkspace-server)
+
+[useTeamAccountWorkspace (Client)](#useteamaccountworkspace-client)
+
+[Data structure](#data-structure)
+
+[Usage patterns](#usage-patterns)
+
+{% /sequence %}
+
+## loadTeamWorkspace (Server)
+
+Loads the team workspace data for the specified team account. Use this in Server Components within the `/home/[account]` route group.
+
+```tsx
+import { loadTeamWorkspace } from '~/home/[account]/_lib/server/team-account-workspace.loader';
+
+export default async function TeamDashboard({
+  params,
+}: {
+  params: { account: string };
+}) {
+  const data = await loadTeamWorkspace();
+
+  return (
+    <div>
+      <h1>{data.account.name}</h1>
+      <p>Your role: {data.account.role}</p>
+    </div>
+  );
+}
+```
+
+### Function signature
+
+```tsx
+async function loadTeamWorkspace(): Promise<TeamWorkspaceData>
+```
+
+### How it works
+
+The loader reads the `account` parameter from the URL (the team slug) and fetches:
+
+1. Team account details from the database
+2. Current user's role and permissions in this team
+3. All accounts the user belongs to (for the account switcher)
+
+### Caching behavior
+
+The function uses React's `cache()` to deduplicate calls within a single request. You can call it multiple times in nested components without additional database queries.
+
+```tsx
+// Both calls use the same cached data
+const layout = await loadTeamWorkspace();  // First call: hits database
+const page = await loadTeamWorkspace();    // Second call: returns cached data
+```
+
+{% callout title="Performance consideration" %}
+While calls are deduplicated within a request, the data is fetched on every navigation. For frequently accessed data, the caching prevents redundant queries within a single page render.
+{% /callout %}
+
+---
+
+## useTeamAccountWorkspace (Client)
+
+Access the team workspace data in client components using the `useTeamAccountWorkspace` hook. The data is provided through React Context from the layout.
+
+```tsx
+'use client';
+
+import { useTeamAccountWorkspace } from '@kit/team-accounts/hooks/use-team-account-workspace';
+
+export function TeamHeader() {
+  const { account, user, accounts } = useTeamAccountWorkspace();
+
+  return (
+    <header className="flex items-center justify-between p-4">
+      <div className="flex items-center gap-3">
+        {account.picture_url && (
+          <img
+            src={account.picture_url}
+            alt={account.name}
+            className="h-8 w-8 rounded"
+          />
+        )}
+        <div>
+          <h1 className="font-semibold">{account.name}</h1>
+          <p className="text-xs text-muted-foreground">
+            {account.role} · {account.subscription_status || 'Free'}
+          </p>
+        </div>
+      </div>
+    </header>
+  );
+}
+```
+
+{% callout type="warning" title="Context requirement" %}
+The `useTeamAccountWorkspace` hook only works within the `/home/[account]` route group where the context provider is set up. Using it outside this layout will throw an error.
+{% /callout %}
+
+---
+
+## Data structure
+
+### TeamWorkspaceData
+
+```tsx
+import type { User } from '@supabase/supabase-js';
+
+interface TeamWorkspaceData {
+  account: {
+    id: string;
+    name: string;
+    slug: string;
+    picture_url: string | null;
+    role: string;
+    role_hierarchy_level: number;
+    primary_owner_user_id: string;
+    subscription_status: SubscriptionStatus | null;
+    permissions: string[];
+  };
+
+  user: User;
+
+  accounts: Array<{
+    id: string | null;
+    name: string | null;
+    picture_url: string | null;
+    role: string | null;
+    slug: string | null;
+  }>;
+}
+```
+
+### account.role
+
+The user's role in this team. Default roles:
+
+| Role | Description |
+|------|-------------|
+| `owner` | Full access, can delete team |
+| `admin` | Manage members and settings |
+| `member` | Standard access |
+
+### account.role_hierarchy_level
+
+A numeric value where lower numbers indicate higher privilege. Use this for role comparisons:
+
+```tsx
+const { account } = useTeamAccountWorkspace();
+
+// Check if user can manage someone with role_level 2
+const canManage = account.role_hierarchy_level < 2;
+```
+
+### account.permissions
+
+An array of permission strings the user has in this team:
+
+```tsx
+[
+  'billing.manage',
+  'members.invite',
+  'members.remove',
+  'members.manage',
+  'settings.manage',
+]
+```
+
+### subscription_status values
+
+| Status | Description |
+|--------|-------------|
+| `active` | Active subscription |
+| `trialing` | In trial period |
+| `past_due` | Payment failed, grace period |
+| `canceled` | Subscription canceled |
+| `unpaid` | Payment required |
+| `incomplete` | Setup incomplete |
+| `incomplete_expired` | Setup expired |
+| `paused` | Subscription paused |
+
+---
+
+## Usage patterns
+
+### Permission-based rendering
+
+```tsx
+'use client';
+
+import { useTeamAccountWorkspace } from '@kit/team-accounts/hooks/use-team-account-workspace';
+
+interface PermissionGateProps {
+  children: React.ReactNode;
+  permission: string;
+  fallback?: React.ReactNode;
+}
+
+export function PermissionGate({
+  children,
+  permission,
+  fallback = null,
+}: PermissionGateProps) {
+  const { account } = useTeamAccountWorkspace();
+
+  if (!account.permissions.includes(permission)) {
+    return <>{fallback}</>;
+  }
+
+  return <>{children}</>;
+}
+
+// Usage
+function TeamSettingsPage() {
+  return (
+    <div>
+      <h1>Team Settings</h1>
+
+      <PermissionGate
+        permission="settings.manage"
+        fallback={<p>You don't have permission to manage settings.</p>}
+      >
+        <SettingsForm />
+      </PermissionGate>
+
+      <PermissionGate permission="billing.manage">
+        <BillingSection />
+      </PermissionGate>
+    </div>
+  );
+}
+```
+
+### Team dashboard with role checks
+
+```tsx
+import { loadTeamWorkspace } from '~/home/[account]/_lib/server/team-account-workspace.loader';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export default async function TeamDashboardPage() {
+  const { account, user } = await loadTeamWorkspace();
+  const client = getSupabaseServerClient();
+
+  const isOwner = account.primary_owner_user_id === user.id;
+  const isAdmin = account.role === 'admin' || account.role === 'owner';
+
+  // Fetch team-specific data
+  const { data: projects } = await client
+    .from('projects')
+    .select('*')
+    .eq('account_id', account.id)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  return (
+    <div className="space-y-6">
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">{account.name}</h1>
+          <p className="text-muted-foreground">
+            {account.subscription_status === 'active'
+              ? 'Pro Plan'
+              : 'Free Plan'}
+          </p>
+        </div>
+
+        {isAdmin && (
+          <a
+            href={`/home/${account.slug}/settings`}
+            className="btn btn-secondary"
+          >
+            Team Settings
+          </a>
+        )}
+      </header>
+
+      <section>
+        <h2 className="text-lg font-medium">Recent Projects</h2>
+        <ul className="mt-2 space-y-2">
+          {projects?.map((project) => (
+            <li key={project.id}>
+              <a href={`/home/${account.slug}/projects/${project.id}`}>
+                {project.name}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {isOwner && (
+        <section className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+          <h2 className="font-medium text-destructive">Danger Zone</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Only the team owner can delete this team.
+          </p>
+          <button className="mt-3 btn btn-destructive">Delete Team</button>
+        </section>
+      )}
+    </div>
+  );
+}
+```
+
+### Team members list with permissions
+
+```tsx
+import { loadTeamWorkspace } from '~/home/[account]/_lib/server/team-account-workspace.loader';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export default async function TeamMembersPage() {
+  const { account } = await loadTeamWorkspace();
+  const client = getSupabaseServerClient();
+
+  const canManageMembers = account.permissions.includes('members.manage');
+  const canRemoveMembers = account.permissions.includes('members.remove');
+  const canInviteMembers = account.permissions.includes('members.invite');
+
+  const { data: members } = await client
+    .from('accounts_memberships')
+    .select(`
+      user_id,
+      role,
+      created_at,
+      users:user_id (
+        email,
+        user_metadata
+      )
+    `)
+    .eq('account_id', account.id);
+
+  return (
+    <div>
+      <header className="flex items-center justify-between">
+        <h1>Team Members</h1>
+        {canInviteMembers && (
+          <a href={`/home/${account.slug}/settings/members/invite`}>
+            Invite Member
+          </a>
+        )}
+      </header>
+
+      <table className="w-full">
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Role</th>
+            <th>Joined</th>
+            {(canManageMembers || canRemoveMembers) && <th>Actions</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {members?.map((member) => (
+            <tr key={member.user_id}>
+              <td>{member.users?.email}</td>
+              <td>{member.role}</td>
+              <td>{new Date(member.created_at).toLocaleDateString()}</td>
+              {(canManageMembers || canRemoveMembers) && (
+                <td>
+                  {canManageMembers && member.user_id !== account.primary_owner_user_id && (
+                    <button>Change Role</button>
+                  )}
+                  {canRemoveMembers && member.user_id !== account.primary_owner_user_id && (
+                    <button>Remove</button>
+                  )}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+```
+
+### Client-side permission hook
+
+```tsx
+'use client';
+
+import { useTeamAccountWorkspace } from '@kit/team-accounts/hooks/use-team-account-workspace';
+
+export function useTeamPermissions() {
+  const { account } = useTeamAccountWorkspace();
+
+  return {
+    canManageSettings: account.permissions.includes('settings.manage'),
+    canManageBilling: account.permissions.includes('billing.manage'),
+    canInviteMembers: account.permissions.includes('members.invite'),
+    canRemoveMembers: account.permissions.includes('members.remove'),
+    canManageMembers: account.permissions.includes('members.manage'),
+    isOwner: account.role === 'owner',
+    isAdmin: account.role === 'admin' || account.role === 'owner',
+    role: account.role,
+    roleLevel: account.role_hierarchy_level,
+  };
+}
+
+// Usage
+function TeamActions() {
+  const permissions = useTeamPermissions();
+
+  return (
+    <div className="flex gap-2">
+      {permissions.canInviteMembers && (
+        <button>Invite Member</button>
+      )}
+      {permissions.canManageSettings && (
+        <button>Settings</button>
+      )}
+      {permissions.canManageBilling && (
+        <button>Billing</button>
+      )}
+    </div>
+  );
+}
+```
+
+### Subscription-gated features
+
+```tsx
+'use client';
+
+import { useTeamAccountWorkspace } from '@kit/team-accounts/hooks/use-team-account-workspace';
+
+export function PremiumFeature({ children }: { children: React.ReactNode }) {
+  const { account } = useTeamAccountWorkspace();
+
+  const hasActiveSubscription =
+    account.subscription_status === 'active' ||
+    account.subscription_status === 'trialing';
+
+  if (!hasActiveSubscription) {
+    return (
+      <div className="rounded-lg border-2 border-dashed p-6 text-center">
+        <h3 className="font-medium">Premium Feature</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Upgrade to access this feature
+        </p>
+        <a
+          href={`/home/${account.slug}/settings/billing`}
+          className="mt-3 inline-block btn btn-primary"
+        >
+          Upgrade Plan
+        </a>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+```
+
+## Related documentation
+
+- [User Workspace API](/docs/next-supabase-turbo/api/user-workspace-api) - Personal account context
+- [Team Account API](/docs/next-supabase-turbo/api/team-account-api) - Team operations
+- [Authentication API](/docs/next-supabase-turbo/api/authentication-api) - User authentication
+- [Per-seat Billing](/docs/next-supabase-turbo/billing/per-seat-billing) - Team-based pricing

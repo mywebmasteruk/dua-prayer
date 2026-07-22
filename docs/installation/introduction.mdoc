@@ -1,0 +1,109 @@
+---
+status: "published"
+title: 'Introduction to the Next.js Supabase SaaS Starter Kit'
+label: 'Introduction'
+order: 1
+description: 'A production-ready Next.js 16 and Supabase SaaS starter kit with authentication, billing, teams, and admin dashboard built on React 19 and Tailwind CSS 4.'
+---
+
+The Next.js Supabase SaaS Kit is a production-ready starter for building multi-tenant SaaS applications. It ships with authentication, team management, subscription billing, and an admin dashboard out of the box.
+
+Built on **Next.js 16**, **React 19**, **Supabase**, and **Tailwind CSS 4**, this Turborepo monorepo gives you a solid foundation to launch faster without sacrificing code quality or flexibility.
+
+## What You Get
+
+### Authentication and Security
+
+- Email/password and OAuth sign-in (Google, GitHub, etc.)
+- Magic link authentication
+- Multi-factor authentication (TOTP)
+- Password reset and email verification
+- Session management with Supabase Auth
+
+### Multi-Tenant Account System
+
+- **Personal accounts**: Every user has a personal workspace
+- **Team accounts**: Create organizations with multiple members
+- **Role-based access**: Owner, Admin, Member roles with customizable permissions
+- **Invitations**: Invite users via email with role assignment
+- **RLS enforcement**: Row Level Security policies protect data at the database level
+
+### Subscription Billing
+
+- **Stripe** and **Lemon Squeezy** integrations
+- Subscription models: flat-rate, tiered, per-seat pricing
+- Customer portal for self-service management
+- Webhook handling for subscription lifecycle events
+- Support for both personal and team billing
+
+### Admin Dashboard
+
+- User management (view, impersonate, ban)
+- Subscription overview and management
+- Analytics and metrics dashboard
+- Super admin role with MFA requirement
+
+### Developer Experience
+
+- **Turborepo monorepo** with shared packages
+- **TypeScript** throughout with strict mode
+- **Shadcn UI** components (Base UI-based)
+- **React Query** for client-side data fetching
+- **Zod** for runtime validation
+- **next-intl** for i18n with locale-prefixed URL routing
+- **Keystatic** or **WordPress** CMS integration
+- **Sentry** and **Baselime** monitoring support
+- Pre-configured **LLM rules** for Cursor, Claude Code, and Windsurf
+
+## Monorepo Architecture
+
+The kit separates concerns into reusable packages:
+
+```
+apps/
+  web/              # Main Next.js application
+  e2e/              # Playwright end-to-end tests
+
+packages/
+  features/         # Feature modules (auth, accounts, admin, etc.)
+  ui/               # Shared UI components (@kit/ui)
+  supabase/         # Supabase client and types (@kit/supabase)
+  billing/          # Billing logic and gateway (@kit/billing)
+  mailers/          # Email providers (@kit/mailers)
+  i18n/             # Internationalization (@kit/i18n)
+  monitoring/       # Error tracking (@kit/monitoring)
+  analytics/        # User analytics (@kit/analytics)
+```
+
+This structure lets you modify features without touching core packages, and makes it straightforward to add new applications that share the same backend logic.
+
+## Prerequisites
+
+Before diving in, you should be comfortable with:
+
+- **Next.js App Router**: Server Components, Server Actions, route handlers
+- **Supabase**: PostgreSQL, Row Level Security, Auth
+- **React**: Hooks, TypeScript, component patterns
+
+The kit builds on these technologies rather than teaching them. If you're new to Supabase or the App Router, spend time with their official docs first.
+
+## Documentation Scope
+
+This documentation covers kit-specific configuration, patterns, and customization. For underlying technology details:
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Supabase Documentation](https://supabase.com/docs)
+- [Stripe Documentation](https://stripe.com/docs)
+- [Turborepo Documentation](https://turbo.build/repo/docs)
+
+## Upgrading from v2
+
+{% callout title="Differences with v2" %}
+In v3, the kit migrated from Radix to Base UI primitives, from `i18next` to `next-intl`, and from `enhanceAction` to `next-safe-action`. See [Upgrading from v2 to v3](/docs/next-supabase-turbo/installation/v3-migration) for the full migration guide.
+{% /callout %}
+
+## Next Steps
+
+1. [Check the technical details](/docs/next-supabase-turbo/installation/technical-details) to understand the full stack
+2. [Clone the repository](/docs/next-supabase-turbo/installation/clone-repository) and set up your environment
+3. [Run the project locally](/docs/next-supabase-turbo/installation/running-project) to explore the features

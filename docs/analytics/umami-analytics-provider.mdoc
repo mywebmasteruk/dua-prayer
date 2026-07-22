@@ -1,0 +1,151 @@
+---
+status: "published"
+title: 'Using the Umami Analytics Provider in Next.js Supabase Turbo'
+label: 'Umami'
+description: 'Add Umami to your MakerKit application for privacy-focused, cookie-free analytics that comply with GDPR without consent banners.'
+order: 4
+---
+
+Umami is a privacy-focused analytics platform that tracks page views and events without cookies. 
+
+Because it does not use cookies or collect personal data, you can use Umami without displaying cookie consent banners in the EU. Umami can be self-hosted for complete data ownership or used via Umami Cloud.
+
+## Why Choose Umami
+
+| Feature | Umami | Google Analytics |
+|---------|-------|------------------|
+| Cookies | None | Yes |
+| GDPR consent required | No | Yes |
+| Self-hosting | Yes | No |
+| Pricing | Free (self-hosted) or paid cloud | Free |
+| Data ownership | Full | Google |
+| Session replay | No | No |
+| Feature flags | No | No |
+
+**Use Umami when**: You want simple, clean metrics without privacy concerns. Ideal for landing pages, documentation sites, and applications where marketing attribution is not critical.
+
+## Prerequisites
+
+Before starting:
+
+- Create an Umami account at [umami.is](https://umami.is) or self-host
+- Create a website in your Umami dashboard
+- Note your **Website ID** and **Script URL**
+
+In Umami Cloud, find these at: **Settings > Websites > Your Website > Edit**.
+
+## Installation
+
+Install the Umami plugin using the MakerKit CLI:
+
+```bash
+npx @makerkit/cli@latest plugins add umami
+```
+
+Our codemod will wire up the plugin in your project, so you don't have to do anything manually. Please review the changes with `git diff`.
+
+Add environment variables:
+
+```bash {% title=".env.local" %}
+NEXT_PUBLIC_UMAMI_HOST=https://cloud.umami.is/script.js
+NEXT_PUBLIC_UMAMI_WEBSITE_ID=your-website-id
+```
+
+### Self-Hosted Configuration
+
+If self-hosting Umami, point to your instance:
+
+```bash {% title=".env.local" %}
+NEXT_PUBLIC_UMAMI_HOST=https://analytics.yourdomain.com/script.js
+NEXT_PUBLIC_UMAMI_WEBSITE_ID=your-website-id
+```
+
+Replace the URL with the path to your Umami instance's tracking script.
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_UMAMI_HOST` | Yes | URL to the Umami tracking script |
+| `NEXT_PUBLIC_UMAMI_WEBSITE_ID` | Yes | Your website ID from Umami |
+| `NEXT_PUBLIC_UMAMI_DISABLE_LOCALHOST_TRACKING` | No | Set to `false` to enable localhost tracking |
+
+### Development Configuration
+
+By default, Umami does not track localhost. Enable it for development testing:
+
+```bash {% title=".env.local" %}
+NEXT_PUBLIC_UMAMI_HOST=https://cloud.umami.is/script.js
+NEXT_PUBLIC_UMAMI_WEBSITE_ID=your-website-id
+NEXT_PUBLIC_UMAMI_DISABLE_LOCALHOST_TRACKING=false
+```
+
+## Verification
+
+After configuration:
+
+1. Deploy to a non-localhost environment (or enable localhost tracking)
+2. Open your application and navigate between pages
+3. Check your Umami dashboard > Realtime
+4. Confirm page views appear
+
+## Custom Event Tracking
+
+Umami tracks page views automatically. For custom events:
+
+```typescript
+import { analytics } from '@kit/analytics';
+
+void analytics.trackEvent('Button Clicked', {
+  button: 'signup',
+  location: 'header',
+});
+```
+
+Events appear in Umami under **Events** in your website dashboard.
+
+## Using with Other Providers
+
+Umami can run alongside other providers:
+
+```typescript {% title="packages/analytics/src/index.ts" %}
+import { createUmamiAnalyticsService } from '@kit/umami';
+import { createPostHogAnalyticsService } from '@kit/posthog/client';
+
+import { createAnalyticsManager } from './analytics-manager';
+
+export const analytics = createAnalyticsManager({
+  providers: {
+    umami: createUmamiAnalyticsService,
+    posthog: createPostHogAnalyticsService,
+  },
+});
+```
+
+This setup provides Umami's clean metrics alongside PostHog's product analytics.
+
+## Troubleshooting
+
+### No data appearing
+
+- Verify you are not on localhost (or enable localhost tracking)
+- Check that the Website ID matches your Umami dashboard
+- Confirm the script URL is correct and accessible
+
+### Ad blocker interference
+
+Umami is sometimes blocked by ad blockers. If this is an issue:
+
+1. Self-host Umami on a subdomain (e.g., `analytics.yourdomain.com`)
+2. Use a generic script path (e.g., `/stats.js` instead of `/script.js`)
+
+### Events not tracked
+
+- Ensure event names and properties are strings
+- Check that the event appears in Umami's Events tab, not just Page Views
+
+## Next Steps
+
+- [Learn about Analytics and Events](analytics-and-events) for event tracking patterns
+- [Consider PostHog](posthog-analytics-provider) if you need user identification or feature flags
+- [Create a custom provider](custom-analytics-provider) for other analytics services

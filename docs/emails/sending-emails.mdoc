@@ -1,0 +1,273 @@
+---
+status: "published"
+label: "Sending Emails"
+description: "Send transactional emails from your Next.js Supabase application using the MakerKit mailer API. Learn the email schema, error handling, and best practices."
+title: "Sending Emails in the Next.js Supabase SaaS Starter Kit"
+order: 1
+---
+
+The `@kit/mailers` package provides a simple, provider-agnostic API for sending emails. Use it in Server Actions, API routes, or any server-side code to send transactional emails.
+
+## Basic Usage
+
+Import `getMailer` and call `sendEmail` with your email data:
+
+```tsx
+import { getMailer } from '@kit/mailers';
+
+async function sendWelcomeEmail(userEmail: string) {
+  const mailer = await getMailer();
+
+  await mailer.sendEmail({
+    to: userEmail,
+    from: process.env.EMAIL_SENDER!,
+    subject: 'Welcome to our platform',
+    text: 'Thanks for signing up! We are excited to have you.',
+  });
+}
+```
+
+The `getMailer` function returns the configured mailer instance (Nodemailer or Resend) based on your `MAILER_PROVIDER` environment variable.
+
+## Email Schema
+
+The `sendEmail` method accepts an object validated by this Zod schema:
+
+```tsx
+// Simplified representation of the schema
+type EmailData = {
+  to: string;      // Recipient email (must be valid email format)
+  from: string;    // Sender (e.g., "App Name <noreply@app.com>")
+  subject: string; // Email subject line
+} & (
+  | { text: string }  // Plain text body
+  | { html: string }  // HTML body
+);
+```
+
+You must provide **exactly one** of `text` or `html`. This is a discriminated union, not optional fields. Providing both properties or neither will cause a validation error at runtime.
+
+## Sending HTML Emails
+
+For rich email content, use the `html` property:
+
+```tsx
+import { getMailer } from '@kit/mailers';
+
+async function sendHtmlEmail(to: string) {
+  const mailer = await getMailer();
+
+  await mailer.sendEmail({
+    to,
+    from: process.env.EMAIL_SENDER!,
+    subject: 'Your weekly summary',
+    html: `
+      <h1>Weekly Summary</h1>
+      <p>Here's what happened this week:</p>
+      <ul>
+        <li>5 new team members joined</li>
+        <li>12 tasks completed</li>
+      </ul>
+    `,
+  });
+}
+```
+
+For complex HTML emails, use [React Email templates](/docs/next-supabase-turbo/email-templates) instead of inline HTML strings.
+
+## Using Email Templates
+
+MakerKit includes pre-built email templates in the `@kit/email-templates` package. These templates use React Email and support internationalization:
+
+```tsx
+import { getMailer } from '@kit/mailers';
+import { renderInviteEmail } from '@kit/email-templates';
+
+async function sendTeamInvitation(params: {
+  invitedEmail: string;
+  teamName: string;
+  inviterName: string;
+  inviteLink: string;
+}) {
+  const mailer = await getMailer();
+
+  // Render the React Email template to HTML
+  const { html, subject } = await renderInviteEmail({
+    teamName: params.teamName,
+    inviter: params.inviterName,
+    invitedUserEmail: params.invitedEmail,
+    link: params.inviteLink,
+    productName: 'Your App Name',
+  });
+
+  await mailer.sendEmail({
+    to: params.invitedEmail,
+    from: process.env.EMAIL_SENDER!,
+    subject,
+    html,
+  });
+}
+```
+
+See the [Email Templates guide](/docs/next-supabase-turbo/email-templates) for creating custom templates.
+
+## Error Handling
+
+The `sendEmail` method returns a Promise that rejects on failure. Always wrap email sending in try-catch:
+
+```tsx
+import { getMailer } from '@kit/mailers';
+
+async function sendEmailSafely(to: string, subject: string, text: string) {
+  try {
+    const mailer = await getMailer();
+
+    await mailer.sendEmail({
+      to,
+      from: process.env.EMAIL_SENDER!,
+      subject,
+      text,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to send email:', error);
+
+    // Log to your error tracking service
+    // Sentry.captureException(error);
+
+    return { success: false, error: 'Failed to send email' };
+  }
+}
+```
+
+### Common Error Causes
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Validation error | Invalid email format or missing fields | Check `to` is a valid email, ensure `text` or `html` is provided |
+| Authentication failed | Wrong SMTP credentials | Verify `EMAIL_USER` and `EMAIL_PASSWORD` |
+| Connection refused | SMTP server unreachable | Check `EMAIL_HOST` and `EMAIL_PORT`, verify network access |
+| Rate limited | Too many emails sent | Implement rate limiting, use a queue for bulk sends |
+
+## Using in Server Actions
+
+Email sending works in Next.js Server Actions:
+
+```tsx {% title="app/actions/send-notification.ts" %}
+'use server';
+
+import { getMailer } from '@kit/mailers';
+
+export async function sendNotificationAction(formData: FormData) {
+  const email = formData.get('email') as string;
+  const message = formData.get('message') as string;
+
+  const mailer = await getMailer();
+
+  await mailer.sendEmail({
+    to: email,
+    from: process.env.EMAIL_SENDER!,
+    subject: 'New notification',
+    text: message,
+  });
+
+  return { success: true };
+}
+```
+
+## Using in API Routes
+
+For webhook handlers or external integrations:
+
+```tsx {% title="app/api/webhooks/send-email/route.ts" %}
+import { NextResponse } from 'next/server';
+import { getMailer } from '@kit/mailers';
+
+export async function POST(request: Request) {
+  const { to, subject, message } = await request.json();
+
+  try {
+    const mailer = await getMailer();
+
+    await mailer.sendEmail({
+      to,
+      from: process.env.EMAIL_SENDER!,
+      subject,
+      text: message,
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to send email' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+## Best Practices
+
+### Use Environment Variables for Sender
+
+Never hardcode the sender email:
+
+```tsx
+// Good
+from: process.env.EMAIL_SENDER!
+
+// Bad
+from: 'noreply@example.com'
+```
+
+### Validate Recipient Emails
+
+Before sending, validate that the recipient email exists in your system:
+
+```tsx
+import { getMailer } from '@kit/mailers';
+
+async function sendToUser(userId: string, subject: string, text: string) {
+  // Fetch user from database first
+  const user = await getUserById(userId);
+
+  if (!user?.email) {
+    throw new Error('User has no email address');
+  }
+
+  const mailer = await getMailer();
+
+  await mailer.sendEmail({
+    to: user.email,
+    from: process.env.EMAIL_SENDER!,
+    subject,
+    text,
+  });
+}
+```
+
+### Queue Bulk Emails
+
+For sending many emails, use a background job queue to avoid timeouts and handle retries:
+
+```tsx
+// Instead of this:
+for (const user of users) {
+  await sendEmail(user.email); // Slow, no retry handling
+}
+
+// Use a queue like Trigger.dev, Inngest, or BullMQ
+await emailQueue.addBulk(
+  users.map(user => ({
+    name: 'send-email',
+    data: { email: user.email, template: 'weekly-digest' },
+  }))
+);
+```
+
+## Next Steps
+
+- [Create custom email templates](/docs/next-supabase-turbo/email-templates) with React Email
+- [Build a custom mailer](/docs/next-supabase-turbo/custom-mailer) for other providers
+- [Test emails locally](/docs/next-supabase-turbo/emails/inbucket) with Mailpit

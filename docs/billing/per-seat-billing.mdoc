@@ -1,0 +1,293 @@
+---
+status: "published"
+label: "Per Seat Billing"
+title: "Configure Per-Seat Billing for Team Subscriptions"
+order: 6
+description: "Implement per-seat pricing for your SaaS. Makerkit automatically tracks team members and updates seat counts with your billing provider when members join or leave."
+---
+
+Per-seat billing charges customers based on the number of users (seats) in their team. Makerkit handles this automatically: when team members are added or removed, the subscription is updated with the new seat count.
+
+## How It Works
+
+1. You define a `per_seat` line item in your billing schema
+2. When a team subscribes, Makerkit counts current members and sets the initial quantity
+3. When members join or leave, Makerkit updates the subscription quantity
+4. Your billing provider (Stripe, Lemon Squeezy, Paddle) handles proration
+
+No custom code required for basic per-seat billing.
+
+## Schema Configuration
+
+Define a per-seat line item in your billing schema:
+
+```tsx {% title="apps/web/config/billing.config.ts" %}
+import { createBillingSchema } from '@kit/billing';
+
+export default createBillingSchema({
+  provider: process.env.NEXT_PUBLIC_BILLING_PROVIDER,
+  products: [
+    {
+      id: 'team',
+      name: 'Team',
+      description: 'For growing teams',
+      currency: 'USD',
+      features: [
+        'Unlimited projects',
+        'Team collaboration',
+        'Priority support',
+      ],
+      plans: [
+        {
+          id: 'team-monthly',
+          name: 'Team Monthly',
+          paymentType: 'recurring',
+          interval: 'month',
+          lineItems: [
+            {
+              id: 'price_team_monthly',  // Your Stripe Price ID
+              name: 'Team Seats',
+              cost: 0,  // Base cost (calculated from tiers)
+              type: 'per_seat',
+              tiers: [
+                { upTo: 3, cost: 0 },         // First 3 seats free
+                { upTo: 10, cost: 15 },       // $15/seat for seats 4-10
+                { upTo: 'unlimited', cost: 12 }, // Volume discount
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+});
+```
+
+## Pricing Tier Patterns
+
+### Free Tier + Per-Seat
+
+Include free seats for small teams:
+
+```tsx
+tiers: [
+  { upTo: 5, cost: 0 },        // 5 free seats
+  { upTo: 'unlimited', cost: 10 }, // $10/seat after
+]
+```
+
+### Flat Per-Seat (No Tiers)
+
+Simple per-seat pricing:
+
+```tsx
+tiers: [
+  { upTo: 'unlimited', cost: 15 }, // $15/seat for all seats
+]
+```
+
+### Volume Discounts
+
+Reward larger teams:
+
+```tsx
+tiers: [
+  { upTo: 10, cost: 20 },      // $20/seat for 1-10
+  { upTo: 50, cost: 15 },      // $15/seat for 11-50
+  { upTo: 100, cost: 12 },     // $12/seat for 51-100
+  { upTo: 'unlimited', cost: 10 }, // $10/seat for 100+
+]
+```
+
+### Base Fee + Per-Seat (Stripe Only)
+
+Combine a flat fee with per-seat pricing:
+
+```tsx
+lineItems: [
+  {
+    id: 'price_base_fee',
+    name: 'Platform Fee',
+    cost: 49,
+    type: 'flat',
+  },
+  {
+    id: 'price_seats',
+    name: 'Team Seats',
+    cost: 0,
+    type: 'per_seat',
+    tiers: [
+      { upTo: 5, cost: 0 },
+      { upTo: 'unlimited', cost: 10 },
+    ],
+  },
+]
+```
+
+{% alert type="warning" title="Stripe only" %}
+Multiple line items (flat + per-seat) only work with Stripe. Lemon Squeezy and Paddle support one line item per plan.
+{% /alert %}
+
+## Provider Setup
+
+### Stripe
+
+1. Create a product in Stripe Dashboard
+2. Add a price with **Graduated pricing** or **Volume pricing**
+3. Set the pricing tiers to match your schema
+4. Copy the Price ID (e.g., `price_xxx`) to your line item `id`
+
+**Stripe pricing types:**
+
+- **Graduated**: Each tier applies to that range only (e.g., seats 1-5 at $0, seats 6-10 at $15)
+- **Volume**: The price for all units is determined by the total quantity
+
+### Lemon Squeezy
+
+1. Create a product with **Usage-based pricing**
+2. Configure the pricing tiers
+3. Copy the Variant ID to your line item `id`
+
+### Paddle
+
+1. Create a product with quantity-based pricing
+2. Configure as needed (Paddle handles proration automatically)
+3. Copy the Price ID to your line item `id`
+
+{% alert type="default" title="Paddle trial limitation" %}
+Paddle doesn't support updating subscription quantities during a trial period. If using per-seat billing with Paddle trials, consider using Feature Policies to restrict invitations during trials.
+{% /alert %}
+
+## Automatic Seat Updates
+
+Makerkit automatically updates seat counts when:
+
+| Action | Effect |
+|--------|--------|
+| Team member accepts invitation | Seat count increases |
+| Team member is removed | Seat count decreases |
+| Team member leaves | Seat count decreases |
+| Account is deleted | Subscription is canceled |
+
+The billing provider handles proration based on your settings.
+
+## Testing Per-Seat Billing
+
+1. **Create a team subscription:**
+   - Sign up and create a team account
+   - Subscribe to a per-seat plan
+   - Verify the initial seat count matches team size
+2. **Add a member:**
+   - Invite a new member to the team
+   - Have them accept the invitation
+   - Check Stripe/LS/Paddle: subscription quantity should increase
+3. **Remove a member:**
+   - Remove a member from the team
+   - Check: subscription quantity should decrease
+4. **Verify proration:**
+   - Check the upcoming invoice in your provider dashboard
+   - Confirm proration is calculated correctly
+
+## Manual Seat Updates (Advanced)
+
+In rare cases, you might need to manually update seat counts:
+
+```tsx
+import { createBillingGatewayService } from '@kit/billing-gateway';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export async function updateSeatCount(
+  subscriptionId: string,
+  subscriptionItemId: string,
+  newQuantity: number
+) {
+  const supabase = getSupabaseServerClient();
+
+  // Get subscription to find the provider
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('billing_provider')
+    .eq('id', subscriptionId)
+    .single();
+
+  if (!subscription) {
+    throw new Error('Subscription not found');
+  }
+
+  const service = createBillingGatewayService(
+    subscription.billing_provider
+  );
+
+  return service.updateSubscriptionItem({
+    subscriptionId,
+    subscriptionItemId,
+    quantity: newQuantity,
+  });
+}
+```
+
+## Checking Seat Limits
+
+To enforce seat limits in your application:
+
+```tsx
+import { createAccountsApi } from '@kit/accounts/api';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+export async function canAddMember(accountId: string): Promise<boolean> {
+  const supabase = getSupabaseServerClient();
+  const api = createAccountsApi(supabase);
+
+  // Get current subscription
+  const subscription = await api.getSubscription(accountId);
+
+  if (!subscription) {
+    return false; // No subscription
+  }
+
+  // Get per-seat item
+  const { data: seatItem } = await supabase
+    .from('subscription_items')
+    .select('quantity')
+    .eq('subscription_id', subscription.id)
+    .eq('type', 'per_seat')
+    .single();
+
+  // Get current member count
+  const { count: memberCount } = await supabase
+    .from('accounts_memberships')
+    .select('*', { count: 'exact', head: true })
+    .eq('account_id', accountId);
+
+  // Check if under limit (if you have a max seats limit)
+  const maxSeats = 100; // Your limit
+  return (memberCount ?? 0) < maxSeats;
+}
+```
+
+## Common Issues
+
+### Seat count not updating
+
+1. Check that the line item has `type: 'per_seat'`
+2. Verify the subscription is active
+3. Check webhook logs for errors
+4. Ensure the subscription item ID is correct in the database
+
+### Proration not working as expected
+
+Configure proration behavior in your billing provider:
+- **Stripe:** Customer Portal settings or API parameters
+- **Lemon Squeezy:** Product settings
+- **Paddle:** Automatic proration
+
+### "Minimum quantity" errors
+
+Some plans require at least 1 seat. Ensure your tiers start at a valid minimum.
+
+## Related Documentation
+
+- [Billing Schema](/docs/next-supabase-turbo/billing/billing-schema) - Define pricing plans
+- [Stripe Setup](/docs/next-supabase-turbo/billing/stripe) - Configure Stripe
+- [Billing API](/docs/next-supabase-turbo/billing/billing-api) - Manual subscription updates
+- [Team Accounts](/docs/next-supabase-turbo/api/team-account-api) - Team management

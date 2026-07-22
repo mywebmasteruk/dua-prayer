@@ -1,0 +1,44 @@
+---
+description: Auto-commit and deploy to production when implementation tasks finish
+alwaysApply: true
+---
+
+# Deploy on Task Complete (DuaPrayer)
+
+User preference: **always deploy when a task finishes** if production code changed.
+
+See `DEPLOY.md` for full deploy mechanics. Canonical production URL: **https://dua-prayer.vercel.app**
+
+## When to deploy
+
+After completing any implementation task that changes production code (app, API routes, config that affects runtime, migrations, etc.):
+
+1. **Commit** all relevant changes with a concise, user-appropriate message (focus on *why*).
+2. **Deploy** to production using the path below.
+3. **Summarize** for the user: commit hash (short), deploy method, and **https://dua-prayer.vercel.app** to verify.
+
+Skip deploy only when the task was docs-only, planning, or explicitly "no deploy."
+
+## Deploy path (in order)
+
+1. **Preferred:** `git push origin main` — triggers GitHub Actions workflow **Deploy Vercel Production** (`.github/workflows/deploy-vercel.yml`). Monitor: https://github.com/mywebmasteruk/dua-prayer/actions
+2. **Fallback:** `npm run deploy:prod` — when Actions secrets are missing, push failed, or an immediate CLI deploy is required. Do **not** run `vercel deploy` from the iCloud-synced project folder.
+
+## Git safety
+
+- **Never** commit `.env`, credentials, or secrets.
+- **Never** force push.
+- **Never** update git config from automation.
+- Do not commit `.vercel/` (see `DEPLOY.md`).
+
+## During live local UI iteration
+
+`local-ui-iteration.mdc` forbids deploy **mid-iteration** (while HMR/dev is active). When the task is **finished** and code is ready to ship, this rule applies — commit and deploy before closing the task.
+
+## Completion message template
+
+```
+Deployed: <short-hash> → https://dua-prayer.vercel.app
+Method: GitHub Actions | npm run deploy:prod
+Actions run: <URL if applicable>
+```

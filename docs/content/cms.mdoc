@@ -1,0 +1,128 @@
+---
+status: "published"
+title: "CMS Integration in the Next.js Supabase SaaS Kit"
+label: "CMS"
+description: "Makerkit's CMS interface abstracts content storage, letting you swap between Keystatic, WordPress, or Supabase without changing your application code."
+order: 0
+---
+
+Makerkit provides a unified CMS interface that decouples your application from the underlying content storage. Write your content queries once, then swap between Keystatic, WordPress, or Supabase without touching your React components.
+
+This abstraction means you can start with local Markdown files during development, then switch to WordPress for a content team, or Supabase for a database-driven approach, all without rewriting your data fetching logic.
+
+## Supported CMS Providers
+
+Makerkit ships with two built-in CMS implementations and one plugin:
+
+| Provider | Storage | Best For | Edge Compatible |
+|----------|---------|----------|-----------------|
+| [Keystatic](/docs/next-supabase-turbo/content/keystatic) | Local files or GitHub | Solo developers, Git-based workflows | GitHub mode only |
+| [WordPress](/docs/next-supabase-turbo/content/wordpress) | WordPress REST API | Content teams, existing WordPress sites | Yes |
+| [Supabase](/docs/next-supabase-turbo/content/supabase) | PostgreSQL via Supabase | Database-driven content, custom admin | Yes |
+
+You can also [create your own CMS client](/docs/next-supabase-turbo/content/creating-your-own-cms-client) for providers like Sanity, Contentful, or Strapi.
+
+## How It Works
+
+The CMS interface consists of three layers:
+
+1. **CMS Client**: An abstract class that defines methods like `getContentItems()` and `getContentItemBySlug()`. Each provider implements this interface.
+2. **Content Renderer**: A React component that knows how to render content from each provider (Markdoc for Keystatic, HTML for WordPress, etc.).
+3. **Registry**: A dynamic import system that loads the correct client based on the `CMS_CLIENT` environment variable.
+
+```tsx
+// This code works with any CMS provider
+import { createCmsClient } from '@kit/cms';
+
+const client = await createCmsClient();
+const { items } = await client.getContentItems({
+  collection: 'posts',
+  limit: 10,
+  sortBy: 'publishedAt',
+  sortDirection: 'desc',
+});
+```
+
+The `CMS_CLIENT` environment variable determines which implementation gets loaded:
+
+```bash
+CMS_CLIENT=keystatic  # Default - file-based content
+CMS_CLIENT=wordpress  # WordPress REST API
+CMS_CLIENT=supabase   # Supabase database (requires plugin)
+```
+
+## Default Collections
+
+Keystatic ships with three pre-configured collections:
+
+- **posts**: Blog posts with title, description, categories, tags, and Markdoc content
+- **documentation**: Hierarchical docs with parent-child relationships and ordering
+- **changelog**: Release notes and updates
+
+WordPress maps to its native content types (posts and pages). Supabase uses the `content_items` table with flexible metadata.
+
+## Choosing a Provider
+
+**Choose Keystatic if:**
+- You're a solo developer or small team
+- You want version-controlled content in your repo
+- You prefer Markdown/Markdoc for writing
+- You don't need real-time collaborative editing
+
+**Choose WordPress if:**
+- You have an existing WordPress site
+- Your content team knows WordPress
+- You need its plugin ecosystem (SEO, forms, etc.)
+- You want a battle-tested admin interface
+
+**Choose Supabase if:**
+- You want content in your existing database
+- You need row-level security on content
+- You're building a user-generated content feature
+- You want to use [Supamode](/supabase-cms) as your admin
+
+## Quick Start
+
+By default, Makerkit uses Keystatic with local storage. No configuration needed.
+
+To switch providers, set the environment variable and follow the provider-specific setup:
+
+```bash
+# .env
+CMS_CLIENT=keystatic
+```
+
+Then use the [CMS API](/docs/next-supabase-turbo/content/cms-api) to fetch content in your components:
+
+```tsx
+import { createCmsClient, ContentRenderer } from '@kit/cms';
+import { notFound } from 'next/navigation';
+
+async function BlogPost({ slug }: { slug: string }) {
+  const client = await createCmsClient();
+
+  const post = await client.getContentItemBySlug({
+    slug,
+    collection: 'posts',
+  });
+
+  if (!post) {
+    notFound();
+  }
+
+  return (
+    <article>
+      <h1>{post.title}</h1>
+      <ContentRenderer content={post.content} />
+    </article>
+  );
+}
+```
+
+## Next Steps
+
+- [CMS API Reference](/docs/next-supabase-turbo/content/cms-api): Full API documentation for fetching and filtering content
+- [Keystatic Setup](/docs/next-supabase-turbo/content/keystatic): Configure local or GitHub storage
+- [WordPress Setup](/docs/next-supabase-turbo/content/wordpress): Connect to WordPress REST API
+- [Supabase CMS Plugin](/docs/next-supabase-turbo/content/supabase): Store content in your database
+- [Custom CMS Client](/docs/next-supabase-turbo/content/creating-your-own-cms-client): Build your own integration

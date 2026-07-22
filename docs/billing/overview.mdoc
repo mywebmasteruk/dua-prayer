@@ -1,0 +1,268 @@
+---
+status: "published"
+label: "How Billing Works"
+title: "Billing in Next.js Supabase Turbo"
+description: "Complete guide to implementing billing in your Next.js Supabase SaaS. Configure subscriptions, one-off payments, metered usage, and per-seat pricing with Stripe, Lemon Squeezy, or Paddle."
+order: 0
+---
+
+Makerkit's billing system lets you accept payments through Stripe, Lemon Squeezy, or Paddle with a unified API. You define your pricing once in a schema, and the gateway routes requests to your chosen provider. Switching providers requires changing one environment variable.
+
+## Quick Start
+
+Set your billing provider:
+
+```bash
+NEXT_PUBLIC_BILLING_PROVIDER=stripe # or lemon-squeezy, paddle
+```
+
+Update the database configuration to match:
+
+```sql
+UPDATE public.config SET billing_provider = 'stripe';
+```
+
+Then [configure your billing schema](/docs/next-supabase-turbo/billing/billing-schema) with your products and pricing.
+
+## Choose Your Provider
+
+| Provider | Best For | Tax Handling | Multi-line Items |
+|----------|----------|--------------|------------------|
+| [Stripe](/docs/next-supabase-turbo/billing/stripe) | Maximum flexibility, global reach | You handle (or use Stripe Tax) | Yes |
+| [Lemon Squeezy](/docs/next-supabase-turbo/billing/lemon-squeezy) | Simplicity, automatic tax compliance | Merchant of Record | No (1 per plan) |
+| [Paddle](/docs/next-supabase-turbo/billing/paddle) | B2B SaaS, automatic tax compliance | Merchant of Record | No (flat + per-seat only) |
+
+**Merchant of Record** means Lemon Squeezy and Paddle handle VAT, sales tax, and compliance globally. With Stripe, you're responsible for tax collection (though Stripe Tax can help).
+
+## Supported Pricing Models
+
+Makerkit supports four billing models out of the box:
+
+### Flat Subscriptions
+
+Fixed monthly or annual pricing. The most common SaaS model.
+
+```tsx
+{
+  id: 'price_xxx',
+  name: 'Pro Plan',
+  cost: 29,
+  type: 'flat',
+}
+```
+
+[Learn more about configuring flat subscriptions →](/docs/next-supabase-turbo/billing/billing-schema#flat-subscriptions)
+
+### Per-Seat Billing
+
+Charge based on team size. Makerkit automatically updates seat counts when members join or leave.
+
+```tsx
+{
+  id: 'price_xxx',
+  name: 'Team',
+  cost: 0,
+  type: 'per_seat',
+  tiers: [
+    { upTo: 3, cost: 0 },      // First 3 seats free
+    { upTo: 10, cost: 12 },    // $12/seat up to 10
+    { upTo: 'unlimited', cost: 10 },
+  ]
+}
+```
+
+[Configure per-seat billing →](/docs/next-supabase-turbo/billing/per-seat-billing)
+
+### Metered Usage
+
+Charge based on consumption (API calls, storage, tokens). Report usage through the billing API.
+
+```tsx
+{
+  id: 'price_xxx',
+  name: 'API Requests',
+  cost: 0,
+  type: 'metered',
+  unit: 'requests',
+  tiers: [
+    { upTo: 1000, cost: 0 },
+    { upTo: 'unlimited', cost: 0.001 },
+  ]
+}
+```
+
+[Set up metered billing →](/docs/next-supabase-turbo/billing/metered-usage)
+
+### One-Off Payments
+
+Lifetime deals, add-ons, or credits. Stored in the `orders` table instead of `subscriptions`.
+
+```tsx
+{
+  paymentType: 'one-time',
+  lineItems: [{
+    id: 'price_xxx',
+    name: 'Lifetime Access',
+    cost: 299,
+    type: 'flat',
+  }]
+}
+```
+
+[Configure one-off payments →](/docs/next-supabase-turbo/billing/one-off-payments)
+
+### Credit-Based Billing
+
+For AI SaaS and token-based systems. Combine subscriptions with a credits table for consumption tracking.
+
+[Implement credit-based billing →](/docs/next-supabase-turbo/billing/credit-based-billing)
+
+## Architecture Overview
+
+The billing system uses a provider-agnostic architecture:
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Your App       │────▶│  Gateway        │────▶│  Provider       │
+│  (billing.config)     │  (routes requests)    │  (Stripe/LS/Paddle)
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                                                        │
+                                                        ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Database       │◀────│  Webhook Handler│◀────│  Webhook        │
+│  (subscriptions)      │  (processes events)   │  (payment events)
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+**Package structure:**
+
+- `@kit/billing` (core): Schema validation, interfaces, types
+- `@kit/billing-gateway`: Provider routing, unified API
+- `@kit/stripe`: Stripe-specific implementation
+- `@kit/lemon-squeezy`: Lemon Squeezy-specific implementation
+- `@kit/paddle`: Paddle-specific implementation (plugin)
+
+This abstraction means your application code stays the same regardless of provider. The billing schema defines what you sell, and each provider package handles the API specifics.
+
+## Database Schema
+
+Billing data is stored in four main tables:
+
+| Table | Purpose |
+|-------|---------|
+| `billing_customers` | Links accounts to provider customer IDs |
+| `subscriptions` | Active and historical subscription records |
+| `subscription_items` | Line items within subscriptions (for per-seat, metered) |
+| `orders` | One-off payment records |
+| `order_items` | Items within one-off orders |
+
+All tables have Row Level Security (RLS) enabled. Users can only read their own billing data.
+
+## Configuration Files
+
+### billing.config.ts
+
+Your pricing schema lives at `apps/web/config/billing.config.ts`:
+
+```tsx
+import { createBillingSchema } from '@kit/billing';
+
+export default createBillingSchema({
+  provider: process.env.NEXT_PUBLIC_BILLING_PROVIDER,
+  products: [
+    {
+      id: 'starter',
+      name: 'Starter',
+      description: 'For individuals',
+      currency: 'USD',
+      plans: [/* ... */],
+    },
+  ],
+});
+```
+
+[Full billing schema documentation →](/docs/next-supabase-turbo/billing/billing-schema)
+
+### Environment Variables
+
+Each provider requires specific environment variables:
+
+**Stripe:**
+```bash
+STRIPE_SECRET_KEY=sk_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_...
+```
+
+**Lemon Squeezy:**
+```bash
+LEMON_SQUEEZY_SECRET_KEY=...
+LEMON_SQUEEZY_SIGNING_SECRET=...
+LEMON_SQUEEZY_STORE_ID=...
+```
+
+**Paddle:**
+```bash
+PADDLE_API_KEY=...
+PADDLE_WEBHOOK_SECRET_KEY=...
+NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=...
+```
+
+## Common Tasks
+
+### Check if an account has a subscription
+
+```tsx
+import { createAccountsApi } from '@kit/accounts/api';
+
+const api = createAccountsApi(supabaseClient);
+const subscription = await api.getSubscription(accountId);
+
+if (subscription?.status === 'active') {
+  // User has active subscription
+}
+```
+
+### Create a checkout session
+
+```tsx
+import { createBillingGatewayService } from '@kit/billing-gateway';
+
+const service = createBillingGatewayService(provider);
+const { checkoutToken } = await service.createCheckoutSession({
+  accountId,
+  plan,
+  returnUrl: `${origin}/billing/return`,
+  customerEmail: user.email,
+});
+```
+
+### Handle billing webhooks
+
+Webhooks are processed at `/api/billing/webhook`. Extend the handler for custom logic:
+
+```tsx
+await service.handleWebhookEvent(request, {
+  onCheckoutSessionCompleted: async (subscription) => {
+    // Send welcome email, provision resources, etc.
+  },
+  onSubscriptionDeleted: async (subscriptionId) => {
+    // Clean up, send cancellation email, etc.
+  },
+});
+```
+
+[Full webhook documentation →](/docs/next-supabase-turbo/billing/billing-webhooks)
+
+## Next Steps
+
+1. **[Configure your billing schema](/docs/next-supabase-turbo/billing/billing-schema)** to define your products and pricing
+2. **Set up your payment provider:** [Stripe](/docs/next-supabase-turbo/billing/stripe), [Lemon Squeezy](/docs/next-supabase-turbo/billing/lemon-squeezy), or [Paddle](/docs/next-supabase-turbo/billing/paddle)
+3. **[Handle webhooks](/docs/next-supabase-turbo/billing/billing-webhooks)** for payment events
+4. **[Use the billing API](/docs/next-supabase-turbo/billing/billing-api)** to manage subscriptions programmatically
+
+For advanced use cases:
+- [Per-seat billing](/docs/next-supabase-turbo/billing/per-seat-billing) for team-based pricing
+- [Metered usage](/docs/next-supabase-turbo/billing/metered-usage) for consumption-based billing
+- [Credit-based billing](/docs/next-supabase-turbo/billing/credit-based-billing) for AI/token systems
+- [Custom integrations](/docs/next-supabase-turbo/billing/custom-integration) for other payment providers

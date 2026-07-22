@@ -1,0 +1,175 @@
+'use client';
+
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useAction } from 'next-safe-action/hooks';
+import { useForm } from 'react-hook-form';
+
+import { Alert, AlertDescription, AlertTitle } from '@kit/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@kit/ui/alert-dialog';
+import { Button } from '@kit/ui/button';
+import { Checkbox } from '@kit/ui/checkbox';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@kit/ui/form';
+import { useAsyncDialog } from '@kit/ui/hooks/use-async-dialog';
+import { If } from '@kit/ui/if';
+import { Input } from '@kit/ui/input';
+import { toast } from '@kit/ui/sonner';
+
+import { createUserAction } from '../lib/server/admin-server-actions';
+import {
+  CreateUserSchema,
+  CreateUserSchemaType,
+} from '../lib/server/schema/create-user.schema';
+
+export function AdminCreateUserDialog(props: React.PropsWithChildren) {
+  const { dialogProps, isPending, setIsPending, setOpen } = useAsyncDialog();
+
+  const form = useForm({
+    resolver: zodResolver(CreateUserSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+      emailConfirm: false,
+    },
+    mode: 'onChange',
+  });
+
+  const { execute, result } = useAction(createUserAction, {
+    onExecute: () => setIsPending(true),
+    onSuccess: () => {
+      toast.success('User created successfully');
+      form.reset();
+      setIsPending(false);
+      setOpen(false);
+    },
+    onSettled: () => setIsPending(false),
+  });
+
+  const error = result.serverError;
+
+  return (
+    <AlertDialog
+      open={dialogProps.open}
+      onOpenChange={dialogProps.onOpenChange}
+    >
+      <AlertDialogTrigger render={props.children as React.ReactElement} />
+
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Create New User</AlertDialogTitle>
+
+          <AlertDialogDescription>
+            Complete the form below to create a new user.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <Form {...form}>
+          <form
+            data-test={'admin-create-user-form'}
+            className={'flex flex-col space-y-4'}
+            onSubmit={form.handleSubmit((data: CreateUserSchemaType) =>
+              execute(data),
+            )}
+          >
+            <If condition={!!error}>
+              <Alert variant={'destructive'}>
+                <AlertTitle>Error</AlertTitle>
+
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            </If>
+
+            <FormField
+              name={'email'}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+
+                  <FormControl>
+                    <Input
+                      required
+                      type="email"
+                      placeholder={'user@example.com'}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              name={'password'}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+
+                  <FormControl>
+                    <Input
+                      required
+                      type="password"
+                      placeholder={'Password'}
+                      {...field}
+                    />
+                  </FormControl>
+
+                  <FormDescription>
+                    Password must be at least 8 characters long.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              name={'emailConfirm'}
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-y-0 space-x-3 rounded-md border p-4">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+
+                  <div className="flex flex-col space-y-1">
+                    <FormLabel>Auto-confirm email</FormLabel>
+
+                    <FormDescription>
+                      If checked, the user&apos;s email will be automatically
+                      confirmed.
+                    </FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+
+              <Button disabled={isPending} type={'submit'}>
+                {isPending ? 'Creating...' : 'Create User'}
+              </Button>
+            </AlertDialogFooter>
+          </form>
+        </Form>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}

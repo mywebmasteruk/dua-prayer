@@ -1,0 +1,370 @@
+---
+status: "published"
+title: "Production Environment Variables for Next.js Supabase SaaS"
+label: "Environment Variables"
+description: "Complete reference for generating and configuring production environment variables in your MakerKit Next.js Supabase application."
+order: 2
+---
+
+Generate and configure environment variables for your MakerKit Next.js Supabase Turbo production deployment. MakerKit uses Zod schemas to validate all variables at build time, catching configuration errors before deployment.
+
+## Generate Environment Variables
+
+MakerKit provides an interactive generator that walks you through each required variable:
+
+```bash
+pnpm turbo gen env
+```
+
+This command:
+1. Prompts you for each variable value
+2. Uses defaults from your existing `.env` files when available
+3. Creates a file at `turbo/generators/templates/env/.env.local`
+
+Copy the contents of this file to your hosting provider's environment variable settings.
+
+{% alert type="warning" title="Never commit this file" %}
+The generated `.env.local` contains secrets. It's git-ignored by default, but verify it's not being tracked.
+{% /alert %}
+
+---
+
+## Validate Environment Variables
+
+After generating or manually setting variables, validate them:
+
+```bash
+turbo gen validate-env
+```
+
+This checks that all required variables are present and correctly formatted.
+
+---
+
+## Required Variables Reference
+
+### Application Settings
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_SITE_URL` | Your production URL (no trailing slash) | `https://yourdomain.com` |
+| `NEXT_PUBLIC_PRODUCT_NAME` | Product name shown in UI | `MyApp` |
+| `NEXT_PUBLIC_SITE_TITLE` | Browser tab title | `MyApp - Build faster` |
+| `NEXT_PUBLIC_SITE_DESCRIPTION` | Meta description for SEO | `The fastest way to build SaaS` |
+| `NEXT_PUBLIC_DEFAULT_THEME_MODE` | Default theme | `light`, `dark`, or `system` |
+| `NEXT_PUBLIC_DEFAULT_LOCALE` | Default language | `en` |
+
+### Supabase Configuration
+
+| Variable | Description | Where to Find |
+|----------|-------------|---------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Dashboard > Settings > API |
+| `NEXT_PUBLIC_SUPABASE_PUBLIC_KEY` | Supabase anon key | Dashboard > Settings > API |
+| `SUPABASE_SECRET_KEY` | Supabase service role key | Dashboard > Settings > API |
+| `SUPABASE_DB_WEBHOOK_SECRET` | Secret for webhook authentication | Generate with `openssl rand -base64 32` |
+
+{% alert type="warning" title="Keep secrets private" %}
+`SUPABASE_SECRET_KEY` bypasses Row Level Security. Never expose it in client-side code.
+{% /alert %}
+
+### Authentication Settings
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_AUTH_PASSWORD` | Enable email/password login | `true` |
+| `NEXT_PUBLIC_AUTH_MAGIC_LINK` | Enable magic link login | `false` |
+| `NEXT_PUBLIC_AUTH_PASSKEY` | Enable passkey (WebAuthn) login | `false` |
+
+### Feature Flags
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_ENABLE_THEME_TOGGLE` | Show theme switcher in UI | `true` |
+| `NEXT_PUBLIC_ENABLE_PERSONAL_ACCOUNT_DELETION` | Allow users to delete their account | `false` |
+| `NEXT_PUBLIC_ENABLE_PERSONAL_ACCOUNT_BILLING` | Enable billing for personal accounts | `false` |
+| `NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS` | Enable team/organization accounts | `true` |
+| `NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_DELETION` | Allow team deletion | `false` |
+| `NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_BILLING` | Enable billing for teams | `false` |
+| `NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_CREATION` | Allow creating new teams | `true` |
+| `NEXT_PUBLIC_ENABLE_NOTIFICATIONS` | Show notification bell in UI | `true` |
+| `NEXT_PUBLIC_REALTIME_NOTIFICATIONS` | Use Supabase realtime for notifications | `false` |
+| `NEXT_PUBLIC_ENABLE_VERSION_UPDATER` | Show version update popup | `false` |
+
+### Billing Configuration
+
+#### Stripe
+
+| Variable | Description | Where to Find |
+|----------|-------------|---------------|
+| `NEXT_PUBLIC_BILLING_PROVIDER` | Set to `stripe` | - |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key | Stripe Dashboard > API Keys |
+| `STRIPE_SECRET_KEY` | Stripe secret key | Stripe Dashboard > API Keys |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret | Stripe Dashboard > Webhooks |
+
+#### Lemon Squeezy
+
+| Variable | Description | Where to Find |
+|----------|-------------|---------------|
+| `NEXT_PUBLIC_BILLING_PROVIDER` | Set to `lemon-squeezy` | - |
+| `LEMON_SQUEEZY_SECRET_KEY` | API key | Lemon Squeezy > Settings > API |
+| `LEMON_SQUEEZY_STORE_ID` | Your store ID | Lemon Squeezy > Settings > Store |
+| `LEMON_SQUEEZY_SIGNING_SECRET` | Webhook signing secret | Lemon Squeezy > Settings > Webhooks |
+
+### Email Configuration
+
+#### Using Resend
+
+| Variable | Value |
+|----------|-------|
+| `MAILER_PROVIDER` | `resend` |
+| `EMAIL_SENDER` | `noreply@yourdomain.com` |
+| `RESEND_API_KEY` | Your Resend API key |
+
+#### Using Nodemailer (SMTP)
+
+| Variable | Description |
+|----------|-------------|
+| `MAILER_PROVIDER` | `nodemailer` |
+| `EMAIL_SENDER` | `noreply@yourdomain.com` |
+| `EMAIL_HOST` | SMTP host (e.g., `smtp.sendgrid.net`) |
+| `EMAIL_PORT` | SMTP port (usually `587` or `465`) |
+| `EMAIL_USER` | SMTP username |
+| `EMAIL_PASSWORD` | SMTP password or API key |
+| `EMAIL_TLS` | Enable TLS (`true` or `false`) |
+
+### CMS Configuration
+
+| Variable | Description |
+|----------|-------------|
+| `CMS_CLIENT` | CMS provider: `keystatic` or `wordpress` |
+
+### Captcha Protection (Optional)
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_CAPTCHA_SITE_KEY` | Cloudflare Turnstile site key |
+| `CAPTCHA_SECRET_TOKEN` | Cloudflare Turnstile secret key |
+
+### Monitoring (Optional)
+
+| Variable | Description |
+|----------|-------------|
+| `CONTACT_EMAIL` | Email for receiving contact form submissions |
+| `LOGGER` | Logger type: `pino` (default) or `console` |
+
+---
+
+## Environment Variable Groups
+
+### Minimum Required for Deployment
+
+These are the absolute minimum variables needed for a working deployment:
+
+```bash
+# Application
+NEXT_PUBLIC_SITE_URL=https://yourdomain.com
+NEXT_PUBLIC_PRODUCT_NAME=MyApp
+
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLIC_KEY=eyJ...
+SUPABASE_SECRET_KEY=eyJ...
+
+# Billing (Stripe example)
+NEXT_PUBLIC_BILLING_PROVIDER=stripe
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Email
+MAILER_PROVIDER=resend
+EMAIL_SENDER=noreply@yourdomain.com
+RESEND_API_KEY=re_...
+
+# Webhooks
+SUPABASE_DB_WEBHOOK_SECRET=your-secret
+```
+
+### Full Production Configuration
+
+Here's a complete example with all common variables:
+
+```bash
+# ============================================
+# APPLICATION
+# ============================================
+NEXT_PUBLIC_SITE_URL=https://yourdomain.com
+NEXT_PUBLIC_PRODUCT_NAME=MyApp
+NEXT_PUBLIC_SITE_TITLE=MyApp - Build SaaS Faster
+NEXT_PUBLIC_SITE_DESCRIPTION=The complete SaaS starter kit
+NEXT_PUBLIC_DEFAULT_THEME_MODE=light
+NEXT_PUBLIC_DEFAULT_LOCALE=en
+
+# ============================================
+# AUTHENTICATION
+# ============================================
+NEXT_PUBLIC_AUTH_PASSWORD=true
+NEXT_PUBLIC_AUTH_MAGIC_LINK=false
+
+# ============================================
+# FEATURES
+# ============================================
+NEXT_PUBLIC_ENABLE_THEME_TOGGLE=true
+NEXT_PUBLIC_ENABLE_PERSONAL_ACCOUNT_DELETION=true
+NEXT_PUBLIC_ENABLE_PERSONAL_ACCOUNT_BILLING=true
+NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS=true
+NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_DELETION=true
+NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_BILLING=true
+NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_CREATION=true
+NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
+NEXT_PUBLIC_REALTIME_NOTIFICATIONS=false
+
+# ============================================
+# SUPABASE
+# ============================================
+NEXT_PUBLIC_SUPABASE_URL=https://yourproject.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLIC_KEY=eyJhbGciOiJI...
+SUPABASE_SECRET_KEY=eyJhbGciOiJI...
+SUPABASE_DB_WEBHOOK_SECRET=your-webhook-secret
+
+# ============================================
+# BILLING (Stripe)
+# ============================================
+NEXT_PUBLIC_BILLING_PROVIDER=stripe
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# ============================================
+# EMAIL
+# ============================================
+MAILER_PROVIDER=resend
+EMAIL_SENDER=noreply@yourdomain.com
+RESEND_API_KEY=re_...
+
+# ============================================
+# CMS
+# ============================================
+CMS_CLIENT=keystatic
+
+# ============================================
+# OPTIONAL
+# ============================================
+CONTACT_EMAIL=support@yourdomain.com
+LOGGER=pino
+```
+
+---
+
+## Build-Time vs Runtime Variables
+
+MakerKit uses Zod schemas to validate environment variables. Understanding when validation occurs helps debug issues:
+
+### Build-Time Validation
+
+Variables prefixed with `NEXT_PUBLIC_` are embedded at build time. If missing:
+- Build fails with a clear error message
+- You must add the variable and rebuild
+
+### Runtime Validation
+
+Server-only variables (without `NEXT_PUBLIC_` prefix) are validated when the server starts. If missing:
+- The application may start but fail when accessing certain features
+- Check server logs for validation errors
+
+---
+
+## Secrets Management
+
+### What Counts as a Secret
+
+These variables contain sensitive data and must be protected:
+
+- `SUPABASE_SECRET_KEY`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `LEMON_SQUEEZY_SECRET_KEY`
+- `LEMON_SQUEEZY_SIGNING_SECRET`
+- `SUPABASE_DB_WEBHOOK_SECRET`
+- `RESEND_API_KEY`
+- `EMAIL_PASSWORD`
+- `CAPTCHA_SECRET_TOKEN`
+
+### Best Practices
+
+1. **Never commit secrets**: Use `.gitignore` to exclude `.env*.local` files
+2. **Use hosting provider secrets**: Vercel, Cloudflare, etc. have secure environment variable storage
+3. **Rotate compromised secrets**: If a secret is exposed, regenerate it immediately
+4. **Limit access**: Only give team members access to secrets they need
+
+---
+
+## Platform-Specific Notes
+
+### Vercel
+
+- Add variables in **Project Settings > Environment Variables**
+- Separate variables by environment (Production, Preview, Development)
+- Use Vercel's sensitive variable feature for secrets
+
+### Cloudflare
+
+- Add variables to `.dev.vars` for local development
+- Use Wrangler secrets for production: `wrangler secret put VARIABLE_NAME`
+- Some variables may need to be in `wrangler.toml` for build-time access
+
+### Docker
+
+- Pass variables via `--env-file` flag
+- Never bake secrets into Docker images
+- Use Docker secrets or external secret managers for production
+
+---
+
+## Troubleshooting
+
+### "Required environment variable X is missing"
+
+The variable isn't set in your hosting provider. Add it and redeploy.
+
+### "Invalid value for environment variable X"
+
+The variable value doesn't match the expected format. Check:
+- URLs should start with `https://` and have no trailing slash
+- Boolean values should be `true` or `false` (not `"true"`)
+- Provider names must match exactly (`stripe`, not `Stripe`)
+
+### Variables work locally but not in production
+
+1. Verify variables are set in your hosting provider (not just `.env.local`)
+2. Check for typos in variable names
+3. Ensure `NEXT_PUBLIC_` prefix is correct for client-side variables
+4. Redeploy after adding variables (Vercel caches builds)
+
+### Secrets appearing in client-side code
+
+Only variables with `NEXT_PUBLIC_` prefix should be in client code. If server-only secrets appear:
+1. Check you're not importing server modules in client components
+2. Verify the variable name doesn't have `NEXT_PUBLIC_` prefix
+3. Review your bundle with `next build --analyze`
+
+---
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Why does MakerKit validate environment variables at build time?", "answer": "Build-time validation catches configuration errors before deployment. Missing a critical variable like STRIPE_SECRET_KEY would otherwise cause runtime errors that are harder to debug. Zod schemas ensure all required variables are present and correctly formatted."},
+     {"question": "What's the difference between NEXT_PUBLIC_ and regular variables?", "answer": "Variables prefixed with NEXT_PUBLIC_ are embedded in the client-side JavaScript bundle and visible to users. Never use this prefix for secrets. Regular variables are only available server-side and stay secure. This is a Next.js convention."},
+     {"question": "How do I add a new environment variable?", "answer": "Add the variable to your hosting provider's settings, then redeploy. For client-side variables (NEXT_PUBLIC_), you must rebuild since they're embedded at build time. For server-only variables, a restart is usually sufficient."},
+     {"question": "Can I use different variables for staging and production?", "answer": "Yes. Most hosting providers support environment-specific variables. Create separate Supabase projects for each environment, generate variables for each, and configure your hosting provider to use the right set based on the deployment environment."},
+     {"question": "What if I accidentally commit secrets to Git?", "answer": "Immediately rotate all exposed credentials. Generate new API keys for Supabase, Stripe, and any other affected services. Consider using git-secrets or similar tools to prevent future accidental commits. Review Git history and consider rewriting it if the repo is private."}
+   ]
+/%}
+
+---
+
+## Next Steps
+
+- [Deployment Checklist](/docs/next-supabase-turbo/going-to-production/checklist): Complete deployment steps
+- [Vercel Deployment](/docs/next-supabase-turbo/going-to-production/vercel): Deploy to Vercel with CI/CD
+- [Supabase Configuration](/docs/next-supabase-turbo/going-to-production/supabase): Set up Supabase with migrations and RLS

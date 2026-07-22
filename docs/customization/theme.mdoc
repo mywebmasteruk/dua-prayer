@@ -1,0 +1,252 @@
+---
+status: "published"
+label: "Updating the Theme"
+title: "Customize Your Shadcn UI Theme Colors | Next.js Supabase SaaS Kit"
+order: 0
+description: "Configure brand colors, dark mode, and Shadcn UI theme variables in your Makerkit application using Tailwind CSS 4."
+---
+
+Customize your application's color scheme by editing `apps/web/styles/theme.css`. This file defines all theme variables (`:root` and `.dark`) that Shadcn UI components use, giving you complete control over your brand colors in both light and dark modes.
+
+## Quick Theme Change
+
+The fastest way to update your theme is to use the [Shadcn UI Themes page](https://ui.shadcn.com/themes):
+
+1. Choose a color scheme on the Shadcn theme builder
+2. Copy the generated CSS variables
+3. Paste them into `apps/web/styles/theme.css`
+4. Wrap color values with `hsl()` or `oklch()` functions (Tailwind CSS 4 requirement)
+
+## Theme File Structure
+
+Makerkit's theming uses three CSS files in `apps/web/styles/`:
+
+| File | Purpose |
+|------|---------|
+| `theme.css` | Your theme colors - `:root` and `.dark` variables (edit this file) |
+| `shadcn-ui.css` | Maps CSS variables to Tailwind's `@theme inline` system |
+| `globals.css` | Imports all styles and base Tailwind directives |
+
+## Core Theme Variables
+
+Edit `apps/web/styles/theme.css` to customize these color groups. Colors use oklch format:
+
+```css title="apps/web/styles/theme.css"
+:root {
+  /* Background and text */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+
+  /* Primary brand color (buttons, links, focus rings) */
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+
+  /* Secondary actions and elements */
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+
+  /* Muted backgrounds and text */
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+
+  /* Hover states and accents */
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+
+  /* Destructive actions (delete, error) */
+  --destructive: oklch(0.58 0.22 27);
+
+  /* Cards and popovers */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+
+  /* Borders and inputs */
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+
+  /* Border radius */
+  --radius: 0.625rem;
+
+  /* Sidebar-specific colors */
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+
+  /* Chart colors */
+  --chart-1: oklch(0.809 0.105 251.813);
+  --chart-2: oklch(0.623 0.214 259.815);
+  --chart-3: oklch(0.546 0.245 262.881);
+  --chart-4: oklch(0.488 0.243 264.376);
+  --chart-5: oklch(0.424 0.199 265.638);
+}
+```
+
+## Dark Mode Configuration
+
+Define dark mode colors in the `.dark` class within the same file:
+
+```css title="apps/web/styles/theme.css"
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+
+  --primary: oklch(0.87 0 0);
+  --primary-foreground: oklch(0.16 0 0);
+
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+
+  --accent: oklch(0.371 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+
+  --destructive: oklch(0.704 0.191 22.216);
+
+  --card: oklch(0.16 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.16 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+
+  --sidebar: oklch(0.16 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+```
+
+## Converting Shadcn Theme Colors to Tailwind CSS 4
+
+Shadcn's theme builder outputs HSL values without the function wrapper. Tailwind CSS 4 requires explicit color functions.
+
+**Shadcn output:**
+```css
+--primary: 222.2 47.4% 11.2%;
+```
+
+**Tailwind CSS 4 format:**
+```css
+--primary: hsl(222.2 47.4% 11.2%);
+```
+
+You can also use `oklch()` for better color perception:
+```css
+--primary: oklch(21.03% 0.0318 264.65);
+```
+
+Use any AI tool or color converter to transform the values. The key is ensuring every color value is wrapped in a color function.
+
+## Using Tailwind Color Palette
+
+Reference Tailwind's built-in colors using CSS variables:
+
+```css
+--primary: var(--color-blue-600);
+--destructive: var(--color-red-500);
+--accent: var(--color-indigo-100);
+```
+
+Available color scales: `slate`, `gray`, `zinc`, `neutral`, `stone`, `red`, `orange`, `amber`, `yellow`, `lime`, `green`, `emerald`, `teal`, `cyan`, `sky`, `blue`, `indigo`, `violet`, `purple`, `fuchsia`, `pink`, `rose`.
+
+Each scale includes shades from `50` (lightest) to `950` (darkest).
+
+## Theme Mode Configuration
+
+Control how theme switching works with these environment variables:
+
+```bash title=".env.local"
+# Default theme: light, dark, or system
+NEXT_PUBLIC_DEFAULT_THEME_MODE=system
+
+# Show/hide the theme toggle in the UI
+NEXT_PUBLIC_ENABLE_THEME_TOGGLE=true
+```
+
+## Custom Brand Color Example
+
+Here's a complete example using a custom indigo brand color:
+
+```css title="apps/web/styles/theme.css"
+:root {
+  --primary: oklch(0.457 0.24 277.023);       /* indigo-600 */
+  --primary-foreground: oklch(1 0 0);          /* white */
+
+  --secondary: oklch(0.943 0.029 282.832);     /* indigo-100 */
+  --secondary-foreground: oklch(0.272 0.174 282.572); /* indigo-900 */
+
+  --accent: oklch(0.969 0.014 282.832);        /* indigo-50 */
+  --accent-foreground: oklch(0.272 0.174 282.572);
+
+  --ring: oklch(0.539 0.233 277.117);          /* indigo-500 */
+}
+
+.dark {
+  --primary: oklch(0.673 0.208 277.568);       /* indigo-400 */
+  --primary-foreground: oklch(0.208 0.153 283.264); /* indigo-950 */
+
+  --secondary: oklch(0.272 0.174 282.572);     /* indigo-900 */
+  --secondary-foreground: oklch(0.943 0.029 282.832);
+
+  --accent: oklch(0.351 0.209 281.288);        /* indigo-800 */
+  --accent-foreground: oklch(0.943 0.029 282.832);
+
+  --ring: oklch(0.673 0.208 277.568);          /* indigo-400 */
+}
+```
+
+## Common Mistakes
+
+**Forgetting color function wrappers**: Tailwind CSS 4 requires `hsl()`, `oklch()`, or `rgb()` around color values. Raw space-separated values like `222 47% 11%` won't work.
+
+**Low contrast ratios**: Ensure sufficient contrast between foreground and background colors. Use tools like [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/) to verify WCAG compliance.
+
+**Inconsistent dark mode**: Always define dark mode variants for every color you customize. Missing dark mode variables cause jarring visual inconsistencies.
+
+**Not testing all components**: Theme changes affect every Shadcn component. After updating colors, click through your app to verify buttons, inputs, cards, and dialogs all look correct.
+
+## Verification
+
+After updating your theme:
+
+1. Start the dev server: `pnpm dev`
+2. Toggle between light and dark modes
+3. Check these component types:
+   - Primary buttons (`--primary`)
+   - Form inputs (`--input`, `--border`, `--ring`)
+   - Cards and dialogs (`--card`, `--popover`)
+   - Destructive actions (`--destructive`)
+   - Sidebar navigation (`--sidebar-*` variables)
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "How do I use a custom color not in Tailwind's palette?", "answer": "Define your color using hsl() or oklch() functions directly. For example: --primary: hsl(250 60% 45%). You can use any valid CSS color value wrapped in a color function."},
+     {"question": "Why do my colors look different than the Shadcn theme preview?", "answer": "Tailwind CSS 4 requires explicit color functions (hsl, oklch, rgb). Convert space-separated HSL values to hsl() function calls. Also ensure you're using the same color space."},
+     {"question": "Can I have different themes for different pages?", "answer": "The theme applies globally. For page-specific styling, use CSS classes or component-level overrides rather than modifying theme variables. You could also implement a theme context for programmatic switching."},
+     {"question": "How do I disable dark mode entirely?", "answer": "Set NEXT_PUBLIC_DEFAULT_THEME_MODE=light and NEXT_PUBLIC_ENABLE_THEME_TOGGLE=false in your environment variables. This forces light mode and hides the toggle."}
+   ]
+/%}
+
+## Next Steps
+
+- Back to [Customization Overview](/docs/next-supabase-turbo/customization)
+- Set up your [Tailwind CSS configuration](/docs/next-supabase-turbo/customization/tailwind-css) for additional customizations
+- Configure [custom fonts](/docs/next-supabase-turbo/customization/fonts) for your brand typography
+- Update your [application logo](/docs/next-supabase-turbo/customization/logo) to match your theme

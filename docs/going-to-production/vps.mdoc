@@ -1,0 +1,418 @@
+---
+status: "published"
+title: "Deploy Next.js Supabase to a VPS"
+label: "Deploy to VPS"
+order: 9
+description: "Deploy your MakerKit Next.js Supabase application to a VPS like Digital Ocean, Hetzner, or Linode. Covers server setup, Docker deployment, Nginx, and SSL configuration."
+---
+
+Deploy your MakerKit Next.js 16 application to a Virtual Private Server (VPS) for full infrastructure control and predictable costs. This guide covers Ubuntu server setup, Docker deployment, Nginx reverse proxy, and Let's Encrypt SSL. The steps work with Digital Ocean, Hetzner, Linode, Vultr, and other VPS providers.
+
+## Overview
+
+| Step | Purpose |
+|------|---------|
+| Create VPS | Provision your server |
+| Install dependencies | Docker, Node.js, Nginx |
+| Deploy application | Using Docker or direct build |
+| Configure Nginx | Reverse proxy and SSL |
+| Set up SSL | HTTPS with Let's Encrypt |
+
+---
+
+## Prerequisites
+
+Before starting:
+
+1. [Set up Supabase](/docs/next-supabase-turbo/going-to-production/supabase) project
+2. [Generate environment variables](/docs/next-supabase-turbo/going-to-production/production-environment-variables)
+3. Domain name pointing to your VPS IP address
+
+---
+
+## Step 1: Create Your VPS
+
+### Digital Ocean
+
+1. Go to [Digital Ocean](https://www.digitalocean.com/)
+2. Click **Create Droplet**
+3. Choose:
+   - **OS**: Ubuntu 24.04 LTS
+   - **Plan**: Basic ($12/month minimum recommended for building)
+   - **Region**: Close to your users and Supabase instance
+4. Add your SSH key for secure access
+5. Create the Droplet
+
+### Recommended Specifications
+
+| Use Case | RAM | CPU | Storage |
+|----------|-----|-----|---------|
+| Building on VPS | 4GB+ | 2 vCPU | 50GB |
+| Running only (pre-built image) | 2GB | 1 vCPU | 25GB |
+| Production with traffic | 4GB+ | 2 vCPU | 50GB |
+
+---
+
+## Step 2: Initial Server Setup
+
+SSH into your server:
+
+```bash
+ssh root@your-server-ip
+```
+
+### Update System
+
+```bash
+apt update && apt upgrade -y
+```
+
+### Install Docker
+
+Follow the [official Docker installation guide](https://docs.docker.com/engine/install/ubuntu/) or run:
+
+```bash
+# Add Docker's official GPG key
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+# Set up repository
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker
+apt update
+apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+```
+
+### Configure Firewall
+
+```bash
+# Allow SSH
+ufw allow 22
+
+# Allow HTTP and HTTPS
+ufw allow 80
+ufw allow 443
+
+# Allow app port (if not using Nginx)
+ufw allow 3000
+
+# Enable firewall
+ufw enable
+```
+
+---
+
+## Step 3: Deploy Your Application
+
+Choose one of two approaches:
+
+### Option A: Pull Pre-Built Docker Image (Recommended)
+
+If you built and pushed your image to a container registry (see [Docker guide](/docs/next-supabase-turbo/going-to-production/docker)):
+
+```bash
+# Login to registry
+docker login ghcr.io
+
+# Pull your image
+docker pull ghcr.io/YOUR_USERNAME/myapp:latest
+
+# Create env file
+nano .env.production.local
+# Paste your environment variables
+
+# Run container
+docker run -d \
+  -p 3000:3000 \
+  --env-file .env.production.local \
+  --name myapp \
+  --restart unless-stopped \
+  ghcr.io/YOUR_USERNAME/myapp:latest
+```
+
+### Option B: Build on VPS
+
+For VPS with enough resources (4GB+ RAM):
+
+#### Install Node.js and pnpm
+
+```bash
+# Install nvm (check https://github.com/nvm-sh/nvm for latest version)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+
+# Load nvm
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# Install Node.js (LTS version)
+nvm install --lts
+
+# Install pnpm
+npm install -g pnpm
+```
+
+#### Clone and Build
+
+```bash
+# Create Personal Access Token on GitHub with repo access
+# Clone repository
+git clone https://<YOUR_GITHUB_PAT>@github.com/YOUR_USERNAME/your-repo.git
+cd your-repo
+
+# Install dependencies
+pnpm install
+
+# Generate Dockerfile
+pnpm run turbo gen docker
+
+# Create env file
+cp turbo/generators/templates/env/.env.local apps/web/.env.production.local
+nano apps/web/.env.production.local
+# Edit with your production values
+
+# Build Docker image
+docker build -t myapp:latest .
+
+# Run container
+docker run -d \
+  -p 3000:3000 \
+  --env-file apps/web/.env.production.local \
+  --name myapp \
+  --restart unless-stopped \
+  myapp:latest
+```
+
+{% alert type="warning" title="Memory during build" %}
+If the build fails with memory errors, increase your VPS size temporarily or build locally and push to a registry.
+{% /alert %}
+
+---
+
+## Step 4: Configure Nginx
+
+Install Nginx as a reverse proxy:
+
+```bash
+apt install -y nginx
+```
+
+### Create Nginx Configuration
+
+```bash
+nano /etc/nginx/sites-available/myapp
+```
+
+Add:
+
+```
+server {
+    listen 80;
+    server_name yourdomain.com www.yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 86400;
+    }
+}
+```
+
+### Enable the Site
+
+```bash
+# Create symlink
+ln -s /etc/nginx/sites-available/myapp /etc/nginx/sites-enabled/
+
+# Remove default site
+rm /etc/nginx/sites-enabled/default
+
+# Test configuration
+nginx -t
+
+# Restart Nginx
+systemctl restart nginx
+```
+
+---
+
+## Step 5: Set Up SSL with Let's Encrypt
+
+Install Certbot:
+
+```bash
+apt install -y certbot python3-certbot-nginx
+```
+
+Obtain SSL certificate:
+
+```bash
+certbot --nginx -d yourdomain.com -d www.yourdomain.com
+```
+
+Certbot automatically:
+1. Obtains the certificate
+2. Updates Nginx configuration
+3. Sets up auto-renewal
+
+Verify auto-renewal:
+
+```bash
+certbot renew --dry-run
+```
+
+---
+
+## Step 6: Post-Deployment Configuration
+
+### Update Supabase URLs
+
+In Supabase Dashboard (**Authentication > URL Configuration**):
+
+| Field | Value |
+|-------|-------|
+| Site URL | `https://yourdomain.com` |
+| Redirect URLs | `https://yourdomain.com/auth/callback**` |
+
+### Configure Webhooks
+
+Point your webhooks to your new domain:
+
+- **Supabase DB webhook**: `https://yourdomain.com/api/db/webhook`
+- **Stripe webhook**: `https://yourdomain.com/api/billing/webhook`
+- **Lemon Squeezy webhook**: `https://yourdomain.com/api/billing/webhook`
+
+---
+
+## Monitoring and Maintenance
+
+### View Logs
+
+```bash
+# Docker logs
+docker logs -f myapp
+
+# Nginx access logs
+tail -f /var/log/nginx/access.log
+
+# Nginx error logs
+tail -f /var/log/nginx/error.log
+```
+
+### Restart Application
+
+```bash
+docker restart myapp
+```
+
+### Update Application
+
+```bash
+# Pull new image
+docker pull ghcr.io/YOUR_USERNAME/myapp:latest
+
+# Stop old container
+docker stop myapp
+docker rm myapp
+
+# Start new container
+docker run -d \
+  -p 3000:3000 \
+  --env-file .env.production.local \
+  --name myapp \
+  --restart unless-stopped \
+  ghcr.io/YOUR_USERNAME/myapp:latest
+```
+
+### Automated Updates with Watchtower (Optional)
+
+Auto-update containers when new images are pushed:
+
+```bash
+docker run -d \
+  --name watchtower \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower \
+  --interval 300 \
+  myapp
+```
+
+---
+
+## Troubleshooting
+
+### Application not accessible
+
+1. Check Docker container is running: `docker ps`
+2. Check firewall allows port 3000: `ufw status`
+3. Check Nginx is running: `systemctl status nginx`
+4. Check Nginx config: `nginx -t`
+
+### SSL certificate issues
+
+1. Ensure DNS is properly configured
+2. Wait for DNS propagation (up to 48 hours)
+3. Check Certbot logs: `cat /var/log/letsencrypt/letsencrypt.log`
+
+### Container keeps restarting
+
+Check logs for errors:
+
+```bash
+docker logs myapp
+```
+
+Common causes:
+- Missing environment variables
+- Database connection issues
+- Port conflicts
+
+### High memory usage
+
+Monitor with:
+
+```bash
+docker stats
+```
+
+Consider:
+1. Increasing VPS size
+2. Configuring memory limits on container
+3. Enabling swap space
+
+---
+
+## Cost Comparison
+
+| Provider | Basic VPS | Notes |
+|----------|-----------|-------|
+| Digital Ocean | $12/month | Good documentation |
+| Hetzner | $4/month | Best value, EU-based |
+| Linode | $12/month | Owned by Akamai |
+| Vultr | $12/month | Good global coverage |
+
+---
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Which VPS provider should I choose?", "answer": "Hetzner offers the best value at $4-5/month for a capable server. Digital Ocean has better documentation and a simpler interface at $12/month. Choose based on your region needs and whether you value cost or convenience."},
+     {"question": "How much RAM do I need?", "answer": "2GB RAM is minimum for running a pre-built Docker container. 4GB+ is needed if building on the VPS itself. For production with traffic, 4GB provides headroom for spikes. Monitor usage and scale up if you see memory pressure."},
+     {"question": "Do I need Nginx if I'm using Docker?", "answer": "Yes, for production. Nginx handles SSL termination, serves static files efficiently, and provides a buffer between the internet and your app. It also enables zero-downtime deployments by proxying to new containers while the old ones drain."},
+     {"question": "Is VPS cheaper than Vercel?", "answer": "For low traffic, Vercel's free tier is cheaper. For high traffic or predictable workloads, VPS is often cheaper. A $12/month Digital Ocean droplet handles more requests than Vercel's Pro tier at $20/month, but you manage everything yourself."}
+   ]
+/%}
+
+---
+
+## Next Steps
+
+- [Docker Deployment](/docs/next-supabase-turbo/going-to-production/docker): Build and push Docker images with CI/CD
+- [Monitoring Setup](/docs/next-supabase-turbo/monitoring/overview): Add Sentry or PostHog for error tracking
+- [Environment Variables](/docs/next-supabase-turbo/going-to-production/production-environment-variables): Complete variable reference

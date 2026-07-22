@@ -1,0 +1,309 @@
+---
+status: "published"
+title: "Environment Variables Reference for the Next.js Supabase SaaS Kit"
+label: "Environment Variables"
+order: 0
+description: "Complete reference for all environment variables in the Next.js Supabase SaaS Kit, including Supabase, Stripe, email, and feature flag configuration."
+---
+
+This page documents all environment variables used by the Next.js Supabase SaaS Kit. Variables are organized by category and include their purpose, required status, and default values.
+
+## Environment File Structure
+
+| File | Purpose | Git Status |
+|------|---------|------------|
+| `.env` | Shared settings across all environments | Committed |
+| `.env.development` | Development-specific overrides | Committed |
+| `.env.production` | Production-specific settings | Committed |
+| `.env.local` | Local secrets and overrides | Git-ignored |
+
+**Priority order**: `.env.local` > `.env.development`/`.env.production` > `.env`
+
+## Required Variables
+
+These variables must be set for the application to start:
+
+```bash
+# Supabase (required)
+NEXT_PUBLIC_SUPABASE_URL=https://yourproject.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLIC_KEY=your-public-key
+SUPABASE_SECRET_KEY=your-service-role-key
+
+# App identity (required)
+NEXT_PUBLIC_SITE_URL=https://yourapp.com
+NEXT_PUBLIC_PRODUCT_NAME=Your Product
+NEXT_PUBLIC_SITE_TITLE="Your Product - Tagline"
+NEXT_PUBLIC_SITE_DESCRIPTION="Your product description"
+```
+
+## Core Configuration
+
+### Site Identity
+
+```bash
+NEXT_PUBLIC_SITE_URL=https://example.com
+NEXT_PUBLIC_PRODUCT_NAME=Makerkit
+NEXT_PUBLIC_SITE_TITLE="Makerkit - Build SaaS Faster"
+NEXT_PUBLIC_SITE_DESCRIPTION="Production-ready SaaS starter kit"
+NEXT_PUBLIC_DEFAULT_LOCALE=en
+```
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_SITE_URL` | Yes | Full URL with protocol |
+| `NEXT_PUBLIC_PRODUCT_NAME` | Yes | Product name shown in UI |
+| `NEXT_PUBLIC_SITE_TITLE` | Yes | Browser title and SEO |
+| `NEXT_PUBLIC_SITE_DESCRIPTION` | Yes | Meta description |
+| `NEXT_PUBLIC_DEFAULT_LOCALE` | No | Default language (default: `en`) |
+
+### Theme
+
+```bash
+NEXT_PUBLIC_DEFAULT_THEME_MODE=light
+NEXT_PUBLIC_THEME_COLOR="#ffffff"
+NEXT_PUBLIC_THEME_COLOR_DARK="#0a0a0a"
+NEXT_PUBLIC_ENABLE_THEME_TOGGLE=true
+```
+
+| Variable | Options | Default | Description |
+|----------|---------|---------|-------------|
+| `NEXT_PUBLIC_DEFAULT_THEME_MODE` | `light`, `dark`, `system` | `light` | Initial theme |
+| `NEXT_PUBLIC_THEME_COLOR` | Hex color | Required | Light theme color |
+| `NEXT_PUBLIC_THEME_COLOR_DARK` | Hex color | Required | Dark theme color |
+| `NEXT_PUBLIC_ENABLE_THEME_TOGGLE` | `true`, `false` | `true` | Allow theme switching |
+
+## Supabase Configuration
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://yourproject.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLIC_KEY=your-public-key
+SUPABASE_SECRET_KEY=your-service-role-key
+SUPABASE_DB_WEBHOOK_SECRET=your-webhook-secret
+```
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLIC_KEY` | Yes | Public anon key |
+| `SUPABASE_SECRET_KEY` | Yes | Service role key (keep secret) |
+| `SUPABASE_DB_WEBHOOK_SECRET` | No | Webhook verification secret |
+
+{% alert type="warning" title="Legacy Key Names" %}
+If you're using a version prior to 2.12.0, use `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` instead.
+{% /alert %}
+
+## Authentication
+
+```bash
+NEXT_PUBLIC_AUTH_PASSWORD=true
+NEXT_PUBLIC_AUTH_MAGIC_LINK=false
+NEXT_PUBLIC_AUTH_OTP=false
+NEXT_PUBLIC_AUTH_PASSKEY=false
+NEXT_PUBLIC_AUTH_IDENTITY_LINKING=false
+NEXT_PUBLIC_CAPTCHA_SITE_KEY=
+CAPTCHA_SECRET_TOKEN=
+NEXT_PUBLIC_CAPTCHA_WIDGET_SIZE=invisible
+NEXT_PUBLIC_DISPLAY_TERMS_AND_CONDITIONS_CHECKBOX=false
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_AUTH_PASSWORD` | `true` | Enable password auth |
+| `NEXT_PUBLIC_AUTH_MAGIC_LINK` | `false` | Enable magic link auth |
+| `NEXT_PUBLIC_AUTH_OTP` | `false` | Enable OTP auth |
+| `NEXT_PUBLIC_AUTH_PASSKEY` | `false` | Enable passkey (WebAuthn) auth |
+| `NEXT_PUBLIC_AUTH_IDENTITY_LINKING` | `false` | Allow identity linking |
+| `NEXT_PUBLIC_CAPTCHA_SITE_KEY` | - | Cloudflare Turnstile site key |
+| `CAPTCHA_SECRET_TOKEN` | - | Cloudflare Turnstile secret |
+| `NEXT_PUBLIC_CAPTCHA_WIDGET_SIZE` | `invisible` | Turnstile widget size. Set to `normal` or `compact` with a Managed site key |
+| `NEXT_PUBLIC_DISPLAY_TERMS_AND_CONDITIONS_CHECKBOX` | `false` | Show terms checkbox |
+
+### Password Requirements
+
+```bash
+NEXT_PUBLIC_PASSWORD_REQUIRE_UPPERCASE=false
+NEXT_PUBLIC_PASSWORD_REQUIRE_NUMBERS=false
+NEXT_PUBLIC_PASSWORD_REQUIRE_SPECIAL_CHARS=false
+```
+
+## Navigation and Layout
+
+```bash
+NEXT_PUBLIC_USER_NAVIGATION_STYLE=sidebar
+NEXT_PUBLIC_HOME_SIDEBAR_COLLAPSED=false
+NEXT_PUBLIC_TEAM_NAVIGATION_STYLE=sidebar
+NEXT_PUBLIC_TEAM_SIDEBAR_COLLAPSED=false
+NEXT_PUBLIC_SIDEBAR_COLLAPSIBLE_STYLE=icon
+NEXT_PUBLIC_ENABLE_SIDEBAR_TRIGGER=true
+```
+
+| Variable | Options | Default | Description |
+|----------|---------|---------|-------------|
+| `NEXT_PUBLIC_USER_NAVIGATION_STYLE` | `sidebar`, `header` | `sidebar` | Personal nav layout |
+| `NEXT_PUBLIC_HOME_SIDEBAR_COLLAPSED` | `true`, `false` | `false` | Start collapsed |
+| `NEXT_PUBLIC_TEAM_NAVIGATION_STYLE` | `sidebar`, `header` | `sidebar` | Team nav layout |
+| `NEXT_PUBLIC_TEAM_SIDEBAR_COLLAPSED` | `true`, `false` | `false` | Start collapsed |
+| `NEXT_PUBLIC_SIDEBAR_COLLAPSIBLE_STYLE` | `offcanvas`, `icon`, `none` | `icon` | Collapse behavior |
+| `NEXT_PUBLIC_ENABLE_SIDEBAR_TRIGGER` | `true`, `false` | `true` | Show collapse button |
+
+## Feature Flags
+
+```bash
+NEXT_PUBLIC_ENABLE_THEME_TOGGLE=true
+NEXT_PUBLIC_ENABLE_PERSONAL_ACCOUNT_DELETION=false
+NEXT_PUBLIC_ENABLE_PERSONAL_ACCOUNT_BILLING=false
+NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS=true
+NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_CREATION=true
+NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_DELETION=false
+NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_BILLING=false
+NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
+NEXT_PUBLIC_REALTIME_NOTIFICATIONS=false
+NEXT_PUBLIC_ENABLE_VERSION_UPDATER=false
+NEXT_PUBLIC_LANGUAGE_PRIORITY=application
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_ENABLE_PERSONAL_ACCOUNT_DELETION` | `false` | Users can delete accounts |
+| `NEXT_PUBLIC_ENABLE_PERSONAL_ACCOUNT_BILLING` | `false` | Personal subscription billing |
+| `NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS` | `true` | Enable team features |
+| `NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_CREATION` | `true` | Users can create teams |
+| `NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_DELETION` | `false` | Users can delete teams |
+| `NEXT_PUBLIC_ENABLE_TEAM_ACCOUNTS_BILLING` | `false` | Team subscription billing |
+| `NEXT_PUBLIC_ENABLE_NOTIFICATIONS` | `true` | In-app notifications |
+| `NEXT_PUBLIC_REALTIME_NOTIFICATIONS` | `false` | Live notification updates |
+| `NEXT_PUBLIC_ENABLE_VERSION_UPDATER` | `false` | Check for updates |
+| `NEXT_PUBLIC_LANGUAGE_PRIORITY` | `application` | `user` or `application` |
+
+## Billing Configuration
+
+### Provider Selection
+
+```bash
+NEXT_PUBLIC_BILLING_PROVIDER=stripe
+```
+
+Options: `stripe` or `lemon-squeezy`
+
+### Stripe
+
+```bash
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Yes (Stripe) | Publishable key |
+| `STRIPE_SECRET_KEY` | Yes (Stripe) | Secret key |
+| `STRIPE_WEBHOOK_SECRET` | Yes (Stripe) | Webhook signing secret |
+
+### Lemon Squeezy
+
+```bash
+LEMON_SQUEEZY_SECRET_KEY=your-secret-key
+LEMON_SQUEEZY_STORE_ID=your-store-id
+LEMON_SQUEEZY_SIGNING_SECRET=your-signing-secret
+```
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `LEMON_SQUEEZY_SECRET_KEY` | Yes (LS) | API secret key |
+| `LEMON_SQUEEZY_STORE_ID` | Yes (LS) | Store identifier |
+| `LEMON_SQUEEZY_SIGNING_SECRET` | Yes (LS) | Webhook signing secret |
+
+## Email Configuration
+
+### Provider Selection
+
+```bash
+MAILER_PROVIDER=nodemailer
+```
+
+Options: `nodemailer` or `resend`
+
+### Common Settings
+
+```bash
+EMAIL_SENDER="Your App <noreply@yourapp.com>"
+CONTACT_EMAIL=contact@yourapp.com
+```
+
+### Resend
+
+```bash
+RESEND_API_KEY=re_...
+```
+
+### Nodemailer (SMTP)
+
+```bash
+EMAIL_HOST=smtp.provider.com
+EMAIL_PORT=587
+EMAIL_USER=your-username
+EMAIL_PASSWORD=your-password
+EMAIL_TLS=true
+```
+
+## CMS Configuration
+
+### Provider Selection
+
+```bash
+CMS_CLIENT=keystatic
+```
+
+Options: `keystatic` or `wordpress`
+
+### Keystatic
+
+```bash
+NEXT_PUBLIC_KEYSTATIC_STORAGE_KIND=local
+NEXT_PUBLIC_KEYSTATIC_CONTENT_PATH=./content
+KEYSTATIC_PATH_PREFIX=apps/web
+```
+
+For GitHub storage:
+
+```bash
+NEXT_PUBLIC_KEYSTATIC_STORAGE_KIND=github
+NEXT_PUBLIC_KEYSTATIC_STORAGE_REPO=owner/repo
+KEYSTATIC_GITHUB_TOKEN=github_pat_...
+```
+
+| Variable | Options | Description |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_KEYSTATIC_STORAGE_KIND` | `local`, `cloud`, `github` | Storage backend |
+| `NEXT_PUBLIC_KEYSTATIC_CONTENT_PATH` | Path | Content directory |
+| `KEYSTATIC_PATH_PREFIX` | Path | Monorepo prefix |
+| `NEXT_PUBLIC_KEYSTATIC_STORAGE_REPO` | `owner/repo` | GitHub repository |
+| `KEYSTATIC_GITHUB_TOKEN` | Token | GitHub access token |
+
+### WordPress
+
+```bash
+WORDPRESS_API_URL=https://your-site.com/wp-json
+```
+
+## Security Best Practices
+
+1. **Never commit secrets**: Use `.env.local` for sensitive values
+2. **Use CI/CD variables**: Store production secrets in your deployment platform
+3. **Rotate keys regularly**: Especially after team member changes
+4. **Validate in production**: The kit validates configuration at build time
+
+## Common Pitfalls
+
+1. **HTTP in production**: `NEXT_PUBLIC_SITE_URL` must use `https://` in production builds.
+2. **Same theme colors**: `NEXT_PUBLIC_THEME_COLOR` and `NEXT_PUBLIC_THEME_COLOR_DARK` must be different.
+3. **Missing Supabase keys**: The app won't start without valid Supabase credentials.
+4. **Forgetting to restart**: After changing environment variables, you may need to restart the development server.
+5. **Wrong file for secrets**: Put secrets in `.env.local` (git-ignored), not `.env` (committed).
+
+## Related Topics
+
+- [Application Configuration](/docs/next-supabase-turbo/configuration/application-configuration) - Core app settings
+- [Authentication Configuration](/docs/next-supabase-turbo/configuration/authentication-configuration) - Auth setup
+- [Feature Flags](/docs/next-supabase-turbo/configuration/feature-flags-configuration) - Toggle features
+- [Going to Production](/docs/next-supabase-turbo/going-to-production/checklist) - Deployment checklist

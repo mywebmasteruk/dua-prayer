@@ -1,0 +1,32 @@
+---
+status: "published"
+title: 'Using the Meshes Analytics Provider in Next.js Supabase Turbo'
+label: 'Meshes'
+description: 'Add Meshes to your MakerKit application for event tracking and analytics.'
+order: 6
+---
+
+[Meshes](https://meshes.io/) is a platform for event tracking for user engagement and conversions. It captures custom events (signups, plan upgrades, feature usage) so you can measure what matters without building your own event pipeline.
+
+## Installation
+
+Install the Meshes plugin using the MakerKit CLI:
+
+```bash
+npx @makerkit/cli@latest plugins add meshes-analytics
+```
+
+The Makerkit CLI will automatically wire up the plugin in your project, so you don't have to do anything manually
+
+The codemod is very complex, so please review the changes with `git diff` and commit them.
+
+## Environment Variables
+
+Set the analytics provider and Meshes configuration:
+
+```bash title=".env.local"
+# Meshes configuration
+NEXT_PUBLIC_MESHES_PUBLISHABLE_KEY=your_api_key_here
+```
+
+Please [read the Meshes documentation](https://meshes.io/docs) for more information on how to use the Meshes analytics provider.

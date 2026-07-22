@@ -1,0 +1,390 @@
+---
+status: "published"
+title: 'Manual Error Capturing'
+label: 'Capturing Errors'
+description: 'Learn how to manually capture errors and exceptions in both client and server code using Makerkit monitoring hooks and services.'
+order: 2
+---
+
+While Makerkit automatically captures unhandled errors, you often need to capture errors manually in try-catch blocks, form submissions, or API calls. This guide shows you how to capture errors programmatically.
+
+{% sequence title="Error Capturing Guide" description="Manually capture errors in your application" %}
+
+[Client-Side Error Capturing](#client-side-error-capturing)
+
+[Server-Side Error Capturing](#server-side-error-capturing)
+
+[Adding Context to Errors](#adding-context-to-errors)
+
+[Identifying Users](#identifying-users)
+
+{% /sequence %}
+
+## Client-Side Error Capturing
+
+### Using the useCaptureException Hook
+
+The simplest way to capture errors in React components is the `useCaptureException` hook:
+
+```typescript {% title="components/error-boundary.tsx" %}
+'use client';
+
+import { useCaptureException } from '@kit/monitoring/hooks';
+
+export default function ErrorPage({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  // Errors with a `digest` originated server-side and were already captured
+  // by `onRequestError`. Pass `null` to skip the client report and avoid a
+  // duplicate event in your dashboard.
+  useCaptureException(error.digest ? null : error);
+
+  return (
+    <div>
+      <h2>Something went wrong</h2>
+      <button onClick={reset}>Try again</button>
+    </div>
+  );
+}
+```
+
+This hook captures the error once when the component mounts. It's ideal for error boundary pages. Pass `null` whenever you want to skip the report.
+
+### Capturing from `global-error.tsx`
+
+`global-error.tsx` replaces the root layout, which means the `MonitoringProvider` context isn't available there. Use `captureClientException` from `@kit/monitoring/instrumentation-client` instead — it talks to the same lazily-loaded provider without needing the React tree:
+
+```tsx {% title="apps/web/app/global-error.tsx" %}
+'use client';
+
+import { useEffect } from 'react';
+
+import { captureClientException } from '@kit/monitoring/instrumentation-client';
+
+export default function GlobalError({
+  error,
+}: {
+  error: Error & { digest?: string };
+}) {
+  useEffect(() => {
+    if (error.digest) return;
+
+    void captureClientException(error);
+  }, [error]);
+
+  return (
+    <html>
+      <body>
+        <h2>Something went wrong</h2>
+      </body>
+    </html>
+  );
+}
+```
+
+### Using the useMonitoring Hook
+
+For more control, use the `useMonitoring` hook to access the monitoring service directly:
+
+```typescript {% title="components/form.tsx" %}
+'use client';
+
+import { useMonitoring } from '@kit/monitoring/hooks';
+
+export function ContactForm() {
+  const monitoring = useMonitoring();
+
+  const handleSubmit = async (formData: FormData) => {
+    try {
+      await submitForm(formData);
+    } catch (error) {
+      // Capture the error with context
+      monitoring.captureException(error as Error, {
+        formData: Object.fromEntries(formData),
+        action: 'contact_form_submit',
+      });
+
+      // Show user-friendly error
+      toast.error('Failed to submit form');
+    }
+  };
+
+  return (
+    <form action={handleSubmit}>
+      {/* form fields */}
+    </form>
+  );
+}
+```
+
+### Capturing Events
+
+Track custom monitoring events (not errors) using `captureEvent`:
+
+```typescript {% title="Example: Tracking important actions" %}
+'use client';
+
+import { useMonitoring } from '@kit/monitoring/hooks';
+
+export function DangerZone() {
+  const monitoring = useMonitoring();
+
+  const handleDeleteAccount = async () => {
+    // Track the action before attempting
+    monitoring.captureEvent('account_deletion_attempted', {
+      userId: user.id,
+      timestamp: new Date().toISOString(),
+    });
+
+    try {
+      await deleteAccount();
+    } catch (error) {
+      monitoring.captureException(error as Error);
+    }
+  };
+
+  return (
+    <button onClick={handleDeleteAccount}>
+      Delete Account
+    </button>
+  );
+}
+```
+
+## Server-Side Error Capturing
+
+### In Server Actions
+
+```typescript {% title="lib/actions/create-project.ts" %}
+'use server';
+
+import { getServerMonitoringService } from '@kit/monitoring/server';
+
+export async function createProject(formData: FormData) {
+  const monitoring = await getServerMonitoringService();
+  await monitoring.ready();
+
+  try {
+    const project = await db.project.create({
+      data: {
+        name: formData.get('name') as string,
+      },
+    });
+
+    return { success: true, project };
+  } catch (error) {
+    await monitoring.captureException(error as Error, {
+      action: 'createProject',
+      formData: Object.fromEntries(formData),
+    });
+
+    return { success: false, error: 'Failed to create project' };
+  }
+}
+```
+
+### In API Routes
+
+```typescript {% title="app/api/webhook/route.ts" %}
+import { getServerMonitoringService } from '@kit/monitoring/server';
+
+export async function POST(request: Request) {
+  const monitoring = await getServerMonitoringService();
+  await monitoring.ready();
+
+  try {
+    const data = await request.json();
+    await processWebhook(data);
+
+    return Response.json({ received: true });
+  } catch (error) {
+    await monitoring.captureException(
+      error as Error,
+      { webhook: 'stripe' },
+      {
+        path: request.url,
+        method: 'POST',
+      }
+    );
+
+    return Response.json(
+      { error: 'Webhook processing failed' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+## Adding Context to Errors
+
+The `captureException` method accepts two optional parameters for adding context:
+
+```typescript
+captureException(
+  error: Error,
+  extra?: Record<string, unknown>,  // Additional data
+  config?: Record<string, unknown>  // Provider-specific config
+)
+```
+
+### Extra Data
+
+Add any relevant information that helps debug the error:
+
+```typescript {% title="Example: Rich error context" %}
+monitoring.captureException(error, {
+  // User context
+  userId: user.id,
+  userEmail: user.email,
+  userPlan: user.subscription.plan,
+
+  // Action context
+  action: 'checkout',
+  productId: product.id,
+  quantity: cart.items.length,
+
+  // Environment context
+  feature_flags: getEnabledFlags(),
+  app_version: process.env.APP_VERSION,
+});
+```
+
+### Configuration
+
+Pass provider-specific configuration:
+
+```typescript {% title="Example: Sentry-specific config" %}
+monitoring.captureException(
+  error,
+  { userId: user.id },
+  {
+    // Sentry-specific options
+    level: 'error',
+    tags: {
+      component: 'checkout',
+      flow: 'payment',
+    },
+  }
+);
+```
+
+## Identifying Users
+
+Associate errors with users to track issues per user:
+
+```typescript {% title="Example: Identify user after login" %}
+'use client';
+
+import { useMonitoring } from '@kit/monitoring/hooks';
+
+export function useIdentifyUser(user: { id: string; email: string }) {
+  const monitoring = useMonitoring();
+
+  useEffect(() => {
+    if (user) {
+      monitoring.identifyUser({
+        id: user.id,
+        email: user.email,
+      });
+    }
+  }, [user, monitoring]);
+}
+```
+
+Once identified, all subsequent errors from that session are associated with the user in your monitoring dashboard.
+
+## Best Practices
+
+### Capture at Boundaries
+
+Capture errors at the boundaries of your application:
+
+- Form submissions
+- API calls
+- Third-party integrations
+- File uploads
+- Payment processing
+
+```typescript {% title="Pattern: Error boundary function" %}
+async function withErrorCapture<T>(
+  fn: () => Promise<T>,
+  context: Record<string, unknown>
+): Promise<T | null> {
+  const monitoring = await getServerMonitoringService();
+  await monitoring.ready();
+
+  try {
+    return await fn();
+  } catch (error) {
+    await monitoring.captureException(error as Error, context);
+    return null;
+  }
+}
+
+// Usage
+const result = await withErrorCapture(
+  () => processPayment(paymentData),
+  { action: 'processPayment', amount: paymentData.amount }
+);
+```
+
+### Don't Over-Capture
+
+Not every error needs to be captured:
+
+```typescript {% title="Example: Selective capturing" %}
+try {
+  await fetchUserData();
+} catch (error) {
+  if (error instanceof NetworkError) {
+    // Expected error, handle gracefully
+    return fallbackData;
+  }
+
+  if (error instanceof AuthError) {
+    // Expected error, redirect to login
+    redirect('/login');
+  }
+
+  // Unexpected error, capture it
+  monitoring.captureException(error as Error);
+  throw error;
+}
+```
+
+### Include Actionable Context
+
+Add context that helps you fix the issue:
+
+```typescript {% title="Good context" %}
+monitoring.captureException(error, {
+  userId: user.id,
+  action: 'export_csv',
+  rowCount: data.length,
+  filters: appliedFilters,
+  exportFormat: 'csv',
+});
+```
+
+```typescript {% title="Less useful context" %}
+monitoring.captureException(error, {
+  error: 'something went wrong',
+  time: Date.now(),
+});
+```
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Should I capture validation errors?", "answer": "Generally no. Validation errors are expected and user-facing. Capture unexpected errors like database failures, third-party API errors, or logic errors that shouldn't happen."},
+     {"question": "How do I avoid capturing the same error multiple times?", "answer": "Capture at the highest level where you handle the error. If you rethrow an error, don't capture it at the lower level. Let it bubble up to where it's finally handled."},
+     {"question": "What's the difference between captureException and captureEvent?", "answer": "captureException is for errors and exceptions. captureEvent is for tracking important actions or milestones that aren't errors, like 'user_deleted_account' or 'large_export_started'."},
+     {"question": "Does capturing errors affect performance?", "answer": "Minimally. Error capturing is asynchronous and non-blocking. However, avoid capturing in hot paths or loops. Capture at boundaries, not in every function."}
+   ]
+/%}
+
+**Next:** [Creating a Custom Monitoring Provider →](custom-provider)

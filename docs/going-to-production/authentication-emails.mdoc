@@ -1,0 +1,309 @@
+---
+status: "published"
+title: "Configure Supabase Authentication Email Templates"
+label: "Authentication Emails"
+description: "Configure custom authentication email templates for your MakerKit application. Fix PKCE issues and customize branding for confirmation, magic link, and password reset emails."
+order: 4
+---
+
+MakerKit's email templates use token_hash URLs instead of Supabase's default PKCE flow, fixing the common issue where users can't authenticate when clicking email links on different devices. This is required for reliable production authentication since many users check email on mobile but sign up on desktop.
+
+Copy MakerKit's templates from `apps/web/supabase/templates/` to your Supabase Dashboard to enable cross-browser authentication.
+
+## Why Custom Email Templates Matter
+
+### The PKCE Problem
+
+Supabase uses PKCE (Proof Key for Code Exchange) for secure authentication. Here's how it works:
+
+1. User signs up in Chrome on their laptop
+2. Supabase stores a PKCE verifier in Chrome's session
+3. User receives confirmation email on their phone
+4. User clicks link, opens in Safari
+5. **Authentication fails** because Safari doesn't have the PKCE verifier
+
+This affects:
+- Email confirmations
+- Magic link login
+- Password reset flows
+- Email change confirmations
+
+### The Solution
+
+MakerKit's email templates use **token hash URLs** instead of PKCE. This approach:
+
+1. Includes authentication tokens directly in the URL
+2. Works regardless of which browser/device opens the link
+3. Maintains security through server-side verification
+
+---
+
+## Step 1: Locate MakerKit Templates
+
+MakerKit provides pre-designed email templates in your project:
+
+```
+apps/web/supabase/templates/
+├── confirm-email.html       # Email confirmation
+├── magic-link.html          # Magic link login
+├── reset-password.html      # Password reset
+├── change-email-address.html # Email change confirmation
+├── invite-user.html         # Team invitation
+└── otp.html                 # One-time password
+```
+
+These templates:
+- Use the token hash URL strategy
+- Have modern, clean designs
+- Are customizable with your branding
+
+---
+
+## Step 2: Update Templates in Supabase
+
+### Navigate to Email Templates
+
+1. Open your [Supabase Dashboard](https://supabase.com/dashboard)
+2. Select your project
+3. Go to **Authentication > Email Templates**
+
+### Update Each Template
+
+For each email type, copy the corresponding template from your MakerKit project and paste it into Supabase.
+
+#### Confirm Signup Email
+
+The confirmation email uses this URL format:
+
+```html
+<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">
+  Confirm your email
+</a>
+```
+
+Key elements:
+- `{{ .SiteURL }}`: Your application URL
+- `{{ .TokenHash }}`: Secure token for verification
+- `type=email`: Specifies the confirmation type
+
+#### Magic Link Email
+
+```html
+<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink">
+  Sign in to your account
+</a>
+```
+
+#### Password Recovery Email
+
+```html
+<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery">
+  Reset your password
+</a>
+```
+
+#### Email Change Email
+
+```html
+<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email_change">
+  Confirm email change
+</a>
+```
+
+---
+
+## Step 3: Customize Templates
+
+### Branding Elements
+
+Update these elements in each template:
+
+```html
+<!-- Logo -->
+<img src="https://yourdomain.com/logo.png" alt="Your App" />
+
+<!-- Company name -->
+<p>Thanks for signing up for <strong>Your App Name</strong>!</p>
+
+<!-- Footer -->
+<p>&copy; 2026 Your Company Name. All rights reserved.</p>
+```
+
+### Email Styling
+
+MakerKit templates use inline CSS for email client compatibility:
+
+```html
+<div style="
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+">
+  <!-- Content -->
+</div>
+```
+
+### Template Variables
+
+Supabase provides these variables:
+
+| Variable | Description |
+|----------|-------------|
+| `{{ .SiteURL }}` | Your Site URL from Supabase settings |
+| `{{ .TokenHash }}` | Secure authentication token |
+| `{{ .Email }}` | User's email address |
+| `{{ .ConfirmationURL }}` | Full confirmation URL (PKCE-based, avoid) |
+
+{% alert type="warning" title="Avoid ConfirmationURL" %}
+Don't use `{{ .ConfirmationURL }}` as it uses the PKCE flow that causes cross-browser issues. Use the token hash approach instead.
+{% /alert %}
+
+---
+
+## Step 4: Advanced Customization
+
+### Using the Email Starter Repository
+
+For more advanced customization, use MakerKit's email starter:
+
+1. Clone the repository:
+    - Run the following command: `git clone https://github.com/makerkit/makerkit-emails-starter`
+2. Install dependencies:
+    - Run the following command: `cd makerkit-emails-starter && npm install`
+3. Customize templates using [React Email](https://react.email/)
+4. Export templates:
+    - Run the following command: `npm run export`
+5. Copy exported HTML to Supabase Dashboard
+    - Copy the exported HTML files to the `apps/web/supabase/templates/` folder in your Supabase Dashboard.
+
+### Benefits of React Email
+
+- **Component-based**: Reuse header, footer, and button components
+- **Preview**: Live preview while developing
+- **TypeScript**: Type-safe email templates
+- **Responsive**: Built-in responsive design utilities
+
+---
+
+## Template Reference
+
+### Minimal Confirmation Template
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px;">
+  <div style="max-width: 600px; margin: 0 auto;">
+    <h1 style="color: #333;">Confirm your email</h1>
+    <p style="color: #666; line-height: 1.6;">
+      Thanks for signing up! Click the button below to confirm your email address.
+    </p>
+    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email"
+       style="display: inline-block; background: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0;">
+      Confirm Email
+    </a>
+    <p style="color: #999; font-size: 14px;">
+      If you didn't sign up, you can ignore this email.
+    </p>
+  </div>
+</body>
+</html>
+```
+
+### Minimal Magic Link Template
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px;">
+  <div style="max-width: 600px; margin: 0 auto;">
+    <h1 style="color: #333;">Sign in to Your App</h1>
+    <p style="color: #666; line-height: 1.6;">
+      Click the button below to sign in. This link expires in 1 hour.
+    </p>
+    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink"
+       style="display: inline-block; background: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0;">
+      Sign In
+    </a>
+    <p style="color: #999; font-size: 14px;">
+      If you didn't request this, you can ignore this email.
+    </p>
+  </div>
+</body>
+</html>
+```
+
+---
+
+## Troubleshooting
+
+### "Invalid token" errors
+
+1. Verify you're using `token_hash` not `confirmation_url`
+2. Check the URL includes the correct `type` parameter
+3. Ensure `{{ .SiteURL }}` matches your Supabase Site URL setting
+
+### Emails going to spam
+
+1. Configure custom SMTP in Supabase
+2. Set up SPF, DKIM, and DMARC records for your domain
+3. Use a reputable email provider (Resend, SendGrid, Postmark)
+
+### Template not updating
+
+1. Clear browser cache and try again
+2. Wait a few minutes for changes to propagate
+3. Test with a fresh email address
+
+### Links not working
+
+1. Verify Site URL is correctly set in Supabase
+2. Check your application has the `/auth/confirm` route
+3. Ensure your app is deployed and accessible
+
+---
+
+## Testing Email Templates
+
+### Test in Development
+
+1. Use [Inbucket](http://localhost:54324) locally (included with Supabase local development)
+2. Sign up with a test email
+3. Check Inbucket for the email
+4. Verify the link works correctly
+
+### Test in Production
+
+1. Sign up with a real email address
+2. Check the email formatting
+3. Click the link from a different device/browser
+4. Verify successful authentication
+
+---
+
+{% faq
+   title="Frequently Asked Questions"
+   items=[
+     {"question": "Which email templates do I need to update?", "answer": "Update all authentication-related templates: Confirm signup, Magic Link, Reset Password, and Change Email Address. MakerKit provides all of these in apps/web/supabase/templates/. Copy each one to the corresponding template in Supabase Dashboard."},
+     {"question": "How do I test email templates?", "answer": "Use Supabase's local development with Inbucket (http://localhost:54324). Sign up with a test email, check Inbucket for the email, verify formatting, and click links to test the full flow. For production, test with a real email address before launch."},
+     {"question": "Can I customize the email design?", "answer": "Yes. The templates in apps/web/supabase/templates/ are starting points. Update colors, logos, copy, and layout. Use inline CSS for email client compatibility. For advanced customization, use the MakerKit emails starter repo with React Email for component-based templates."},
+     {"question": "Do I need to update templates for both local and production?", "answer": "Templates in your codebase are for reference and local development. For production, copy the templates to Supabase Dashboard > Authentication > Email Templates. Dashboard templates override any local configuration."}
+   ]
+/%}
+
+---
+
+## Next Steps
+
+- [Authentication Configuration](/docs/next-supabase-turbo/going-to-production/authentication): Configure OAuth providers and SMTP
+- [Supabase Deployment](/docs/next-supabase-turbo/going-to-production/supabase): Full Supabase configuration
+- [Email Configuration](/docs/next-supabase-turbo/emails/email-configuration): Application transactional emails setup
