@@ -8,6 +8,7 @@ import type { Database } from '@kit/supabase/database';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 
 import type { AiModerationSettings } from '../ai-moderation';
+import { readFeedLanguagesFromPublicData } from '../feed-languages';
 import { normalizePostingMode, type PostingMode } from '../posting-settings';
 import { mergeSiteCopy, type SiteCopy } from '../site-copy';
 import type { Category, ChannelItem, Dua } from '../types';
@@ -142,7 +143,11 @@ class CommunityService {
 
   async getFeedBatch(
     offset = 0,
-    options: { channelId?: number; followedChannelIds?: number[] } = {},
+    options: {
+      channelId?: number;
+      followedChannelIds?: number[];
+      languages?: string[];
+    } = {},
   ): Promise<{ duas: Dua[]; total: number }> {
     const from = Math.max(0, Math.trunc(offset));
     let query = this.client
@@ -162,6 +167,10 @@ class CommunityService {
       query = query.in('channel_id', options.followedChannelIds);
     }
 
+    if (options.languages && options.languages.length > 0) {
+      query = query.in('language', options.languages);
+    }
+
     const { data, error, count } = await query.range(
       from,
       from + FEED_BATCH_SIZE - 1,
@@ -173,6 +182,19 @@ class CommunityService {
       duas: await this.enrichDuas(data ?? []),
       total: count ?? 0,
     };
+  }
+
+  async getFeedLanguages(userId: string): Promise<string[]> {
+    const { data, error } = await this.client
+      .from('accounts')
+      .select('public_data')
+      .eq('id', userId)
+      .eq('is_personal_account', true)
+      .maybeSingle();
+
+    if (error || !data) return [];
+
+    return readFeedLanguagesFromPublicData(data.public_data);
   }
 
   async enrichDuas(

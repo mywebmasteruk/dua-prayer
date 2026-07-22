@@ -16,6 +16,7 @@
     "./server/advanced-actions": "./src/server/advanced-actions.ts",
     "./types": "./src/types.ts",
     "./posting-settings": "./src/posting-settings.ts",
+    "./feed-languages": "./src/feed-languages.ts",
     "./site-copy": "./src/site-copy.ts"
   },
   "scripts": {

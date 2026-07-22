@@ -39,7 +39,7 @@ App: [http://localhost:3000](http://localhost:3000)
 |------|---------|
 | `apps/web` | Main Next.js app |
 | `apps/web/supabase` | Makerkit + community migrations |
-| `packages/features/community` | Feed, channels, bookmarks, ameen, apply/volunteer, RSS, AI moderation |
+| `packages/features/community` | Feed, channels, bookmarks, ameen, apply/volunteer, RSS, AI moderation, feed language prefs |
 | `packages/features` | Auth, accounts, billing, admin features |
 | `legacy/dua-prayer` | Previous app (deferred: dua bots, rich RSS filters, full CMS) |
 

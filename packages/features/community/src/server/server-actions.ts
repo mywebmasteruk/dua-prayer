@@ -15,6 +15,10 @@ import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { evaluateDuaModeration } from '../ai-moderation';
 import { detectLanguage } from '../detect-language';
 import {
+  parseFeedLanguages,
+  readFeedLanguagesFromPublicData,
+} from '../feed-languages';
+import {
   shouldAllowPublicDuaSubmission,
   shouldHoldSubmissionForReview,
 } from '../posting-settings';
@@ -79,14 +83,18 @@ export async function getFeedDuas(
   const client = getSupabaseServerClient();
   const api = createCommunityApi(client);
   const offset = Math.max(0, Math.trunc(options.offset ?? 0));
+  const {
+    data: { user },
+  } = await client.auth.getUser();
 
   let followedChannelIds: number[] | undefined;
+  let languages: string[] | undefined;
+
+  if (user) {
+    languages = await api.getFeedLanguages(user.id);
+  }
 
   if (options.followingOnly) {
-    const {
-      data: { user },
-    } = await client.auth.getUser();
-
     if (!user) {
       return { duas: [], total: 0, pageSize: api.pageSize };
     }
@@ -101,10 +109,71 @@ export async function getFeedDuas(
   const { duas, total } = await api.getFeedBatch(offset, {
     channelId: options.channelId,
     followedChannelIds,
+    languages:
+      languages && languages.length > 0 ? languages : undefined,
   });
 
   return { duas, total, pageSize: api.pageSize };
 }
+
+export async function getMyFeedLanguages() {
+  const client = getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+
+  if (!user) return [];
+
+  return createCommunityApi(client).getFeedLanguages(user.id);
+}
+
+export const updateMyFeedLanguagesAction = authActionClient
+  .inputSchema(
+    z.object({
+      languages: z.array(z.string()),
+    }),
+  )
+  .action(async ({ parsedInput, ctx: { user } }) => {
+    const languages = parseFeedLanguages(parsedInput.languages);
+    const client = getSupabaseServerClient();
+    const { data: account, error: loadError } = await client
+      .from('accounts')
+      .select('public_data')
+      .eq('id', user.id)
+      .eq('is_personal_account', true)
+      .maybeSingle();
+
+    if (loadError) throw new Error(loadError.message);
+
+    const current =
+      account?.public_data && typeof account.public_data === 'object'
+        ? (account.public_data as Record<string, unknown>)
+        : {};
+
+    const { error } = await client
+      .from('accounts')
+      .update({
+        public_data: {
+          ...current,
+          feed_languages: languages,
+        },
+      })
+      .eq('id', user.id)
+      .eq('is_personal_account', true);
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath('/');
+    revalidatePath('/channels');
+    revalidatePath('/home/settings');
+
+    return {
+      success: true as const,
+      languages: readFeedLanguagesFromPublicData({
+        feed_languages: languages,
+      }),
+    };
+  });
 
 export async function getCategories() {
   const client = getSupabaseServerClient();

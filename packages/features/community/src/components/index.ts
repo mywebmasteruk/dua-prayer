@@ -8,4 +8,5 @@ export * from './channel-list';
 export * from './community-feed';
 export * from './dua-form';
 export * from './dua-list';
+export * from './feed-language-preferences';
 export * from './volunteer-apply-form';

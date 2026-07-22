@@ -1,9 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useDeferredValue, useEffect, useState, useTransition } from 'react';
 
 import { Button } from '@kit/ui/button';
+import { Input } from '@kit/ui/input';
 
 import type { PostingMode } from '../posting-settings';
 import { getFeedDuas } from '../server/server-actions';
@@ -20,6 +22,20 @@ interface CommunityFeedProps {
   copy: SiteCopy;
   channelId?: number | null;
   showFollowingTab?: boolean;
+  showLanguagePrefsLink?: boolean;
+}
+
+function matchesSearch(dua: Dua, query: string) {
+  const normalized = query.trim().toLowerCase();
+
+  if (!normalized) return true;
+
+  return (
+    dua.text.toLowerCase().includes(normalized) ||
+    (dua.category_name?.toLowerCase().includes(normalized) ?? false) ||
+    (dua.channel_handle?.toLowerCase().includes(normalized) ?? false) ||
+    (dua.channel_name?.toLowerCase().includes(normalized) ?? false)
+  );
 }
 
 export function CommunityFeed({
@@ -30,12 +46,24 @@ export function CommunityFeed({
   copy,
   channelId = null,
   showFollowingTab = true,
+  showLanguagePrefsLink = false,
 }: CommunityFeedProps) {
   const router = useRouter();
   const [tab, setTab] = useState<'latest' | 'following'>('latest');
   const [duas, setDuas] = useState(initialDuas);
   const [loadedTotal, setLoadedTotal] = useState(total);
+  const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setDuas(initialDuas);
+    setLoadedTotal(total);
+  }, [initialDuas, total]);
+
+  const visibleDuas = deferredSearch.trim()
+    ? duas.filter((dua) => matchesSearch(dua, deferredSearch))
+    : duas;
 
   const reload = (nextTab: 'latest' | 'following', offset = 0) => {
     startTransition(async () => {
@@ -73,6 +101,17 @@ export function CommunityFeed({
           <p className="text-muted-foreground text-sm">
             Share a dua, browse the latest posts, and make ameen.
           </p>
+          {showLanguagePrefsLink ? (
+            <p className="text-muted-foreground text-xs">
+              Prefer certain languages?{' '}
+              <Link
+                href="/home/settings"
+                className="text-foreground font-medium underline-offset-2 hover:underline"
+              >
+                Update feed languages
+              </Link>
+            </p>
+          ) : null}
         </header>
       ) : null}
 
@@ -85,7 +124,7 @@ export function CommunityFeed({
       />
 
       <section className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-2">
             <Button
               type="button"
@@ -117,21 +156,38 @@ export function CommunityFeed({
           </span>
         </div>
 
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search loaded duas…"
+          aria-label="Search loaded duas"
+        />
+
         <DuaList
-          duas={duas}
+          duas={visibleDuas}
           emptyTitle={
-            tab === 'following'
-              ? copy.homeFollowingEmptyTitle
-              : copy.homeFeedEmptyTitle
+            deferredSearch.trim()
+              ? 'No matching duas'
+              : tab === 'following'
+                ? copy.homeFollowingEmptyTitle
+                : copy.homeFeedEmptyTitle
           }
           emptyDescription={
-            tab === 'following'
-              ? copy.homeFollowingEmptyDescription
-              : copy.homeFeedEmptyDescription
+            deferredSearch.trim()
+              ? 'Try a different search, or load more from the feed.'
+              : tab === 'following'
+                ? copy.homeFollowingEmptyDescription
+                : copy.homeFeedEmptyDescription
           }
-          emptyCtaHref={tab === 'following' ? '/channels' : undefined}
+          emptyCtaHref={
+            !deferredSearch.trim() && tab === 'following'
+              ? '/channels'
+              : undefined
+          }
           emptyCtaLabel={
-            tab === 'following' ? copy.homeFollowingEmptyCta : undefined
+            !deferredSearch.trim() && tab === 'following'
+              ? copy.homeFollowingEmptyCta
+              : undefined
           }
         />
 
