@@ -18,6 +18,7 @@ import {
   type SiteCopyKey,
 } from '../site-copy';
 import { createCommunityApi } from './api';
+import { notifyAccount } from './notify';
 
 async function requireSuperAdmin() {
   const client = getSupabaseServerClient();
@@ -147,6 +148,13 @@ export const reviewChannelApplicationAction = authActionClient
     const admin = getSupabaseServerAdminClient();
     const approved = parsedInput.decision === 'approved';
 
+    const { data: channel } = await admin
+      .from('categories')
+      .select('owner_id, handle, name')
+      .eq('id', parsedInput.channelId)
+      .eq('channel_type', 'user')
+      .maybeSingle();
+
     const { error } = await admin
       .from('categories')
       .update({
@@ -161,6 +169,14 @@ export const reviewChannelApplicationAction = authActionClient
       .eq('channel_type', 'user');
 
     if (error) throw new Error(error.message);
+
+    await notifyAccount({
+      accountId: channel?.owner_id,
+      body: approved
+        ? `Your channel application for ${channel?.name ?? 'your channel'} was approved.`
+        : `Your channel application for ${channel?.name ?? 'your channel'} was not approved.`,
+      link: approved && channel?.handle ? `/channels/${channel.handle}` : '/channels',
+    });
 
     revalidatePath('/channels');
     revalidatePath('/admin/channels');
@@ -244,6 +260,13 @@ export const reviewVolunteerApplicationAction = authActionClient
   .action(async ({ parsedInput, ctx: { user } }) => {
     await requireSuperAdmin();
     const admin = getSupabaseServerAdminClient();
+
+    const { data: application } = await admin
+      .from('volunteer_applications')
+      .select('user_id')
+      .eq('id', parsedInput.applicationId)
+      .maybeSingle();
+
     const { error } = await admin
       .from('volunteer_applications')
       .update({
@@ -255,6 +278,16 @@ export const reviewVolunteerApplicationAction = authActionClient
       .eq('id', parsedInput.applicationId);
 
     if (error) throw new Error(error.message);
+
+    const approved = parsedInput.decision === 'approved';
+
+    await notifyAccount({
+      accountId: application?.user_id,
+      body: approved
+        ? 'Your volunteer application was approved. Thank you for offering to help.'
+        : 'Your volunteer application was not approved at this time.',
+      link: '/volunteer',
+    });
 
     revalidatePath('/admin/volunteers');
 

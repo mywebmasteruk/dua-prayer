@@ -13,11 +13,13 @@ import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client'
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
 import { evaluateDuaModeration } from '../ai-moderation';
+import { detectLanguage } from '../detect-language';
 import {
   shouldAllowPublicDuaSubmission,
   shouldHoldSubmissionForReview,
 } from '../posting-settings';
 import { createCommunityApi } from './api';
+import { crossedAmeenMilestone, notifyAccount } from './notify';
 import { checkRateLimit, getClientIp } from './rate-limit';
 
 const CreateDuaSchema = z.object({
@@ -317,7 +319,7 @@ export const createDuaAction = publicActionClient
       published: !requiresReview,
       flagged: requiresReview,
       user_id: user?.id ?? null,
-      language: null,
+      language: detectLanguage(parsedInput.text),
     });
 
     if (error) {
@@ -377,12 +379,33 @@ export const prayForDuaAction = publicActionClient
       );
     }
 
+    const likes = result.likes ?? 0;
+
+    if (result.counted) {
+      const milestone = crossedAmeenMilestone(likes);
+
+      if (milestone) {
+        const admin = getSupabaseServerAdminClient();
+        const { data: dua } = await admin
+          .from('duas')
+          .select('user_id')
+          .eq('id', parsedInput.duaId)
+          .maybeSingle();
+
+        await notifyAccount({
+          accountId: dua?.user_id,
+          body: `Your dua reached ${milestone} ameens.`,
+          link: `/#dua-${parsedInput.duaId}`,
+        });
+      }
+    }
+
     revalidatePath('/');
 
     return {
       success: true as const,
       counted: Boolean(result.counted),
-      likes: result.likes ?? 0,
+      likes,
     };
   });
 
@@ -526,6 +549,12 @@ export const updateDuaStatusAction = authActionClient
     }
 
     const admin = getSupabaseServerAdminClient();
+    const { data: existing } = await admin
+      .from('duas')
+      .select('user_id')
+      .eq('id', parsedInput.duaId)
+      .maybeSingle();
+
     const { error } = await admin
       .from('duas')
       .update({
@@ -535,6 +564,14 @@ export const updateDuaStatusAction = authActionClient
       .eq('id', parsedInput.duaId);
 
     if (error) throw new Error(error.message);
+
+    await notifyAccount({
+      accountId: existing?.user_id,
+      body: parsedInput.published
+        ? 'Your dua is now visible in the community feed.'
+        : 'Your dua was unpublished and is waiting for review.',
+      link: parsedInput.published ? `/#dua-${parsedInput.duaId}` : '/',
+    });
 
     revalidatePath('/');
     revalidatePath('/admin/duas');

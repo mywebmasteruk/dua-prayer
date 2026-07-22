@@ -1,4 +1,6 @@
 export const SITE_COPY_DEFAULTS = {
+  aboutMission:
+    'DuaPrayer is a community platform where people share prayer requests and respond with ameen. We build simple, welcoming technology so collective duas can travel further — without replacing scholars, counselors, or local communities.',
   homeFollowingEmptyTitle: 'Nothing followed yet',
   homeFollowingEmptyDescription:
     'Follow channels from the Channels page to see duas here.',
@@ -22,6 +24,7 @@ export const SITE_COPY_DEFAULTS = {
 export type SiteCopyKey = keyof typeof SITE_COPY_DEFAULTS;
 
 export const SITE_COPY_SETTING_KEYS: Record<SiteCopyKey, string> = {
+  aboutMission: 'copy.about_mission',
   homeFollowingEmptyTitle: 'copy.home_following_empty_title',
   homeFollowingEmptyDescription: 'copy.home_following_empty_description',
   homeFollowingEmptyCta: 'copy.home_following_empty_cta',

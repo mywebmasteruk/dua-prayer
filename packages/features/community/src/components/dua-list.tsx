@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
 import { Bookmark, Flag, HandHeart } from 'lucide-react';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Button } from '@kit/ui/button';
 import { cn } from '@kit/ui/utils';
 
+import { getTextDirection } from '../detect-language';
 import {
   flagDuaAction,
   prayForDuaAction,
@@ -22,6 +23,8 @@ interface DuaListProps {
   duas: Dua[];
   emptyTitle?: string;
   emptyDescription?: string;
+  emptyCtaHref?: string;
+  emptyCtaLabel?: string;
 }
 
 function formatDateTime(value: string) {
@@ -44,17 +47,33 @@ export function DuaList({
   duas: initialDuas,
   emptyTitle = 'No duas yet',
   emptyDescription = 'Be the first to share a dua with the community.',
+  emptyCtaHref,
+  emptyCtaLabel,
 }: DuaListProps) {
   const router = useRouter();
   const [duas, setDuas] = useState(initialDuas);
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  useEffect(() => {
+    setDuas(initialDuas);
+  }, [initialDuas]);
+
   if (duas.length === 0) {
     return (
       <div className="rounded-xl border border-dashed p-8 text-center">
         <h3 className="text-lg font-medium">{emptyTitle}</h3>
         <p className="text-muted-foreground mt-2 text-sm">{emptyDescription}</p>
+        {emptyCtaHref && emptyCtaLabel ? (
+          <p className="mt-4">
+            <Link
+              href={emptyCtaHref}
+              className="text-sm font-medium underline-offset-2 hover:underline"
+            >
+              {emptyCtaLabel}
+            </Link>
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -64,7 +83,8 @@ export function DuaList({
       {duas.map((dua) => (
         <li
           key={dua.id}
-          className="bg-background/80 rounded-xl border p-4 shadow-sm"
+          id={`dua-${dua.id}`}
+          className="bg-background/80 scroll-mt-24 rounded-xl border p-4 shadow-sm"
         >
           <div className="text-muted-foreground mb-2 flex flex-wrap items-center gap-2 text-xs">
             {dua.category_name ? (
@@ -84,7 +104,13 @@ export function DuaList({
             <time dateTime={dua.created_at}>{formatDateTime(dua.created_at)}</time>
           </div>
 
-          <p className="whitespace-pre-wrap text-base leading-relaxed">{dua.text}</p>
+          <p
+            className="whitespace-pre-wrap text-base leading-relaxed"
+            dir={getTextDirection(dua.text)}
+            lang={dua.language ?? undefined}
+          >
+            {dua.text}
+          </p>
 
           <div className="mt-4 flex flex-wrap items-center gap-1">
             <Button

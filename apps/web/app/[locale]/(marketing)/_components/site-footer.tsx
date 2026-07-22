@@ -22,17 +22,19 @@ export function SiteFooter() {
         {
           heading: <Trans i18nKey="marketing.about" />,
           links: [
-            { href: '/blog', label: <Trans i18nKey="marketing.blog" /> },
+            { href: '/about', label: 'About' },
+            { href: '/resources', label: 'Resources' },
+            { href: '/safety', label: 'Safety' },
             { href: '/contact', label: <Trans i18nKey="marketing.contact" /> },
           ],
         },
         {
           heading: <Trans i18nKey="marketing.product" />,
           links: [
-            {
-              href: '/docs',
-              label: <Trans i18nKey="marketing.documentation" />,
-            },
+            { href: '/', label: 'Home' },
+            { href: '/channels', label: 'Channels' },
+            { href: '/volunteer', label: 'Volunteer' },
+            { href: '/donate', label: 'Support' },
           ],
         },
         {

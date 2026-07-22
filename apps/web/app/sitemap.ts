@@ -14,6 +14,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 function getPaths() {
   const paths = [
     '/',
+    '/channels',
+    '/bookmarks',
+    '/volunteer',
+    '/donate',
+    '/about',
+    '/safety',
+    '/resources',
     '/faq',
     '/blog',
     '/docs',
@@ -23,7 +30,6 @@ function getPaths() {
     '/cookie-policy',
     '/terms-of-service',
     '/privacy-policy',
-    // add more paths here
   ];
 
   return paths.map((path) => {

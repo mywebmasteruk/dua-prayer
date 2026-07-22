@@ -54,6 +54,7 @@ App: [http://localhost:3000](http://localhost:3000)
 | `/bookmarks` | Saved duas |
 | `/volunteer` | Volunteer application |
 | `/donate` | Support / Stripe checkout |
+| `/about` `/safety` `/resources` | Trust / help pages |
 | `/feed.xml` | Public RSS (when enabled in admin settings) |
 | `/admin/duas` | Super-admin dua moderation |
 | `/admin/channels` | Channel applications |

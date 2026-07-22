@@ -129,6 +129,10 @@ export function CommunityFeed({
               ? copy.homeFollowingEmptyDescription
               : copy.homeFeedEmptyDescription
           }
+          emptyCtaHref={tab === 'following' ? '/channels' : undefined}
+          emptyCtaLabel={
+            tab === 'following' ? copy.homeFollowingEmptyCta : undefined
+          }
         />
 
         {duas.length < loadedTotal ? (

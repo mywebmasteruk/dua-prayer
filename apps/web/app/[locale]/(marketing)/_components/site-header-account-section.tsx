@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 
 import { PersonalAccountDropdown } from '@kit/accounts/personal-account-dropdown';
+import { NotificationsPopover } from '@kit/notifications/components';
 import { useSignOut } from '@kit/supabase/hooks/use-sign-out';
 import { JWTUserData } from '@kit/supabase/types';
 import { Button } from '@kit/ui/button';
@@ -47,13 +48,21 @@ export function SiteHeaderAccountSection({
 
   if (user) {
     return (
-      <PersonalAccountDropdown
-        showProfileName={false}
-        paths={paths}
-        features={features}
-        user={user}
-        signOutRequested={() => signOut.mutateAsync()}
-      />
+      <div className="flex items-center gap-x-2">
+        <If condition={featuresFlagConfig.enableNotifications}>
+          <NotificationsPopover
+            accountIds={[user.id]}
+            realtime={featuresFlagConfig.realtimeNotifications}
+          />
+        </If>
+        <PersonalAccountDropdown
+          showProfileName={false}
+          paths={paths}
+          features={features}
+          user={user}
+          signOutRequested={() => signOut.mutateAsync()}
+        />
+      </div>
     );
   }
 

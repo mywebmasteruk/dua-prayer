@@ -31,7 +31,11 @@ Replace the custom SaaS foundation with **Makerkit Pro**, while keeping DuaPraye
 | Donate checkout (`/donate`, `/api/donate/checkout`) | Done |
 | Admin dua moderation (`/admin/duas`) | Done |
 | Marketing nav (Home / Channels / Bookmarks / Support / Volunteer) | Done |
+| About / Safety / Resources + product footer/sitemap | Done |
+| Language detect on create + RTL text direction | Done (basic ar/en) |
+| Community notifications (Makerkit `@kit/notifications`) | Done (ameen milestones, dua/channel/volunteer status) |
 | Turnstile (Makerkit CaptchaField) | Done (when `NEXT_PUBLIC_CAPTCHA_SITE_KEY` + `CAPTCHA_SECRET_TOKEN` set) |
+| Feed language prefs / onboarding filter | Deferred |
 | Dua bots + cron | Deferred (large; remains in `legacy/dua-prayer`) |
 | Rich RSS filters / `/feed-tags.xml` | Deferred |
 | Full site-copy AR groups / footer CMS | Deferred |

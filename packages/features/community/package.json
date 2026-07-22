@@ -25,6 +25,7 @@
   "dependencies": {
     "@kit/auth": "workspace:*",
     "@kit/next": "workspace:*",
+    "@kit/notifications": "workspace:*",
     "@kit/shared": "workspace:*",
     "@kit/supabase": "workspace:*",
     "@kit/ui": "workspace:*",
