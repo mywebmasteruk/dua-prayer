@@ -5,6 +5,7 @@
 - `accounts/` — Personal account management
 - `admin/` — Super admin functionality
 - `auth/` — Authentication features
+- `community/` — DuaPrayer feed, share dua, ameen
 - `notifications/` — Notification system
 - `team-accounts/` — Team account management
 

@@ -21,17 +21,30 @@ Replace the custom SaaS foundation (auth, accounts, admin shell, billing wiring)
 - Supabase clients → `@kit/supabase/*`
 - Server actions → `@kit/next/safe-action`
 
+## Porting status
+
+| Feature | Status |
+|---------|--------|
+| Schema: `categories`, `duas`, `dua_prayers`, `pray_for_dua` | Done — `apps/web/supabase/migrations/20260722120000_duaprayer_community.sql` |
+| Feature package `@kit/community` | Done — feed, share, ameen |
+| Marketing home → community feed | Done |
+| Turnstile / AI moderation / posting modes | Pending |
+| Channels / follows | Pending |
+| Bookmarks / flags / product notifications | Pending |
+| Admin moderation / bots / site copy | Pending |
+| Donate | Pending |
+
 ## Product features still to port from `legacy/dua-prayer`
 
 Priority order for follow-up work:
 
-1. **Public dua feed** — home stream, ameen, search, filters
-2. **Share dua composer** — form fields, rate limits, Turnstile
+1. ~~**Public dua feed** — home stream, ameen~~ (MVP on Makerkit home)
+2. ~~**Share dua composer**~~ (basic form; Turnstile/moderation next)
 3. **Channels** — list, detail, follow, applications
 4. **Profiles / bookmarks / notifications** (product-specific)
 5. **Admin moderation** — bots, site copy, volunteers, RSS (map onto Makerkit admin where possible)
 6. **Donate** — map onto Makerkit billing or keep one-time Checkout
-7. **Supabase schema** — merge DuaPrayer tables/RLS with Makerkit `accounts` model (`account_id` where needed)
+7. **Hardening** — Turnstile, AI moderation, posting modes, feed filters
 
 ## Database note
 

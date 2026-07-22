@@ -1,0 +1,42 @@
+{
+  "name": "@kit/community",
+  "version": "0.1.0",
+  "private": true,
+  "typesVersions": {
+    "*": {
+      "*": [
+        "src/*"
+      ]
+    }
+  },
+  "exports": {
+    "./api": "./src/server/api.ts",
+    "./components": "./src/components/index.ts",
+    "./server/actions": "./src/server/server-actions.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .turbo node_modules",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kit/next": "workspace:*",
+    "@kit/shared": "workspace:*",
+    "@kit/supabase": "workspace:*",
+    "@kit/ui": "workspace:*",
+    "@types/node": "catalog:",
+    "lucide-react": "catalog:",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "sonner": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@kit/tsconfig": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:"
+  }
+}

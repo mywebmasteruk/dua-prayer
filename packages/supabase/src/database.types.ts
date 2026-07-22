@@ -654,10 +654,150 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'subscriptions_billing_customer_id_fkey';
+            foreignKeyName: 'subscriptions_billing_customer_id_fkey',
             columns: ['billing_customer_id'];
             isOneToOne: false;
             referencedRelation: 'billing_customers';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      categories: {
+        Row: {
+          id: number;
+          name: string;
+          description: string;
+          is_active: boolean;
+          sort_order: number;
+          channel_type: string;
+          status: string;
+          owner_id: string | null;
+          handle: string | null;
+          is_verified: boolean;
+          verified_at: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: number;
+          name: string;
+          description?: string;
+          is_active?: boolean;
+          sort_order?: number;
+          channel_type?: string;
+          status?: string;
+          owner_id?: string | null;
+          handle?: string | null;
+          is_verified?: boolean;
+          verified_at?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: number;
+          name?: string;
+          description?: string;
+          is_active?: boolean;
+          sort_order?: number;
+          channel_type?: string;
+          status?: string;
+          owner_id?: string | null;
+          handle?: string | null;
+          is_verified?: boolean;
+          verified_at?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      duas: {
+        Row: {
+          id: number;
+          text: string;
+          user_id: string | null;
+          category_id: number | null;
+          channel_id: number | null;
+          likes: number;
+          published: boolean;
+          flagged: boolean;
+          language: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          text: string;
+          user_id?: string | null;
+          category_id?: number | null;
+          channel_id?: number | null;
+          likes?: number;
+          published?: boolean;
+          flagged?: boolean;
+          language?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          text?: string;
+          user_id?: string | null;
+          category_id?: number | null;
+          channel_id?: number | null;
+          likes?: number;
+          published?: boolean;
+          flagged?: boolean;
+          language?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'duas_category_id_fkey';
+            columns: ['category_id'];
+            isOneToOne: false;
+            referencedRelation: 'categories';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'duas_channel_id_fkey';
+            columns: ['channel_id'];
+            isOneToOne: false;
+            referencedRelation: 'categories';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      dua_prayers: {
+        Row: {
+          id: number;
+          dua_id: number;
+          user_id: string | null;
+          voter_hash: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          dua_id: number;
+          user_id?: string | null;
+          voter_hash?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          dua_id?: number;
+          user_id?: string | null;
+          voter_hash?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'dua_prayers_dua_id_fkey';
+            columns: ['dua_id'];
+            isOneToOne: false;
+            referencedRelation: 'duas';
             referencedColumns: ['id'];
           },
         ];
@@ -943,6 +1083,13 @@ export type Database = {
           p_token: string;
           p_user_agent?: string;
           p_user_id?: string;
+        };
+        Returns: Json;
+      };
+      pray_for_dua: {
+        Args: {
+          p_dua_id: number;
+          p_voter_hash?: string | null;
         };
         Returns: Json;
       };
