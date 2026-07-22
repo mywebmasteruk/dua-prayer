@@ -24,6 +24,7 @@ import {
   fieldForBinding,
   parseFormRegistry,
   validateAnswers,
+  visibleFields,
   type FormAnswerValue,
   type FormKind,
   type FormRegistry,
@@ -48,10 +49,15 @@ import {
 } from '../volunteer-tiers';
 import { createCommunityApi } from './api';
 import {
+  createSignedUploadUrl,
+  getSignedUrlForApplicationFile,
+} from './application-uploads';
+import {
   createBot,
   listBots,
-  runDueBotsStub,
+  runDueDuaBots,
   setBotStatus,
+  updateBot,
 } from './dua-bots';
 import { loadFormRegistry, saveFormRegistry } from './form-registry';
 import { notifyAccount } from './notify';
@@ -824,7 +830,67 @@ export const setDuaBotStatusAction = authActionClient
     return { success: true as const };
   });
 
-export const runDuaBotsStubAction = authActionClient
+export const updateDuaBotAction = authActionClient
+  .inputSchema(
+    z.object({
+      botId: z.number().int().positive(),
+      name: z.string().trim().min(2).max(80).optional(),
+      description: z.string().trim().max(500).optional(),
+      rssUrlsText: z.string().max(8000).optional(),
+      systemPrompt: z.string().max(8000).optional(),
+      maxDuasPerRun: z.number().int().min(1).max(10).optional(),
+      publishMode: z.enum(['pending', 'published']).optional(),
+      frequencyMinutes: z.number().int().min(15).max(10080).optional(),
+      language: z.string().trim().min(2).max(80).optional(),
+      tone: z.string().trim().min(2).max(80).optional(),
+      targetCategoryId: z.number().int().positive().nullable().optional(),
+      keywordsText: z.string().max(2000).optional(),
+      categoriesText: z.string().max(2000).optional(),
+    }),
+  )
+  .action(async ({ parsedInput, ctx: { user } }) => {
+    await requireSuperAdmin();
+
+    const splitLines = (value?: string) =>
+      (value ?? '')
+        .split(/[\n,]/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+    const bot = await updateBot(
+      parsedInput.botId,
+      {
+        name: parsedInput.name,
+        description: parsedInput.description,
+        rss_urls:
+          parsedInput.rssUrlsText !== undefined
+            ? splitLines(parsedInput.rssUrlsText)
+            : undefined,
+        system_prompt: parsedInput.systemPrompt,
+        max_duas_per_run: parsedInput.maxDuasPerRun,
+        publish_mode: parsedInput.publishMode,
+        frequency_minutes: parsedInput.frequencyMinutes,
+        language: parsedInput.language,
+        tone: parsedInput.tone,
+        target_category_id: parsedInput.targetCategoryId,
+        keywords:
+          parsedInput.keywordsText !== undefined
+            ? splitLines(parsedInput.keywordsText)
+            : undefined,
+        categories:
+          parsedInput.categoriesText !== undefined
+            ? splitLines(parsedInput.categoriesText)
+            : undefined,
+      },
+      user.id,
+    );
+
+    revalidatePath('/admin/bots');
+
+    return { success: true as const, bot };
+  });
+
+export const runDuaBotsAction = authActionClient
   .inputSchema(
     z.object({
       botId: z.number().int().positive().optional(),
@@ -832,8 +898,62 @@ export const runDuaBotsStubAction = authActionClient
   )
   .action(async ({ parsedInput }) => {
     await requireSuperAdmin();
-    const result = await runDueBotsStub({ botId: parsedInput.botId });
+    const result = await runDueDuaBots({ botId: parsedInput.botId });
     revalidatePath('/admin/bots');
 
     return { success: true as const, ...result };
+  });
+
+export const requestApplicationUploadAction = authActionClient
+  .inputSchema(
+    z.object({
+      form: z.enum(['channel', 'volunteer']),
+      fieldId: z.string().trim().min(1).max(80),
+      filename: z.string().trim().min(1).max(200),
+      contentType: z.string().trim().min(1).max(160),
+      sizeBytes: z.number().int().positive(),
+    }),
+  )
+  .action(async ({ parsedInput }) => {
+    const registry = await loadFormRegistry(parsedInput.form);
+    const field = visibleFields(registry).find(
+      (item) => item.id === parsedInput.fieldId,
+    );
+
+    if (!field || field.type !== 'file') {
+      throw new Error('Unknown upload field.');
+    }
+
+    const result = await createSignedUploadUrl({
+      form: parsedInput.form,
+      fieldId: field.id,
+      filename: parsedInput.filename,
+      contentType: parsedInput.contentType,
+      sizeBytes: parsedInput.sizeBytes,
+      accept: field.fileConfig?.accept,
+      maxSizeMb: field.fileConfig?.maxSizeMb,
+    });
+
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+
+    return result;
+  });
+
+export const getApplicationFileUrlAction = authActionClient
+  .inputSchema(
+    z.object({
+      path: z.string().trim().min(1).max(500),
+    }),
+  )
+  .action(async ({ parsedInput }) => {
+    await requireSuperAdmin();
+    const url = await getSignedUrlForApplicationFile(parsedInput.path, 300);
+
+    if (!url) {
+      throw new Error('Could not generate a download link.');
+    }
+
+    return { url };
   });

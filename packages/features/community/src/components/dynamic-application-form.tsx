@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 
 import { CaptchaField } from '@kit/auth/captcha/client';
+import { getSupabaseBrowserClient } from '@kit/supabase/browser-client';
 import { toast } from 'sonner';
 
 import { Button } from '@kit/ui/button';
@@ -24,10 +25,12 @@ import {
   validateAnswers,
   visibleFields,
   type FormAnswerValue,
+  type FormFileAnswer,
   type FormKind,
   type FormRegistry,
 } from '../form-fields';
 import {
+  requestApplicationUploadAction,
   submitChannelApplicationAction,
   submitVolunteerApplicationAction,
 } from '../server/advanced-actions';
@@ -36,6 +39,18 @@ function asString(value: FormAnswerValue | undefined): string {
   if (typeof value === 'string') return value;
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (Array.isArray(value)) return value.join(', ');
+  return '';
+}
+
+function fileLabel(value: FormAnswerValue | undefined): string {
+  if (
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    'name' in value
+  ) {
+    return (value as FormFileAnswer).name;
+  }
   return '';
 }
 
@@ -50,6 +65,7 @@ export function DynamicApplicationForm({
     Record<string, FormAnswerValue | undefined>
   >({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [captchaToken, setCaptchaToken] = useState('');
   const [isPending, startTransition] = useTransition();
   const captchaSiteKey = process.env.NEXT_PUBLIC_CAPTCHA_SITE_KEY;
@@ -79,6 +95,64 @@ export function DynamicApplicationForm({
     if (index >= 0) list.splice(index, 1);
     else list.push(option);
     setAnswer(id, list);
+  };
+
+  const handleFile = async (fieldId: string, file: File | undefined) => {
+    if (!file) {
+      setAnswer(fieldId, undefined);
+      return;
+    }
+
+    setUploading((current) => ({ ...current, [fieldId]: true }));
+    try {
+      const signed = await requestApplicationUploadAction({
+        form: kind,
+        fieldId,
+        filename: file.name,
+        contentType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+      });
+
+      if (signed?.serverError) {
+        setFieldErrors((current) => ({
+          ...current,
+          [fieldId]: signed.serverError,
+        }));
+        return;
+      }
+
+      const payload = signed?.data;
+      if (!payload || !('ok' in payload) || !payload.ok) {
+        setFieldErrors((current) => ({
+          ...current,
+          [fieldId]: 'Could not start the upload.',
+        }));
+        return;
+      }
+
+      const supabase = getSupabaseBrowserClient();
+      const { error } = await supabase.storage
+        .from(payload.bucket)
+        .uploadToSignedUrl(payload.path, payload.token, file);
+
+      if (error) {
+        setFieldErrors((current) => ({
+          ...current,
+          [fieldId]: 'Upload failed. Please try again.',
+        }));
+        return;
+      }
+
+      const answer: FormFileAnswer = {
+        path: payload.path,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      };
+      setAnswer(fieldId, answer);
+    } finally {
+      setUploading((current) => ({ ...current, [fieldId]: false }));
+    }
   };
 
   return (
@@ -122,18 +196,43 @@ export function DynamicApplicationForm({
       }}
     >
       {fields.map((field) => {
+        const error = fieldErrors[field.id];
+
         if (field.type === 'file') {
+          const selected = fileLabel(answers[field.id]);
+
           return (
-            <div key={field.id} className="space-y-1">
-              <Label>{field.label}</Label>
-              <p className="text-muted-foreground text-xs">
-                File uploads are not available in this form yet.
-              </p>
+            <div key={field.id} className="space-y-2">
+              <Label htmlFor={field.id}>
+                {field.label}
+                {field.required ? ' *' : ''}
+              </Label>
+              {field.helpText ? (
+                <p className="text-muted-foreground text-xs">{field.helpText}</p>
+              ) : null}
+              <Input
+                id={field.id}
+                type="file"
+                accept={(field.fileConfig?.accept ?? []).join(',')}
+                disabled={Boolean(uploading[field.id]) || isPending}
+                onChange={(event) => {
+                  void handleFile(field.id, event.target.files?.[0]);
+                }}
+              />
+              {uploading[field.id] ? (
+                <p className="text-muted-foreground text-xs">Uploading…</p>
+              ) : null}
+              {selected ? (
+                <p className="text-muted-foreground text-xs">
+                  Selected: {selected}
+                </p>
+              ) : null}
+              {error ? (
+                <p className="text-destructive text-xs">{error}</p>
+              ) : null}
             </div>
           );
         }
-
-        const error = fieldErrors[field.id];
 
         return (
           <div key={field.id} className="space-y-2">
@@ -265,7 +364,11 @@ export function DynamicApplicationForm({
 
       <Button
         type="submit"
-        disabled={isPending || (Boolean(captchaSiteKey) && !captchaToken)}
+        disabled={
+          isPending ||
+          Object.values(uploading).some(Boolean) ||
+          (Boolean(captchaSiteKey) && !captchaToken)
+        }
       >
         {isPending ? 'Submitting…' : 'Submit application'}
       </Button>

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Button } from '@kit/ui/button';
 
 import { reviewChannelApplicationAction } from '../server/advanced-actions';
+import { ApplicationFileLinks } from './application-file-links';
 
 type Application = {
   id: number;
@@ -15,7 +16,14 @@ type Application = {
   description: string;
   status: string;
   created_at: string;
+  application?: unknown;
 };
+
+function applicationAnswers(application: unknown): unknown {
+  if (!application || typeof application !== 'object') return null;
+  const record = application as Record<string, unknown>;
+  return record.answers ?? application;
+}
 
 export function AdminChannelApplications({
   applications: initial,
@@ -39,6 +47,9 @@ export function AdminChannelApplications({
             {app.description ? (
               <p className="mt-2 text-sm">{app.description}</p>
             ) : null}
+            <ApplicationFileLinks
+              answers={applicationAnswers(app.application)}
+            />
             {app.status === 'pending_review' ? (
               <div className="mt-3 flex gap-2">
                 <Button

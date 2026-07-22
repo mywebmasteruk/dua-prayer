@@ -39,9 +39,9 @@ App: [http://localhost:3000](http://localhost:3000)
 |------|---------|
 | `apps/web` | Main Next.js app |
 | `apps/web/supabase` | Makerkit + community migrations |
-| `packages/features/community` | Feed, channels, bookmarks, ameen, hashtags, apply/volunteer, forms, RSS, AI moderation, onboarding, bots stub |
+| `packages/features/community` | Feed, channels, bookmarks, ameen, hashtags, apply/volunteer, forms (incl. file uploads), RSS, AI moderation, onboarding, bots RSS/AI runner |
 | `packages/features` | Auth, accounts, billing, admin features |
-| `legacy/dua-prayer` | Previous app (reference; full AI bot generation remains there) |
+| `legacy/dua-prayer` | Previous app (reference; advanced bot fallbacks remain there) |
 
 ## Product routes
 
@@ -61,10 +61,10 @@ App: [http://localhost:3000](http://localhost:3000)
 | `/admin/channels` | Channel applications |
 | `/admin/volunteers` | Volunteer applications + roster tiers |
 | `/admin/forms` | Channel / volunteer form field registry |
-| `/admin/bots` | Dua bots stub (create / pause / run stub) |
+| `/admin/bots` | Dua bots (RSS/AI runner: create / edit / pause / run) |
 | `/admin/copy` | Site copy + footer links |
 | `/admin/settings` | RSS + AI moderation |
-| `/api/cron/dua-bots` | Cron stub for due bots (`CRON_SECRET` / `BOT_RUNNER_SECRET`) |
+| `/api/cron/dua-bots` | Cron for due bots (`CRON_SECRET` / `BOT_RUNNER_SECRET`) |
 
 ## Production
 

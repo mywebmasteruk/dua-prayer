@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { runDueBotsStub } from '@kit/community/server/dua-bots';
+import { runDueDuaBots } from '@kit/community/server/dua-bots';
 
 export const maxDuration = 60;
 
@@ -43,7 +43,7 @@ async function run(request: Request) {
     return NextResponse.json(
       {
         error:
-          'CRON_SECRET is not configured. Admins can still trigger a stub run from /admin/bots.',
+          'CRON_SECRET is not configured. Admins can still trigger a run from /admin/bots.',
       },
       { status: 503 },
     );
@@ -54,7 +54,7 @@ async function run(request: Request) {
   }
 
   try {
-    const result = await runDueBotsStub();
+    const result = await runDueDuaBots();
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(

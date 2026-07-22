@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Button } from '@kit/ui/button';
 
 import { reviewVolunteerApplicationAction } from '../server/advanced-actions';
+import { ApplicationFileLinks } from './application-file-links';
 
 type Application = {
   id: number;
@@ -15,7 +16,14 @@ type Application = {
   message: string;
   status: string;
   created_at: string;
+  payload?: unknown;
 };
+
+function payloadAnswers(payload: unknown): unknown {
+  if (!payload || typeof payload !== 'object') return null;
+  const record = payload as Record<string, unknown>;
+  return record.answers ?? payload;
+}
 
 export function AdminVolunteerApplications({
   applications: initial,
@@ -37,6 +45,7 @@ export function AdminVolunteerApplications({
               {app.email} · {app.status}
             </div>
             <p className="mt-2 whitespace-pre-wrap text-sm">{app.message}</p>
+            <ApplicationFileLinks answers={payloadAnswers(app.payload)} />
             {app.status === 'pending' ? (
               <div className="mt-3 flex gap-2">
                 <Button

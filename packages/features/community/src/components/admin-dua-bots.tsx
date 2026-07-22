@@ -7,13 +7,163 @@ import { toast } from 'sonner';
 import { Button } from '@kit/ui/button';
 import { Input } from '@kit/ui/input';
 import { Label } from '@kit/ui/label';
+import { Textarea } from '@kit/ui/textarea';
 
 import type { DuaBotRow } from '../dua-bot-types';
 import {
   createDuaBotAction,
-  runDuaBotsStubAction,
+  runDuaBotsAction,
   setDuaBotStatusAction,
+  updateDuaBotAction,
 } from '../server/advanced-actions';
+
+function BotEditForm({
+  bot,
+  disabled,
+  onSaved,
+  startTransition,
+}: {
+  bot: DuaBotRow;
+  disabled: boolean;
+  onSaved: (bot: DuaBotRow) => void;
+  startTransition: (callback: () => Promise<void> | void) => void;
+}) {
+  const [name, setName] = useState(bot.name);
+  const [description, setDescription] = useState(bot.description ?? '');
+  const [rssUrlsText, setRssUrlsText] = useState(
+    (bot.rss_urls ?? []).join('\n'),
+  );
+  const [systemPrompt, setSystemPrompt] = useState(bot.system_prompt ?? '');
+  const [maxDuasPerRun, setMaxDuasPerRun] = useState(
+    String(bot.max_duas_per_run ?? 3),
+  );
+  const [publishMode, setPublishMode] = useState(
+    bot.publish_mode === 'published' ? 'published' : 'pending',
+  );
+  const [frequencyMinutes, setFrequencyMinutes] = useState(
+    String(bot.frequency_minutes ?? 360),
+  );
+
+  return (
+    <form
+      className="mt-3 space-y-3 border-t pt-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        startTransition(async () => {
+          const result = await updateDuaBotAction({
+            botId: bot.id,
+            name,
+            description,
+            rssUrlsText,
+            systemPrompt,
+            maxDuasPerRun: Number.parseInt(maxDuasPerRun, 10) || 3,
+            publishMode: publishMode as 'pending' | 'published',
+            frequencyMinutes: Number.parseInt(frequencyMinutes, 10) || 360,
+          });
+
+          if (result?.serverError) {
+            toast.error(result.serverError);
+            return;
+          }
+
+          if (result?.data?.bot) onSaved(result.data.bot);
+          toast.success('Bot updated');
+        });
+      }}
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <Label htmlFor={`bot-name-${bot.id}`}>Name</Label>
+          <Input
+            id={`bot-name-${bot.id}`}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            disabled={disabled}
+            required
+            minLength={2}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`bot-freq-${bot.id}`}>Frequency (minutes)</Label>
+          <Input
+            id={`bot-freq-${bot.id}`}
+            type="number"
+            min={15}
+            max={10080}
+            value={frequencyMinutes}
+            onChange={(event) => setFrequencyMinutes(event.target.value)}
+            disabled={disabled}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor={`bot-desc-${bot.id}`}>Description</Label>
+        <Input
+          id={`bot-desc-${bot.id}`}
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          disabled={disabled}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor={`bot-rss-${bot.id}`}>RSS URLs (one per line)</Label>
+        <Textarea
+          id={`bot-rss-${bot.id}`}
+          value={rssUrlsText}
+          onChange={(event) => setRssUrlsText(event.target.value)}
+          disabled={disabled}
+          rows={3}
+          placeholder="https://example.com/feed.xml"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor={`bot-prompt-${bot.id}`}>System prompt</Label>
+        <Textarea
+          id={`bot-prompt-${bot.id}`}
+          value={systemPrompt}
+          onChange={(event) => setSystemPrompt(event.target.value)}
+          disabled={disabled}
+          rows={4}
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <Label htmlFor={`bot-max-${bot.id}`}>Max duas per run</Label>
+          <Input
+            id={`bot-max-${bot.id}`}
+            type="number"
+            min={1}
+            max={10}
+            value={maxDuasPerRun}
+            onChange={(event) => setMaxDuasPerRun(event.target.value)}
+            disabled={disabled}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`bot-publish-${bot.id}`}>Publish mode</Label>
+          <select
+            id={`bot-publish-${bot.id}`}
+            className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+            value={publishMode}
+            onChange={(event) => setPublishMode(event.target.value)}
+            disabled={disabled}
+          >
+            <option value="pending">Pending review</option>
+            <option value="published">Published</option>
+          </select>
+        </div>
+      </div>
+
+      <Button type="submit" size="sm" disabled={disabled}>
+        Save settings
+      </Button>
+    </form>
+  );
+}
 
 export function AdminDuaBots({ bots: initial }: { bots: DuaBotRow[] }) {
   const [bots, setBots] = useState(initial);
@@ -76,7 +226,7 @@ export function AdminDuaBots({ bots: initial }: { bots: DuaBotRow[] }) {
           disabled={isPending}
           onClick={() => {
             startTransition(async () => {
-              const result = await runDuaBotsStubAction({});
+              const result = await runDuaBotsAction({});
 
               if (result?.serverError) {
                 toast.error(result.serverError);
@@ -84,12 +234,12 @@ export function AdminDuaBots({ bots: initial }: { bots: DuaBotRow[] }) {
               }
 
               toast.success(
-                `Stub run finished (${result?.data?.ran ?? 0} bots)`,
+                `Run finished (${result?.data?.botsRun ?? 0} bots, ${result?.data?.duasCreated ?? 0} duas)`,
               );
             });
           }}
         >
-          Run due bots (stub)
+          Run due bots
         </Button>
       </div>
 
@@ -106,6 +256,9 @@ export function AdminDuaBots({ bots: initial }: { bots: DuaBotRow[] }) {
               </div>
               {bot.description ? (
                 <p className="mt-2 text-sm">{bot.description}</p>
+              ) : null}
+              {bot.last_error ? (
+                <p className="text-destructive mt-2 text-sm">{bot.last_error}</p>
               ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
@@ -144,7 +297,7 @@ export function AdminDuaBots({ bots: initial }: { bots: DuaBotRow[] }) {
                   disabled={isPending}
                   onClick={() => {
                     startTransition(async () => {
-                      const result = await runDuaBotsStubAction({
+                      const result = await runDuaBotsAction({
                         botId: bot.id,
                       });
 
@@ -153,13 +306,33 @@ export function AdminDuaBots({ bots: initial }: { bots: DuaBotRow[] }) {
                         return;
                       }
 
-                      toast.success('Stub run recorded');
+                      const err = result?.data?.errors?.[0]?.message;
+                      if (err) {
+                        toast.error(err);
+                      } else {
+                        toast.success(
+                          `Created ${result?.data?.duasCreated ?? 0} dua(s)`,
+                        );
+                      }
                     });
                   }}
                 >
-                  Run stub
+                  Run now
                 </Button>
               </div>
+
+              <BotEditForm
+                bot={bot}
+                disabled={isPending}
+                startTransition={startTransition}
+                onSaved={(updated) => {
+                  setBots((current) =>
+                    current.map((item) =>
+                      item.id === updated.id ? updated : item,
+                    ),
+                  );
+                }}
+              />
             </li>
           ))
         )}

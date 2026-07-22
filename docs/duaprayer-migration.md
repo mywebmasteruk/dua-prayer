@@ -35,7 +35,7 @@ Replace the custom SaaS foundation with **Makerkit Pro**, while keeping DuaPraye
 | AI moderation (local + optional OpenAI-compatible) | Done (`/admin/settings`) |
 | Volunteer apply + admin list (`/volunteer`, `/admin/volunteers`) | Done |
 | Volunteer tiers / suspend (`community_volunteers` roster) | Done |
-| Dynamic application forms MVP (`/admin/forms`) | Done (file fields skipped) |
+| Dynamic application forms MVP (`/admin/forms`) | Done (incl. file uploads) |
 | Donate checkout (`/donate`, `/api/donate/checkout`) | Done |
 | Admin dua moderation (`/admin/duas`) | Done |
 | Marketing nav (Home / Channels / Bookmarks / Support / Volunteer) | Done |
@@ -49,7 +49,8 @@ Replace the custom SaaS foundation with **Makerkit Pro**, while keeping DuaPraye
 | Onboarding gate (guided first-run) | Done |
 | Community notifications (Makerkit `@kit/notifications`) | Done (ameen milestones, dua/channel/volunteer status) |
 | Turnstile (Makerkit CaptchaField) | Done (when `NEXT_PUBLIC_CAPTCHA_SITE_KEY` + `CAPTCHA_SECRET_TOKEN` set) |
-| Dua bots + cron | Done (stub runner: advances `next_run_at`, inserts skipped run; full RSS/AI generation not ported) |
+| Dua bots + cron | Done (RSS → AI → dua runner MVP; skips Tavily / library fallback / auto-categorize) |
+| Application file uploads | Done (`application-uploads` bucket + signed upload/download) |
 
 ## Foundation provided by Makerkit
 
@@ -79,5 +80,5 @@ Before production cutover:
 1. Apply all community migrations to the production Supabase project (or migrate data), including advanced, RSS filter, and volunteers/bots migrations.
 2. Point Vercel root to monorepo `apps/web`.
 3. Set Makerkit + Stripe (+ optional captcha / AI moderation / cron secret) env vars.
-4. Verify feed/share/ameen/channels/apply/volunteer/donate/admin/RSS/forms/bots stub on a preview deploy.
+4. Verify feed/share/ameen/channels/apply/volunteer/donate/admin/RSS/forms/bots (RSS/AI runner) on a preview deploy.
 5. Do **not** merge to `main` until that checklist is done.
