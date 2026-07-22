@@ -1,13 +1,12 @@
-# Deploy DuaPrayer (Makerkit monorepo) to Vercel production on push to main.
+# Deploy the PUBLIC DuaPrayer frontend (legacy/dua-prayer) to Vercel production.
 #
-# Preferred: Vercel CLI prebuilt deploy (pulls Production env from Vercel).
-# Fallback: Deploy Hook + poll GitHub Production deployment for the commit SHA.
+# Architecture:
+#   - Public site (www.duaprayer.com) = legacy/dua-prayer (original consumer UI)
+#   - Makerkit (apps/web) = backoffice foundation — NOT the public frontend
 #
-# Secrets (repo → Settings → Secrets and variables → Actions):
-#   VERCEL_TOKEN            https://vercel.com/account/tokens
-#   VERCEL_DEPLOY_HOOK_URL  fallback if token is missing
-#
-# Org/project IDs are public project identifiers (also in DEPLOY.md).
+# Secrets:
+#   VERCEL_TOKEN            preferred (CLI prebuilt deploy)
+#   VERCEL_DEPLOY_HOOK_URL  fallback
 
 name: Deploy Vercel Production
 
@@ -23,6 +22,8 @@ concurrency:
 env:
   VERCEL_ORG_ID: team_km2T92NwivBy9c85XLjhTScR
   VERCEL_PROJECT_ID: prj_8sQGGuKxXAfJdnHeRXuX0jh15dIk
+  # Public consumer app — original DuaPrayer frontend
+  VERCEL_ROOT_DIRECTORY: legacy/dua-prayer
 
 jobs:
   deploy:
@@ -45,41 +46,33 @@ jobs:
         if: steps.creds.outputs.has_token == 'true'
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        if: steps.creds.outputs.has_token == 'true'
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.15.1
-
       - name: Setup Node
         if: steps.creds.outputs.has_token == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
 
       - name: Install Vercel CLI
         if: steps.creds.outputs.has_token == 'true'
         run: npm install -g vercel@latest
 
-      - name: Set Vercel Root Directory to apps/web
+      - name: Set Vercel Root Directory to legacy/dua-prayer
         if: steps.creds.outputs.has_token == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          # Makerkit requires Root Directory = apps/web so Next.js is detected.
-          # Makerkit root + clear legacy npm install/build overrides from the old app.
+          # Public frontend is the original DuaPrayer app, not Makerkit apps/web.
           curl -sS -X PATCH \
             "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}" \
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d '{"rootDirectory":"apps/web","installCommand":null,"buildCommand":null}' \
-            | tee /tmp/vercel-project.json
+            -d "{\"rootDirectory\":\"${VERCEL_ROOT_DIRECTORY}\",\"installCommand\":\"npm install --legacy-peer-deps\",\"buildCommand\":\"npm run build\",\"framework\":\"nextjs\"}" \
+            | tee /tmp/vercel-project.json >/dev/null
           ROOT="$(node -e 'const j=JSON.parse(require("fs").readFileSync("/tmp/vercel-project.json","utf8")); process.stdout.write(j.rootDirectory || "")')"
           echo "rootDirectory=$ROOT"
-          if [ "$ROOT" != "apps/web" ]; then
-            echo "::error::Failed to set Vercel rootDirectory to apps/web"
+          if [ "$ROOT" != "$VERCEL_ROOT_DIRECTORY" ]; then
+            echo "::error::Failed to set Vercel rootDirectory to ${VERCEL_ROOT_DIRECTORY}"
             exit 1
           fi
 
@@ -108,6 +101,15 @@ jobs:
           if [ -z "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}" ]; then
             echo "::error::Neither VERCEL_TOKEN nor VERCEL_DEPLOY_HOOK_URL is configured"
             exit 1
+          fi
+          # Ensure project root points at legacy frontend before hook build
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ]; then
+            curl -sS -X PATCH \
+              "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}" \
+              -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              -d "{\"rootDirectory\":\"${VERCEL_ROOT_DIRECTORY}\",\"installCommand\":\"npm install --legacy-peer-deps\",\"buildCommand\":\"npm run build\"}" \
+              >/dev/null
           fi
           RESPONSE="$(curl -sS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}" \
             -d "ref=main" \
