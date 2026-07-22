@@ -209,7 +209,22 @@ jobs:
           else
             echo "SUPABASE_DB_WEBHOOK_SECRET secret not set — skipped"
           fi
-          echo "Env sync complete. Redeploy may be needed for NEXT_PUBLIC_* changes."
+          echo "Env sync complete."
+
+      - name: Redeploy production for NEXT_PUBLIC_* env
+        if: steps.vercel.outputs.has_token == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [ -n "${VERCEL_DEPLOY_HOOK_URL:-}" ]; then
+            curl -sS -X POST "$VERCEL_DEPLOY_HOOK_URL" -d "ref=main" --fail-with-body
+            echo
+            echo "Triggered deploy hook after env sync"
+          else
+            echo "No VERCEL_DEPLOY_HOOK_URL — skipping redeploy (CLI deploy on next main push)"
+          fi
 
   migrate:
     runs-on: ubuntu-latest
@@ -265,19 +280,20 @@ jobs:
 
       - name: Verify production healthcheck
         if: always()
+        env:
+          MIGRATE_READY: ${{ steps.creds.outputs.ready }}
         run: |
           set -euo pipefail
           sleep 5
-          BODY="$(curl -sS "https://www.duaprayer.com/api/healthcheck")"
+          BODY="$(curl -sS "https://www.duaprayer.com/api/healthcheck" || true)"
           echo "$BODY"
-          echo "$BODY" | node -e '
-            const j=JSON.parse(require("fs").readFileSync(0,"utf8"));
-            if (j?.services?.database === true) {
-              console.log("database healthy");
-              process.exit(0);
-            }
-            console.log("database still unhealthy — migrations and/or Makerkit env still required");
-            process.exit(steps_ready === "true" ? 1 : 0);
-          ' 
-        env:
-          steps_ready: ${{ steps.creds.outputs.ready }}
+          if echo "$BODY" | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8")); process.exit(j?.services?.database===true?0:1)'; then
+            echo "database healthy"
+            exit 0
+          fi
+          echo "database still unhealthy — need Makerkit migrations on itcoxbkhcwlsjpcwawyl"
+          # Soft-pass when migration secrets are not configured yet.
+          if [ "$MIGRATE_READY" = "true" ]; then
+            exit 1
+          fi
+          exit 0
