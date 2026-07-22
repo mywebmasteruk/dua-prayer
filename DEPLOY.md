@@ -42,12 +42,17 @@ Production stays on the legacy app until all of these succeed:
 
 ## Recommended: push to main (GitHub Actions)
 
-Push to `main` triggers **Deploy Vercel Production** (`.github/workflows/deploy-vercel.yml`):
+Push to `main` triggers **Deploy Vercel Production** (`.github/workflows/deploy-vercel.yml`).
 
-1. POSTs `VERCEL_DEPLOY_HOOK_URL` (build on Vercel).
-2. Polls the GitHub **Production** deployment until success/failure.
+**Preferred secrets** (CLI prebuilt deploy — pulls Production env from Vercel):
 
-Secret: `VERCEL_DEPLOY_HOOK_URL` from Vercel → Project → Settings → Git → Deploy Hooks.
+| Secret | Value |
+|--------|--------|
+| `VERCEL_TOKEN` | [vercel.com/account/tokens](https://vercel.com/account/tokens) |
+
+Org/project IDs are set in the workflow (`team_km2T92NwivBy9c85XLjhTScR` / `prj_8sQGGuKxXAfJdnHeRXuX0jh15dIk`).
+
+**Fallback** if `VERCEL_TOKEN` is missing: `VERCEL_DEPLOY_HOOK_URL` (Vercel → Deploy Hooks). The workflow waits for a GitHub Production deployment matching the commit SHA.
 
 Monitor: **https://github.com/mywebmasteruk/dua-prayer/actions**
 
