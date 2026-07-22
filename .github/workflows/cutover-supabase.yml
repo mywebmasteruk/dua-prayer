@@ -27,6 +27,7 @@ on:
       - '.github/workflows/cutover-supabase.yml'
       - 'apps/web/supabase/migrations/**'
       - 'scripts/cutover-db.sh'
+      - 'scripts/sync-makerkit-vercel-env.mjs'
 
 env:
   SUPABASE_PROJECT_REF: itcoxbkhcwlsjpcwawyl
@@ -48,6 +49,9 @@ jobs:
           else
             echo "has_token=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - uses: actions/checkout@v4
+        if: steps.vercel.outputs.has_token == 'true'
 
       - name: Install Vercel CLI
         if: steps.vercel.outputs.has_token == 'true'
@@ -78,8 +82,7 @@ jobs:
                 return [l.slice(0, i), v];
               }),
           );
-          const keys = Object.keys(env).sort();
-          console.log("env_keys", keys.join(","));
+          console.log("env_keys", Object.keys(env).sort().join(","));
           const url = (env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
           const key =
             env.SUPABASE_SECRET_KEY ||
@@ -111,48 +114,7 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           SUPABASE_DB_WEBHOOK_SECRET: ${{ secrets.SUPABASE_DB_WEBHOOK_SECRET }}
-        run: |
-          set -euo pipefail
-          eval "$(node -e '
-            const fs=require("fs");
-            for (const line of fs.readFileSync(".vercel/.env.production.local","utf8").split("\n")) {
-              const t=line.trim();
-              if(!t||t.startsWith("#")||!t.includes("=")) continue;
-              const i=t.indexOf("=");
-              const k=t.slice(0,i);
-              let v=t.slice(i+1);
-              if((v.startsWith("\"")&&v.endsWith("\""))||(v.startsWith("'\''")&&v.endsWith("'\''"))) v=v.slice(1,-1);
-              if(["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY","NEXT_PUBLIC_SUPABASE_ANON_KEY"].includes(k)) {
-                const esc=v.replace(/'/g,"'\''");
-                process.stdout.write("export "+k+"='\''"+esc+"'\''\n");
-              }
-            }
-          ')"
-          upsert() {
-            local key="$1" value="$2"
-            [ -z "$value" ] && echo "skip $key" && return 0
-            local ids
-            ids="$(curl -sS "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}" \
-              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-              | node -e 'const key=process.argv[1];const j=JSON.parse(require("fs").readFileSync(0,"utf8"));for(const e of (j.envs||[])){if(e.key===key&&(e.target||[]).includes("production"))console.log(e.id)}' "$key")"
-            while IFS= read -r id; do
-              [ -z "$id" ] && continue
-              curl -sS -X DELETE "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env/${id}?teamId=${VERCEL_ORG_ID}" \
-                -H "Authorization: Bearer ${VERCEL_TOKEN}" >/dev/null || true
-            done <<< "$ids"
-            curl -sS -X POST \
-              "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}&upsert=true" \
-              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "$(node -e 'const[k,v]=process.argv.slice(1);process.stdout.write(JSON.stringify({key:k,value:v,type:"encrypted",target:["production"]}))' "$key" "$value")" \
-              | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));console.log("upserted",j.key||j.error||"ok")'
-          }
-          PUBLIC_KEY="${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}}"
-          upsert "NEXT_PUBLIC_SITE_URL" "https://www.duaprayer.com"
-          upsert "NEXT_PUBLIC_SUPABASE_PUBLIC_KEY" "$PUBLIC_KEY"
-          if [ -n "${SUPABASE_DB_WEBHOOK_SECRET:-}" ]; then
-            upsert "SUPABASE_DB_WEBHOOK_SECRET" "$SUPABASE_DB_WEBHOOK_SECRET"
-          fi
+        run: node scripts/sync-makerkit-vercel-env.mjs
 
   migrate:
     runs-on: ubuntu-latest
