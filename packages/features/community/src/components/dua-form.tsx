@@ -19,26 +19,43 @@ import { Textarea } from '@kit/ui/textarea';
 import { detectLanguage, getTextDirection } from '../detect-language';
 import type { PostingMode } from '../posting-settings';
 import { createDuaAction } from '../server/server-actions';
-import type { SiteCopy } from '../site-copy';
+import {
+  getComposerCategoryLabel,
+  SITE_COPY_DEFAULTS,
+  type ComposerCopy,
+  type SiteCopy,
+} from '../site-copy';
 import type { Category } from '../types';
+
+type DuaFormCopy = Pick<
+  SiteCopy,
+  | 'composerTitleEn'
+  | 'composerDescriptionEn'
+  | 'composerPlaceholderEn'
+  | 'composerCategoryPlaceholderEn'
+  | 'composerSubmitEn'
+  | 'composerSubmittingEn'
+  | 'composerTitleAr'
+  | 'composerDescriptionAr'
+  | 'composerPlaceholderAr'
+  | 'composerCategoryPlaceholderAr'
+  | 'composerSubmitAr'
+  | 'composerSubmittingAr'
+  | 'composerCategoryFamilyAr'
+  | 'composerCategoryForgivenessAr'
+  | 'composerCategoryGeneralAr'
+  | 'composerCategoryHealthAr'
+  | 'composerCategoryCommunityAr'
+  | 'composerCategoryGuidanceAr'
+  | 'composerCategoryGratitudeAr'
+  | 'composerCategoryProtectionAr'
+>;
 
 interface DuaFormProps {
   categories: Category[];
   channelId?: number | null;
   postingMode?: PostingMode;
-  copy?: Pick<
-    SiteCopy,
-    | 'composerTitleEn'
-    | 'composerDescriptionEn'
-    | 'composerPlaceholderEn'
-    | 'composerSubmitEn'
-    | 'composerSubmittingEn'
-    | 'composerTitleAr'
-    | 'composerDescriptionAr'
-    | 'composerPlaceholderAr'
-    | 'composerSubmitAr'
-    | 'composerSubmittingAr'
-  >;
+  copy?: DuaFormCopy;
   onCreated?: () => void;
 }
 
@@ -56,24 +73,29 @@ export function DuaForm({
   const captchaSiteKey = process.env.NEXT_PUBLIC_CAPTCHA_SITE_KEY;
   const language = detectLanguage(text);
   const isArabic = language === 'ar';
+  const composerCopy = {
+    ...SITE_COPY_DEFAULTS,
+    ...copy,
+  } as ComposerCopy & DuaFormCopy;
 
-  const title =
-    (isArabic ? copy?.composerTitleAr : copy?.composerTitleEn) ??
-    (isArabic ? 'شارك دعاءك' : 'Share a dua');
-  const description =
-    (isArabic ? copy?.composerDescriptionAr : copy?.composerDescriptionEn) ??
-    '';
-  const placeholder =
-    (isArabic ? copy?.composerPlaceholderAr : copy?.composerPlaceholderEn) ??
-    (isArabic
-      ? 'ادعُ لنفسك أو لأهلك أو لمن يحتاج إلى الدعم...'
-      : 'Write your dua here...');
-  const submitLabel =
-    (isArabic ? copy?.composerSubmitAr : copy?.composerSubmitEn) ??
-    (isArabic ? 'شارك الدعاء' : 'Share dua');
-  const submittingLabel =
-    (isArabic ? copy?.composerSubmittingAr : copy?.composerSubmittingEn) ??
-    (isArabic ? 'جارٍ المشاركة...' : 'Sharing…');
+  const title = isArabic
+    ? composerCopy.composerTitleAr
+    : composerCopy.composerTitleEn;
+  const description = isArabic
+    ? composerCopy.composerDescriptionAr
+    : composerCopy.composerDescriptionEn;
+  const placeholder = isArabic
+    ? composerCopy.composerPlaceholderAr
+    : composerCopy.composerPlaceholderEn;
+  const categoryPlaceholder = isArabic
+    ? composerCopy.composerCategoryPlaceholderAr
+    : composerCopy.composerCategoryPlaceholderEn;
+  const submitLabel = isArabic
+    ? composerCopy.composerSubmitAr
+    : composerCopy.composerSubmitEn;
+  const submittingLabel = isArabic
+    ? composerCopy.composerSubmittingAr
+    : composerCopy.composerSubmittingEn;
 
   if (postingMode === 'closed') {
     return (
@@ -176,15 +198,13 @@ export function DuaForm({
       </div>
 
       <div className="space-y-2">
-        <Label>{isArabic ? 'الموضوع' : 'Topic'}</Label>
+        <Label>{categoryPlaceholder}</Label>
         <Select
           value={categoryId}
           onValueChange={(value) => setCategoryId(value ?? 'none')}
         >
           <SelectTrigger className="w-full">
-            <SelectValue
-              placeholder={isArabic ? 'اختر موضوعًا' : 'Choose a topic'}
-            />
+            <SelectValue placeholder={categoryPlaceholder} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">
@@ -192,7 +212,11 @@ export function DuaForm({
             </SelectItem>
             {categories.map((category) => (
               <SelectItem key={category.id} value={String(category.id)}>
-                {category.name}
+                {getComposerCategoryLabel(
+                  category.name,
+                  composerCopy,
+                  isArabic ? 'ar' : 'en',
+                )}
               </SelectItem>
             ))}
           </SelectContent>

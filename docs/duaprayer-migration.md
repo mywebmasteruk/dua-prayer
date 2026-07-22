@@ -51,6 +51,9 @@ Replace the custom SaaS foundation with **Makerkit Pro**, while keeping DuaPraye
 | Turnstile (Makerkit CaptchaField) | Done (when `NEXT_PUBLIC_CAPTCHA_SITE_KEY` + `CAPTCHA_SECRET_TOKEN` set) |
 | Dua bots + cron | Done (RSS → AI → dua runner MVP; skips Tavily / library fallback / auto-categorize) |
 | Application file uploads | Done (`application-uploads` bucket + signed upload/download) |
+| Auth tagline + AR composer category labels | Done |
+| Volunteer tier roster / suspend (ops metadata) | Done |
+| Volunteer RBAC into Makerkit `/admin` routes | Skipped (Makerkit remains `is_super_admin` only; tiers are bookkeeping) |
 
 ## Foundation provided by Makerkit
 

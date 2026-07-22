@@ -94,3 +94,33 @@ export function mergeSiteCopy(
 
   return copy;
 }
+
+export type ComposerCopyKey = Extract<SiteCopyKey, `composer${string}`>;
+export type ComposerCopy = Pick<SiteCopy, ComposerCopyKey>;
+export type ComposerCategoryLabelLanguage = 'auto' | 'en' | 'ar';
+
+export const ARABIC_COMPOSER_CATEGORY_COPY_BY_NAME = {
+  Family: 'composerCategoryFamilyAr',
+  Forgiveness: 'composerCategoryForgivenessAr',
+  General: 'composerCategoryGeneralAr',
+  Health: 'composerCategoryHealthAr',
+  Community: 'composerCategoryCommunityAr',
+  Guidance: 'composerCategoryGuidanceAr',
+  Gratitude: 'composerCategoryGratitudeAr',
+  Protection: 'composerCategoryProtectionAr',
+} as const satisfies Record<string, ComposerCopyKey>;
+
+export function getComposerCategoryLabel(
+  categoryName: string,
+  copy: ComposerCopy,
+  language: ComposerCategoryLabelLanguage,
+) {
+  if (language !== 'ar') return categoryName;
+
+  const copyKey =
+    ARABIC_COMPOSER_CATEGORY_COPY_BY_NAME[
+      categoryName as keyof typeof ARABIC_COMPOSER_CATEGORY_COPY_BY_NAME
+    ];
+
+  return copyKey ? copy[copyKey] : categoryName;
+}
