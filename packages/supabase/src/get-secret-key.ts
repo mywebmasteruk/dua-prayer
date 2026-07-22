@@ -1,8 +1,16 @@
 import 'server-only';
+
 import * as z from 'zod';
 
 const message =
-  'Invalid Supabase Secret Key. Please add the environment variable SUPABASE_SECRET_KEY.';
+  'Invalid Supabase Secret Key. Please add SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY).';
+
+/**
+ * Resolves the secret Supabase key, accepting Makerkit and legacy names.
+ */
+function resolveSecretKey() {
+  return process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
 
 /**
  * @name getSupabaseSecretKey
@@ -17,7 +25,7 @@ export function getSupabaseSecretKey() {
     .min(1, {
       message: message,
     })
-    .parse(process.env.SUPABASE_SECRET_KEY);
+    .parse(resolveSecretKey());
 }
 
 /**

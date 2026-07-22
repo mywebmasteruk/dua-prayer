@@ -76,12 +76,12 @@ Optional donate: set `STRIPE_SECRET_KEY` (+ site URL).
 
 Optional bots cron: set `CRON_SECRET` or `BOT_RUNNER_SECRET`, call `/api/cron/dua-bots` with `Authorization: Bearer <secret>`.
 
-## Deploy note
+## Deploy / cutover note
 
-Before production cutover:
+Code is on `main` (Makerkit monorepo). Production cutover still requires ops steps — see root `DEPLOY.md`.
 
-1. Apply all community migrations to the production Supabase project (or migrate data), including advanced, RSS filter, and volunteers/bots migrations.
-2. Point Vercel root to monorepo `apps/web`.
-3. Set Makerkit + Stripe (+ optional captcha / AI moderation / cron secret) env vars.
-4. Verify feed/share/ameen/channels/apply/volunteer/donate/admin/RSS/forms/bots (RSS/AI runner) on a preview deploy.
-5. Do **not** merge to `main` until that checklist is done.
+1. Apply Makerkit + community migrations to production Supabase (`itcoxbkhcwlsjpcwawyl`) via `./scripts/cutover-db.sh`.
+2. Set Vercel Root Directory to `apps/web` (or repo root with root `vercel.json`); turn **off** Install/Build overrides so pnpm commands apply.
+3. Set Makerkit env vars (public key accepts legacy `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / anon; secret accepts `SUPABASE_SERVICE_ROLE_KEY`).
+4. Redeploy and verify `/auth/sign-in` returns **200** (404 means the legacy build is still live or the Makerkit build failed).
+5. Smoke-test feed/share/ameen/channels/apply/volunteer/donate/admin/RSS/forms/bots.
