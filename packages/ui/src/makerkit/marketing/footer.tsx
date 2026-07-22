@@ -5,6 +5,7 @@ interface FooterSection {
   links: Array<{
     href: string;
     label: React.ReactNode;
+    openInNewTab?: boolean;
   }>;
 }
 
@@ -57,7 +58,11 @@ export const Footer: React.FC<FooterProps> = ({
 
                   <FooterSectionList>
                     {section.links.map((link, linkIndex) => (
-                      <FooterLink key={linkIndex} href={link.href}>
+                      <FooterLink
+                        key={linkIndex}
+                        href={link.href}
+                        openInNewTab={link.openInNewTab}
+                      >
                         {link.label}
                       </FooterLink>
                     ))}
@@ -86,11 +91,19 @@ function FooterSectionList(props: React.PropsWithChildren) {
 
 function FooterLink({
   href,
+  openInNewTab,
   children,
-}: React.PropsWithChildren<{ href: string }>) {
+}: React.PropsWithChildren<{ href: string; openInNewTab?: boolean }>) {
   return (
     <li className="text-muted-foreground text-sm font-medium hover:underline [&>a]:transition-colors">
-      <a href={href}>{children}</a>
+      <a
+        href={href}
+        {...(openInNewTab
+          ? { target: '_blank', rel: 'noopener noreferrer' }
+          : {})}
+      >
+        {children}
+      </a>
     </li>
   );
 }

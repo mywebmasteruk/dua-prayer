@@ -12,6 +12,7 @@ export async function SiteFooter() {
   const productLinks = links.map((link) => ({
     href: link.href,
     label: link.label,
+    openInNewTab: link.openInNewTab,
   }));
 
   return (
