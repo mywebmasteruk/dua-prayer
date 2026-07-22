@@ -205,7 +205,14 @@ function CommunityFeedInner({
                 )}
               >
                 {item.label}
-                <span className="text-muted-foreground ml-1 tabular-nums">
+                <span
+                  className={cn(
+                    'ml-1 tabular-nums',
+                    activeTag === item.tag
+                      ? 'text-primary-foreground/80'
+                      : 'text-muted-foreground',
+                  )}
+                >
                   {item.duas}
                 </span>
               </button>
