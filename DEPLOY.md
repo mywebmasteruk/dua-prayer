@@ -19,9 +19,9 @@ Production stays on the legacy app until all of these succeed:
 
    | Setting | Required value |
    |---------|----------------|
-   | **Root Directory** | `apps/web` (Makerkit default) **or** `.` with root `vercel.json` |
+   | **Root Directory** | `apps/web` (required — Actions sets this via API when `VERCEL_TOKEN` is present) |
    | **Framework Preset** | Next.js |
-   | **Install / Build overrides** | **Off** — use `vercel.json` (`corepack enable && pnpm install`, `pnpm --filter web build`) |
+   | **Install / Build overrides** | **Off** — use `apps/web/vercel.json` (pnpm install from monorepo root + `pnpm --filter web build`) |
    | **Node.js** | 20.x+ |
 
 3. **Vercel environment variables** (Production):
