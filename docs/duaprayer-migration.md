@@ -28,6 +28,8 @@ Replace the custom SaaS foundation with **Makerkit Pro**, while keeping DuaPraye
 | RSS feed (`/feed.xml` + `/admin/settings`) | Done |
 | Rich RSS (`/feed-tags.xml`, topic/hashtag/lang categories) | Done |
 | RSS source filters (channels/freeform/verified/exclude) | Done |
+| RSS title/author/copyright/TTL/description/language CMS | Done |
+| Arabic composer site-copy + auto RTL/AR labels | Done |
 | AI moderation (local + optional OpenAI-compatible) | Done (`/admin/settings`) |
 | Volunteer apply + admin list (`/volunteer`, `/admin/volunteers`) | Done (MVP; no tiers/RBAC) |
 | Donate checkout (`/donate`, `/api/donate/checkout`) | Done |
@@ -44,7 +46,6 @@ Replace the custom SaaS foundation with **Makerkit Pro**, while keeping DuaPraye
 | Onboarding gate (guided first-run) | Deferred |
 | Topic/trending leaderboard rail | Deferred |
 | Dua bots + cron | Deferred (large; remains in `legacy/dua-prayer`) |
-| RSS title/author/copyright/TTL CMS fields | Deferred |
 | Full site-copy AR groups / footer CMS | Deferred |
 | Volunteer tiers / suspend | Deferred |
 

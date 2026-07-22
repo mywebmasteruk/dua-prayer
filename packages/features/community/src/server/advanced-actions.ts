@@ -364,6 +364,12 @@ export const updateRssSettingsAction = authActionClient
     z.object({
       enabled: z.boolean(),
       itemCount: z.number().int().min(5).max(50),
+      title: z.string().trim().max(120),
+      description: z.string().trim().max(500),
+      author: z.string().trim().max(160),
+      copyright: z.string().trim().max(160),
+      language: z.string().trim().min(2).max(16),
+      ttlMinutes: z.number().int().min(1).max(1440),
       includeChannelPosts: z.boolean(),
       includeFreeformDuas: z.boolean(),
       onlyVerifiedChannels: z.boolean(),
@@ -386,6 +392,36 @@ export const updateRssSettingsAction = authActionClient
       {
         key: RSS_SETTING_KEYS.itemCount,
         value: String(parsedInput.itemCount),
+        updated_at: now,
+      },
+      {
+        key: RSS_SETTING_KEYS.title,
+        value: parsedInput.title || RSS_DEFAULTS.title,
+        updated_at: now,
+      },
+      {
+        key: RSS_SETTING_KEYS.description,
+        value: parsedInput.description || RSS_DEFAULTS.description,
+        updated_at: now,
+      },
+      {
+        key: RSS_SETTING_KEYS.author,
+        value: parsedInput.author,
+        updated_at: now,
+      },
+      {
+        key: RSS_SETTING_KEYS.copyright,
+        value: parsedInput.copyright,
+        updated_at: now,
+      },
+      {
+        key: RSS_SETTING_KEYS.language,
+        value: parsedInput.language || RSS_DEFAULTS.language,
+        updated_at: now,
+      },
+      {
+        key: RSS_SETTING_KEYS.ttlMinutes,
+        value: String(parsedInput.ttlMinutes),
         updated_at: now,
       },
       {

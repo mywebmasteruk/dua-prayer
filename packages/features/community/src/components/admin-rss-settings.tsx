@@ -8,6 +8,7 @@ import { Button } from '@kit/ui/button';
 import { Input } from '@kit/ui/input';
 import { Label } from '@kit/ui/label';
 import { Switch } from '@kit/ui/switch';
+import { Textarea } from '@kit/ui/textarea';
 
 import type { RssSettings } from '../rss-settings';
 import { updateRssSettingsAction } from '../server/advanced-actions';
@@ -22,6 +23,12 @@ export function AdminRssSettings({
 }) {
   const [enabled, setEnabled] = useState(settings.enabled);
   const [itemCount, setItemCount] = useState(settings.itemCount);
+  const [title, setTitle] = useState(settings.title);
+  const [description, setDescription] = useState(settings.description);
+  const [author, setAuthor] = useState(settings.author);
+  const [copyright, setCopyright] = useState(settings.copyright);
+  const [language, setLanguage] = useState(settings.language);
+  const [ttlMinutes, setTtlMinutes] = useState(settings.ttlMinutes);
   const [includeChannelPosts, setIncludeChannelPosts] = useState(
     settings.includeChannelPosts,
   );
@@ -54,6 +61,12 @@ export function AdminRssSettings({
           const result = await updateRssSettingsAction({
             enabled,
             itemCount,
+            title,
+            description,
+            author,
+            copyright,
+            language,
+            ttlMinutes,
             includeChannelPosts,
             includeFreeformDuas,
             onlyVerifiedChannels,
@@ -78,16 +91,77 @@ export function AdminRssSettings({
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="rss-count">Item count</Label>
-        <Input
-          id="rss-count"
-          type="number"
-          min={5}
-          max={50}
-          value={itemCount}
-          onChange={(event) => setItemCount(Number(event.target.value))}
-        />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="rss-title">Feed title</Label>
+          <Input
+            id="rss-title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            maxLength={120}
+          />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="rss-description">Feed description</Label>
+          <Textarea
+            id="rss-description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            rows={3}
+            maxLength={500}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="rss-author">Managing editor</Label>
+          <Input
+            id="rss-author"
+            value={author}
+            onChange={(event) => setAuthor(event.target.value)}
+            maxLength={160}
+            placeholder="optional"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="rss-copyright">Copyright</Label>
+          <Input
+            id="rss-copyright"
+            value={copyright}
+            onChange={(event) => setCopyright(event.target.value)}
+            maxLength={160}
+            placeholder="optional"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="rss-language">Language</Label>
+          <Input
+            id="rss-language"
+            value={language}
+            onChange={(event) => setLanguage(event.target.value)}
+            maxLength={16}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="rss-ttl">TTL (minutes)</Label>
+          <Input
+            id="rss-ttl"
+            type="number"
+            min={1}
+            max={1440}
+            value={ttlMinutes}
+            onChange={(event) => setTtlMinutes(Number(event.target.value))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="rss-count">Item count</Label>
+          <Input
+            id="rss-count"
+            type="number"
+            min={5}
+            max={50}
+            value={itemCount}
+            onChange={(event) => setItemCount(Number(event.target.value))}
+          />
+        </div>
       </div>
 
       <div className="space-y-3 border-t pt-4">

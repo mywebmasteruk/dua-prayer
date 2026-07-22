@@ -156,12 +156,12 @@ export async function buildRssResponse(options: {
       const titleSource = body.replace(/\s+/g, ' ').trim();
       const title = truncate(titleSource, 90) || 'Dua';
       const description = truncate(titleSource, 500);
-      const itemLanguage = dua.language?.trim() || 'en';
+      const itemLanguage = dua.language?.trim() || settings.language;
       const author = channel?.name
         ? channel.name
         : dua.user_id
           ? 'Anonymous'
-          : 'DuaPrayer';
+          : settings.title || 'DuaPrayer';
 
       const categoryValues = [topic?.name ?? 'Dua'];
 
@@ -189,15 +189,24 @@ ${categoryTags}
     })
     .join('\n');
 
+  const authorTag = settings.author
+    ? `\n<managingEditor>${xmlEscape(settings.author)}</managingEditor>`
+    : '';
+  const copyrightTag = settings.copyright
+    ? `\n<copyright>${xmlEscape(settings.copyright)}</copyright>`
+    : '';
+  const maxAge = settings.ttlMinutes * 60;
+
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/">
 <channel>
-<title>DuaPrayer</title>
+<title>${xmlEscape(settings.title)}</title>
 <link>${xmlEscape(siteUrl)}</link>
-<description>Latest published duas from the DuaPrayer community</description>
-<language>en</language>
+<description>${xmlEscape(settings.description)}</description>
+<language>${xmlEscape(settings.language)}</language>
+<ttl>${settings.ttlMinutes}</ttl>
 <lastBuildDate>${lastBuildDate}</lastBuildDate>
-<atom:link href="${xmlEscape(feedUrl)}" rel="self" type="application/rss+xml" />
+<atom:link href="${xmlEscape(feedUrl)}" rel="self" type="application/rss+xml" />${authorTag}${copyrightTag}
 ${items}
 </channel>
 </rss>`;
@@ -205,7 +214,7 @@ ${items}
   return new Response(xml, {
     headers: {
       'Content-Type': 'application/rss+xml; charset=utf-8',
-      'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300',
+      'Cache-Control': `public, max-age=${maxAge}, s-maxage=${maxAge}, stale-while-revalidate=${maxAge}`,
     },
   });
 }

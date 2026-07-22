@@ -16,6 +16,7 @@ import {
 } from '@kit/ui/select';
 import { Textarea } from '@kit/ui/textarea';
 
+import { detectLanguage, getTextDirection } from '../detect-language';
 import type { PostingMode } from '../posting-settings';
 import { createDuaAction } from '../server/server-actions';
 import type { SiteCopy } from '../site-copy';
@@ -32,6 +33,11 @@ interface DuaFormProps {
     | 'composerPlaceholderEn'
     | 'composerSubmitEn'
     | 'composerSubmittingEn'
+    | 'composerTitleAr'
+    | 'composerDescriptionAr'
+    | 'composerPlaceholderAr'
+    | 'composerSubmitAr'
+    | 'composerSubmittingAr'
   >;
   onCreated?: () => void;
 }
@@ -48,6 +54,26 @@ export function DuaForm({
   const [captchaToken, setCaptchaToken] = useState('');
   const [isPending, startTransition] = useTransition();
   const captchaSiteKey = process.env.NEXT_PUBLIC_CAPTCHA_SITE_KEY;
+  const language = detectLanguage(text);
+  const isArabic = language === 'ar';
+
+  const title =
+    (isArabic ? copy?.composerTitleAr : copy?.composerTitleEn) ??
+    (isArabic ? 'شارك دعاءك' : 'Share a dua');
+  const description =
+    (isArabic ? copy?.composerDescriptionAr : copy?.composerDescriptionEn) ??
+    '';
+  const placeholder =
+    (isArabic ? copy?.composerPlaceholderAr : copy?.composerPlaceholderEn) ??
+    (isArabic
+      ? 'ادعُ لنفسك أو لأهلك أو لمن يحتاج إلى الدعم...'
+      : 'Write your dua here...');
+  const submitLabel =
+    (isArabic ? copy?.composerSubmitAr : copy?.composerSubmitEn) ??
+    (isArabic ? 'شارك الدعاء' : 'Share dua');
+  const submittingLabel =
+    (isArabic ? copy?.composerSubmittingAr : copy?.composerSubmittingEn) ??
+    (isArabic ? 'جارٍ المشاركة...' : 'Sharing…');
 
   if (postingMode === 'closed') {
     return (
@@ -63,6 +89,7 @@ export function DuaForm({
   return (
     <form
       className="space-y-4 rounded-xl border p-4"
+      dir={text.trim() ? getTextDirection(text) : undefined}
       onSubmit={(event) => {
         event.preventDefault();
 
@@ -113,32 +140,34 @@ export function DuaForm({
       />
 
       <div className="space-y-2">
-        <Label htmlFor="dua-text">
-          {copy?.composerTitleEn ?? 'Share a dua'}
-        </Label>
-        {copy?.composerDescriptionEn ? (
-          <p className="text-muted-foreground text-xs">
-            {copy.composerDescriptionEn}
-          </p>
+        <Label htmlFor="dua-text">{title}</Label>
+        {description ? (
+          <p className="text-muted-foreground text-xs">{description}</p>
         ) : null}
         <Textarea
           id="dua-text"
           value={text}
           onChange={(event) => setText(event.target.value)}
-          placeholder={
-            copy?.composerPlaceholderEn ?? 'Write your dua here...'
-          }
+          placeholder={placeholder}
           rows={4}
           maxLength={1200}
           required
+          dir={text.trim() ? getTextDirection(text) : 'auto'}
+          lang={language}
         />
         <div className="text-muted-foreground flex justify-between text-xs">
           <span>
             {tooShort
-              ? 'At least 15 characters'
+              ? isArabic
+                ? '١٥ حرفًا على الأقل'
+                : 'At least 15 characters'
               : postingMode === 'registered_only'
-                ? 'Sign in required to share'
-                : 'Visible to the community'}
+                ? isArabic
+                  ? 'يلزم تسجيل الدخول للمشاركة'
+                  : 'Sign in required to share'
+                : isArabic
+                  ? 'مرئي للمجتمع'
+                  : 'Visible to the community'}
           </span>
           <span className={remaining < 0 ? 'text-destructive' : undefined}>
             {remaining}
@@ -147,16 +176,20 @@ export function DuaForm({
       </div>
 
       <div className="space-y-2">
-        <Label>Topic</Label>
+        <Label>{isArabic ? 'الموضوع' : 'Topic'}</Label>
         <Select
           value={categoryId}
           onValueChange={(value) => setCategoryId(value ?? 'none')}
         >
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Choose a topic" />
+            <SelectValue
+              placeholder={isArabic ? 'اختر موضوعًا' : 'Choose a topic'}
+            />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">No topic</SelectItem>
+            <SelectItem value="none">
+              {isArabic ? 'بدون موضوع' : 'No topic'}
+            </SelectItem>
             {categories.map((category) => (
               <SelectItem key={category.id} value={String(category.id)}>
                 {category.name}
@@ -181,9 +214,7 @@ export function DuaForm({
           (Boolean(captchaSiteKey) && !captchaToken)
         }
       >
-        {isPending
-          ? (copy?.composerSubmittingEn ?? 'Sharing…')
-          : (copy?.composerSubmitEn ?? 'Share dua')}
+        {isPending ? submittingLabel : submitLabel}
       </Button>
     </form>
   );

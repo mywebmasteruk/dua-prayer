@@ -19,6 +19,12 @@ export const SITE_COPY_DEFAULTS = {
   composerPlaceholderEn: 'Share a dua for yourself, your family, or someone who needs support...',
   composerSubmitEn: 'Share dua',
   composerSubmittingEn: 'Sharing…',
+  composerTitleAr: 'شارك دعاءك',
+  composerDescriptionAr:
+    'يرجى عدم تضمين تفاصيل شخصية أو خاصة. قد تتم مراجعة المشاركات.',
+  composerPlaceholderAr: 'ادعُ لنفسك أو لأهلك أو لمن يحتاج إلى الدعم...',
+  composerSubmitAr: 'شارك الدعاء',
+  composerSubmittingAr: 'جارٍ المشاركة...',
 } as const;
 
 export type SiteCopyKey = keyof typeof SITE_COPY_DEFAULTS;
@@ -38,6 +44,11 @@ export const SITE_COPY_SETTING_KEYS: Record<SiteCopyKey, string> = {
   composerPlaceholderEn: 'copy.composer_placeholder_en',
   composerSubmitEn: 'copy.composer_submit_en',
   composerSubmittingEn: 'copy.composer_submitting_en',
+  composerTitleAr: 'copy.composer_title_ar',
+  composerDescriptionAr: 'copy.composer_description_ar',
+  composerPlaceholderAr: 'copy.composer_placeholder_ar',
+  composerSubmitAr: 'copy.composer_submit_ar',
+  composerSubmittingAr: 'copy.composer_submitting_ar',
 };
 
 export type SiteCopy = Record<SiteCopyKey, string>;
