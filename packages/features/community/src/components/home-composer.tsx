@@ -8,8 +8,7 @@ import { Plus, X } from 'lucide-react';
 
 import { cn } from '@kit/ui/utils';
 
-import { detectLanguage } from '../detect-language';
-import { arabicFontClassName } from '../detect-language';
+import { arabicFontClassName, detectLanguage } from '../detect-language';
 import type { PostingMode } from '../posting-settings';
 import type { ComposerCopy, SiteCopy } from '../site-copy';
 import { SITE_COPY_DEFAULTS } from '../site-copy';
