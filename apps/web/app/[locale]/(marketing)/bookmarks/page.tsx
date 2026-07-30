@@ -17,7 +17,7 @@ async function BookmarksPage() {
 
   if ('error' in result) {
     return (
-      <div className="container mx-auto max-w-2xl py-10">
+      <div className="px-4 py-6 sm:px-5 lg:px-8">
         <p className="text-muted-foreground text-sm">
           <Link href="/auth/sign-in" className="underline">
             Sign in
@@ -29,7 +29,7 @@ async function BookmarksPage() {
   }
 
   return (
-    <div className="container mx-auto max-w-2xl space-y-6 py-10">
+    <div className="space-y-6 px-4 py-6 sm:px-5 lg:px-8">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Bookmarks</h1>
         <p className="text-muted-foreground text-sm">

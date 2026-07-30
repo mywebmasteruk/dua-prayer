@@ -57,6 +57,9 @@ interface DuaFormProps {
   postingMode?: PostingMode;
   copy?: DuaFormCopy;
   onCreated?: () => void;
+  /** Hide title/description chrome when embedded in the modal composer. */
+  embedded?: boolean;
+  onTextChange?: (text: string) => void;
 }
 
 export function DuaForm({
@@ -65,6 +68,8 @@ export function DuaForm({
   postingMode = 'public',
   copy,
   onCreated,
+  embedded = false,
+  onTextChange,
 }: DuaFormProps) {
   const [text, setText] = useState('');
   const [categoryId, setCategoryId] = useState<string>('none');
@@ -110,7 +115,9 @@ export function DuaForm({
 
   return (
     <form
-      className="space-y-4 rounded-xl border p-4"
+      className={
+        embedded ? 'space-y-4' : 'space-y-4 rounded-xl border p-4'
+      }
       dir={text.trim() ? getTextDirection(text) : undefined}
       onSubmit={(event) => {
         event.preventDefault();
@@ -162,20 +169,24 @@ export function DuaForm({
       />
 
       <div className="space-y-2">
-        <Label htmlFor="dua-text">{title}</Label>
-        {description ? (
+        {!embedded ? <Label htmlFor="dua-text">{title}</Label> : null}
+        {!embedded && description ? (
           <p className="text-muted-foreground text-xs">{description}</p>
         ) : null}
         <Textarea
           id="dua-text"
           value={text}
-          onChange={(event) => setText(event.target.value)}
+          onChange={(event) => {
+            setText(event.target.value);
+            onTextChange?.(event.target.value);
+          }}
           placeholder={placeholder}
-          rows={4}
+          rows={embedded ? 5 : 4}
           maxLength={1200}
           required
           dir={text.trim() ? getTextDirection(text) : 'auto'}
           lang={language}
+          className={embedded ? 'min-h-32 rounded-2xl border-border/80' : undefined}
         />
         <div className="text-muted-foreground flex justify-between text-xs">
           <span>

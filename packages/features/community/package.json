@@ -24,6 +24,7 @@
     "./footer-links": "./src/footer-links.ts",
     "./volunteer-tiers": "./src/volunteer-tiers.ts",
     "./hashtags": "./src/hashtags.ts",
+    "./dua-share": "./src/dua-share.ts",
     "./rss-settings": "./src/rss-settings.ts",
     "./site-copy": "./src/site-copy.ts"
   },

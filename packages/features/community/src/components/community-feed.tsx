@@ -12,6 +12,7 @@ import {
 
 import { Button } from '@kit/ui/button';
 import { Input } from '@kit/ui/input';
+import { cn } from '@kit/ui/utils';
 
 import { matchesHashtag, normalizeHashtag } from '../hashtags';
 import type { PostingMode } from '../posting-settings';
@@ -20,6 +21,7 @@ import type { SiteCopy } from '../site-copy';
 import type { Category, Dua } from '../types';
 import { DuaForm } from './dua-form';
 import { DuaList } from './dua-list';
+import { HomeComposer } from './home-composer';
 import { TrendingRail } from './trending-rail';
 
 interface CommunityFeedProps {
@@ -31,6 +33,10 @@ interface CommunityFeedProps {
   channelId?: number | null;
   showFollowingTab?: boolean;
   showLanguagePrefsLink?: boolean;
+  /** Match the legacy 3-column home: no marketing header / inline trending. */
+  variant?: 'default' | 'shell';
+  composeOpen?: boolean;
+  onComposeOpenChange?: (open: boolean) => void;
 }
 
 function matchesSearch(dua: Dua, query: string) {
@@ -55,22 +61,51 @@ function CommunityFeedInner({
   channelId = null,
   showFollowingTab = true,
   showLanguagePrefsLink = false,
+  variant = 'default',
+  composeOpen,
+  onComposeOpenChange,
 }: CommunityFeedProps) {
+  const isShell = variant === 'shell';
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeTag = normalizeHashtag(searchParams.get('tag') ?? '');
-  const [tab, setTab] = useState<'latest' | 'following'>('latest');
+  const queryFromUrl = searchParams.get('q') ?? '';
+  const tabFromUrl = searchParams.get('tab');
+  const [tab, setTab] = useState<'latest' | 'following'>(
+    tabFromUrl === 'following' ? 'following' : 'latest',
+  );
   const [duas, setDuas] = useState(initialDuas);
   const [loadedTotal, setLoadedTotal] = useState(total);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(queryFromUrl);
   const deferredSearch = useDeferredValue(search);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setSearch(queryFromUrl);
+  }, [queryFromUrl]);
 
   useEffect(() => {
     setDuas(initialDuas);
     setLoadedTotal(total);
   }, [initialDuas, total]);
+
+  useEffect(() => {
+    if (tabFromUrl === 'following') {
+      setTab('following');
+      startTransition(async () => {
+        const next = await getFeedDuas({
+          offset: 0,
+          channelId: channelId ?? undefined,
+          followingOnly: true,
+        });
+        setDuas(next.duas);
+        setLoadedTotal(next.total);
+      });
+    }
+    // Intentionally run once for deep-linked Following tab.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const visibleDuas = duas.filter((dua) => {
     if (activeTag && !matchesHashtag(dua.text, activeTag)) return false;
@@ -89,6 +124,18 @@ function CommunityFeedInner({
 
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  const selectTab = (nextTab: 'latest' | 'following') => {
+    setTab(nextTab);
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextTab === 'following') params.set('tab', 'following');
+    else params.delete('tab');
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    reload(nextTab, 0);
   };
 
   const reload = (nextTab: 'latest' | 'following', offset = 0) => {
@@ -120,6 +167,153 @@ function CommunityFeedInner({
   };
 
   const filteredEmpty = Boolean(activeTag || deferredSearch.trim());
+
+  const list = (
+    <>
+      {activeTag ? (
+        <div className="flex flex-wrap items-center gap-2 px-4 text-sm sm:px-5">
+          <span className="text-muted-foreground">
+            Showing duas tagged{' '}
+            <span className="text-foreground font-medium">#{activeTag}</span>
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setTag(null)}
+          >
+            Clear tag
+          </Button>
+        </div>
+      ) : null}
+
+      {showLanguagePrefsLink && isShell ? (
+        <p className="text-muted-foreground px-4 text-xs sm:px-5">
+          Prefer certain languages?{' '}
+          <Link
+            href="/home/settings"
+            className="text-foreground font-medium underline-offset-2 hover:underline"
+          >
+            Update feed languages
+          </Link>
+        </p>
+      ) : null}
+
+      <DuaList
+        duas={visibleDuas}
+        onSelectTag={setTag}
+        variant={isShell ? 'shell' : 'default'}
+        emptyTitle={
+          filteredEmpty
+            ? 'No matching duas'
+            : tab === 'following'
+              ? copy.homeFollowingEmptyTitle
+              : copy.homeFeedEmptyTitle
+        }
+        emptyDescription={
+          filteredEmpty
+            ? 'Try a different search or tag, or load more from the feed.'
+            : tab === 'following'
+              ? copy.homeFollowingEmptyDescription
+              : copy.homeFeedEmptyDescription
+        }
+        emptyCtaHref={
+          !filteredEmpty && tab === 'following' ? '/channels' : undefined
+        }
+        emptyCtaLabel={
+          !filteredEmpty && tab === 'following'
+            ? copy.homeFollowingEmptyCta
+            : undefined
+        }
+      />
+
+      {duas.length < loadedTotal ? (
+        <div className="flex justify-center py-4">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isPending}
+            onClick={() => reload(tab, duas.length)}
+          >
+            {isPending ? 'Loading…' : 'Load more'}
+          </Button>
+        </div>
+      ) : null}
+    </>
+  );
+
+  if (isShell) {
+    return (
+      <div className="flex w-full flex-col">
+        <div
+          className="sticky top-0 z-20 flex bg-white/95 shadow-[0_1px_12px_rgba(15,23,42,0.035)] backdrop-blur"
+          style={{ minHeight: 53 }}
+          role="tablist"
+          aria-label="Home stream"
+        >
+          {(
+            [
+              { id: 'latest', label: 'Feed' },
+              ...(showFollowingTab
+                ? [{ id: 'following' as const, label: 'Following' }]
+                : []),
+            ] as const
+          ).map((item) => {
+            const isActive = tab === item.id;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => selectTab(item.id)}
+                className={cn(
+                  'relative flex flex-1 items-center justify-center px-4 text-[13px] transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset sm:text-[15px] lg:text-[19px]',
+                  isActive
+                    ? 'font-bold text-primary'
+                    : 'font-medium text-muted-foreground/75',
+                )}
+              >
+                {item.label}
+                {isActive ? (
+                  <span
+                    className="absolute bottom-0 left-1/2 h-0.5 w-16 -translate-x-1/2 rounded-full bg-primary"
+                    aria-hidden="true"
+                  />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+
+        {!channelId ? (
+          <HomeComposer
+            categories={categories}
+            channelId={channelId}
+            postingMode={postingMode}
+            copy={copy}
+            open={composeOpen}
+            onOpenChange={onComposeOpenChange}
+            hideInlineTrigger
+            onCreated={() => reload(tab, 0)}
+          />
+        ) : (
+          <div className="border-b border-border/70 px-4 py-4">
+            <DuaForm
+              categories={categories}
+              channelId={channelId}
+              postingMode={postingMode}
+              copy={copy}
+              onCreated={() => reload(tab, 0)}
+            />
+          </div>
+        )}
+
+        <div className="min-h-[280px] space-y-3">{list}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
@@ -158,10 +352,7 @@ function CommunityFeedInner({
               type="button"
               size="sm"
               variant={tab === 'latest' ? 'default' : 'outline'}
-              onClick={() => {
-                setTab('latest');
-                reload('latest', 0);
-              }}
+              onClick={() => selectTab('latest')}
             >
               Latest
             </Button>
@@ -170,10 +361,7 @@ function CommunityFeedInner({
                 type="button"
                 size="sm"
                 variant={tab === 'following' ? 'default' : 'outline'}
-                onClick={() => {
-                  setTab('following');
-                  reload('following', 0);
-                }}
+                onClick={() => selectTab('following')}
               >
                 Following
               </Button>
@@ -197,62 +385,7 @@ function CommunityFeedInner({
           onSelectTag={setTag}
         />
 
-        {activeTag ? (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted-foreground">
-              Showing duas tagged{' '}
-              <span className="text-foreground font-medium">#{activeTag}</span>
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setTag(null)}
-            >
-              Clear tag
-            </Button>
-          </div>
-        ) : null}
-
-        <DuaList
-          duas={visibleDuas}
-          onSelectTag={setTag}
-          emptyTitle={
-            filteredEmpty
-              ? 'No matching duas'
-              : tab === 'following'
-                ? copy.homeFollowingEmptyTitle
-                : copy.homeFeedEmptyTitle
-          }
-          emptyDescription={
-            filteredEmpty
-              ? 'Try a different search or tag, or load more from the feed.'
-              : tab === 'following'
-                ? copy.homeFollowingEmptyDescription
-                : copy.homeFeedEmptyDescription
-          }
-          emptyCtaHref={
-            !filteredEmpty && tab === 'following' ? '/channels' : undefined
-          }
-          emptyCtaLabel={
-            !filteredEmpty && tab === 'following'
-              ? copy.homeFollowingEmptyCta
-              : undefined
-          }
-        />
-
-        {duas.length < loadedTotal ? (
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isPending}
-              onClick={() => reload(tab, duas.length)}
-            >
-              {isPending ? 'Loading…' : 'Load more'}
-            </Button>
-          </div>
-        ) : null}
+        {list}
       </section>
     </div>
   );

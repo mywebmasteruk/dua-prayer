@@ -22,7 +22,7 @@ async function ChannelApplyPage() {
   ]);
 
   return (
-    <div className="container mx-auto max-w-xl space-y-6 py-10">
+    <div className="space-y-6 px-4 py-6 sm:px-5 lg:px-8">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">
           Apply for a channel
