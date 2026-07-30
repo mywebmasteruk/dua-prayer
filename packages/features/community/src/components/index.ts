@@ -18,4 +18,5 @@ export * from './feed-language-preferences';
 export * from './feed-topic-preferences';
 export * from './onboarding-gate';
 export * from './trending-rail';
+export * from './verified-channel-badge';
 export * from './volunteer-apply-form';

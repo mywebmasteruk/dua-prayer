@@ -3,12 +3,14 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition, type ReactNode } from 'react';
 
 import {
   Bookmark,
   Flag,
   HandHeart,
+  Heart,
+  Share2,
   Sparkles,
   Tag,
   UserRound,
@@ -16,9 +18,26 @@ import {
 import { toast } from 'sonner';
 
 import { Button } from '@kit/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@kit/ui/dropdown-menu';
 import { cn } from '@kit/ui/utils';
 
-import { getTextDirection } from '../detect-language';
+import {
+  arabicFontClassName,
+  arabicTextSegmentPattern,
+  getArabicOnlyFontClassName,
+  getTextDirection,
+  hasArabicText,
+  isLatinScriptLanguage,
+} from '../detect-language';
+import {
+  buildDuaShareUrl,
+  type DuaSharePlatform,
+} from '../dua-share';
 import { getTopHashtags } from '../hashtags';
 import {
   flagDuaAction,
@@ -27,6 +46,7 @@ import {
   unflagMyFlagAction,
 } from '../server/server-actions';
 import type { Dua } from '../types';
+import { VerifiedChannelBadge } from './verified-channel-badge';
 
 interface DuaListProps {
   duas: Dua[];
@@ -37,6 +57,13 @@ interface DuaListProps {
   onSelectTag?: (tag: string) => void;
   variant?: 'default' | 'shell';
 }
+
+const sharePlatforms = [
+  { id: 'whatsapp' as const, label: 'WhatsApp', className: 'text-[#25D366]' },
+  { id: 'telegram' as const, label: 'Telegram', className: 'text-[#26A5E4]' },
+  { id: 'twitter' as const, label: 'X', className: 'text-foreground' },
+  { id: 'facebook' as const, label: 'Facebook', className: 'text-[#1877F2]' },
+];
 
 function formatDateTime(value: string) {
   const created = new Date(value);
@@ -54,6 +81,53 @@ function formatDateTime(value: string) {
   }).format(created);
 }
 
+function renderWithArabicFont(text: string): ReactNode[] {
+  return text.split(arabicTextSegmentPattern).map((segment, index) =>
+    hasArabicText(segment) ? (
+      <span key={`${segment}-${index}`} className={arabicFontClassName}>
+        {segment}
+      </span>
+    ) : (
+      segment
+    ),
+  );
+}
+
+function SharePlatformIcon({ platform }: { platform: DuaSharePlatform }) {
+  const iconClass = 'h-4 w-4';
+
+  switch (platform) {
+    case 'whatsapp':
+      return (
+        <svg viewBox="0 0 24 24" fill="currentColor" className={iconClass} aria-hidden="true">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.881 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+        </svg>
+      );
+    case 'telegram':
+      return (
+        <svg viewBox="0 0 24 24" fill="currentColor" className={iconClass} aria-hidden="true">
+          <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+        </svg>
+      );
+    case 'twitter':
+      return (
+        <svg viewBox="0 0 24 24" fill="currentColor" className={iconClass} aria-hidden="true">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+        </svg>
+      );
+    case 'facebook':
+      return (
+        <svg viewBox="0 0 24 24" fill="currentColor" className={iconClass} aria-hidden="true">
+          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+        </svg>
+      );
+    default: {
+      const exhaustive: never = platform;
+      return exhaustive;
+    }
+  }
+}
+
 export function DuaList({
   duas: initialDuas,
   emptyTitle = 'No duas yet',
@@ -66,6 +140,7 @@ export function DuaList({
   const router = useRouter();
   const [duas, setDuas] = useState(initialDuas);
   const [pendingId, setPendingId] = useState<number | null>(null);
+  const [lovedDuas, setLovedDuas] = useState<Record<number, boolean>>({});
   const [isPending, startTransition] = useTransition();
   const isShell = variant === 'shell';
 
@@ -110,10 +185,12 @@ export function DuaList({
       {duas.map((dua) => {
         const textDirection = getTextDirection(dua.text);
         const isRtl = textDirection === 'rtl';
+        const isLatinScript = isLatinScriptLanguage(dua.language, dua.text);
         const sourceLabel = dua.user_id ? 'Community member' : 'Anonymous';
         const channelName = dua.channel_name?.trim();
         const channelHandle = dua.channel_handle;
         const headerName = channelName || sourceLabel;
+        const isLoved = Boolean(lovedDuas[dua.id]);
 
         return (
           <li
@@ -145,17 +222,19 @@ export function DuaList({
               ) : null}
 
               {channelName && channelHandle ? (
-                <Link
-                  href={`/channels/${channelHandle}`}
-                  className={
-                    isShell
-                      ? 'truncate text-[13px] font-semibold text-foreground/85 transition hover:text-primary hover:underline'
-                      : 'hover:text-foreground underline-offset-2 hover:underline'
-                  }
-                >
-                  {isShell ? headerName : `@${channelHandle}`}
-                  {dua.channel_is_verified ? ' ✓' : ''}
-                </Link>
+                <>
+                  <Link
+                    href={`/channels/${channelHandle}`}
+                    className={
+                      isShell
+                        ? 'truncate text-[13px] font-semibold text-foreground/85 transition hover:text-primary hover:underline'
+                        : 'hover:text-foreground underline-offset-2 hover:underline'
+                    }
+                  >
+                    {isShell ? headerName : `@${channelHandle}`}
+                  </Link>
+                  {dua.channel_is_verified ? <VerifiedChannelBadge /> : null}
+                </>
               ) : isShell ? (
                 <span className="truncate text-[13px] font-semibold text-foreground/80">
                   {headerName}
@@ -195,11 +274,13 @@ export function DuaList({
                     ? 'mt-2.5 text-right text-[19px] font-medium leading-8 sm:text-[15px]'
                     : 'mt-2.5 text-[19px] font-medium leading-7 sm:text-[17px] sm:leading-[24.5px]'
                   : 'text-base leading-relaxed',
+                isLatinScript && isShell && 'font-[Georgia,Cambria,"Times_New_Roman",Times,serif]',
+                getArabicOnlyFontClassName(dua.text),
               )}
               dir={textDirection}
               lang={dua.language ?? undefined}
             >
-              {dua.text}
+              {renderWithArabicFont(dua.text)}
             </p>
 
             {(() => {
@@ -244,8 +325,13 @@ export function DuaList({
                 <div className="flex shrink-0 items-center">
                   {dua.category_name ? (
                     <span className="inline-flex max-w-full items-center gap-1 truncate rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary sm:px-2.5 sm:py-0.5">
-                      <Tag className="h-4 w-4 shrink-0 sm:hidden" aria-hidden="true" />
-                      <span className="hidden sm:inline">{dua.category_name}</span>
+                      <Tag
+                        className="h-4 w-4 shrink-0 sm:hidden"
+                        aria-hidden="true"
+                      />
+                      <span className="hidden sm:inline">
+                        {dua.category_name}
+                      </span>
                     </span>
                   ) : null}
                 </div>
@@ -269,11 +355,18 @@ export function DuaList({
                       'h-10 px-2.5 text-primary hover:bg-muted hover:text-primary sm:h-8',
                     dua.user_has_prayed && 'text-primary',
                   )}
+                  aria-label={
+                    dua.user_has_prayed
+                      ? `Prayed ${dua.likes} times`
+                      : `Make ameen for this dua, ${dua.likes} ameens so far`
+                  }
                   onClick={() => {
                     setPendingId(dua.id);
                     startTransition(async () => {
                       try {
-                        const result = await prayForDuaAction({ duaId: dua.id });
+                        const result = await prayForDuaAction({
+                          duaId: dua.id,
+                        });
 
                         if (result?.serverError) {
                           toast.error(result.serverError);
@@ -330,13 +423,80 @@ export function DuaList({
                   </span>
                 </Button>
 
+                {isShell ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      'h-10 gap-1.5 rounded-full px-2.5 text-muted-foreground hover:bg-muted hover:text-primary sm:h-8',
+                      isLoved && 'text-primary',
+                    )}
+                    aria-pressed={isLoved}
+                    aria-label={isLoved ? 'Remove love from this dua' : 'Love this dua'}
+                    onClick={() =>
+                      setLovedDuas((previous) => ({
+                        ...previous,
+                        [dua.id]: !previous[dua.id],
+                      }))
+                    }
+                  >
+                    <Heart className="h-4 w-4" aria-hidden="true" />
+                    <span className="text-xs font-semibold tabular-nums">
+                      {isLoved ? 1 : 0}
+                    </span>
+                  </Button>
+                ) : null}
+
+                {isShell ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-10 gap-1.5 rounded-full px-2.5 text-muted-foreground hover:bg-muted hover:text-primary sm:h-8"
+                          aria-label="Share dua"
+                        >
+                          <Share2 className="h-4 w-4" aria-hidden="true" />
+                        </Button>
+                      }
+                    />
+                    <DropdownMenuContent align="end" className="min-w-0 p-2">
+                      <div className="flex items-center gap-1">
+                        {sharePlatforms.map((platform) => (
+                          <DropdownMenuItem
+                            key={platform.id}
+                            className={cn(
+                              'size-9 justify-center p-0',
+                              platform.className,
+                            )}
+                            aria-label={platform.label}
+                            onClick={() => {
+                              window.open(
+                                buildDuaShareUrl(platform.id, dua),
+                                '_blank',
+                                'noopener,noreferrer',
+                              );
+                            }}
+                          >
+                            <SharePlatformIcon platform={platform.id} />
+                          </DropdownMenuItem>
+                        ))}
+                      </div>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : null}
+
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   className={cn(
                     'text-muted-foreground gap-1.5 rounded-full',
-                    isShell && 'h-10 px-2.5 hover:bg-muted hover:text-primary sm:h-8',
+                    isShell &&
+                      'h-10 px-2.5 hover:bg-muted hover:text-primary sm:h-8',
                     dua.user_has_bookmarked && 'text-primary',
                   )}
                   onClick={() => {
@@ -379,7 +539,8 @@ export function DuaList({
                   size="sm"
                   className={cn(
                     'text-muted-foreground gap-1.5 rounded-full',
-                    isShell && 'h-10 px-2.5 hover:bg-muted hover:text-primary sm:h-8',
+                    isShell &&
+                      'h-10 px-2.5 hover:bg-muted hover:text-primary sm:h-8',
                     dua.user_has_flagged && 'text-destructive',
                   )}
                   onClick={() => {

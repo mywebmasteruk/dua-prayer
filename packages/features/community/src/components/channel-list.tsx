@@ -14,6 +14,7 @@ import {
   unfollowChannelAction,
 } from '../server/server-actions';
 import type { ChannelItem } from '../types';
+import { VerifiedChannelBadge } from './verified-channel-badge';
 
 interface ChannelListProps {
   channels: ChannelItem[];
@@ -52,9 +53,7 @@ export function ChannelList({
             <Link href={`/channels/${channel.handle}`} className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <h3 className="truncate font-semibold">{channel.name}</h3>
-                {channel.isVerified ? (
-                  <span className="text-primary text-xs">Verified</span>
-                ) : null}
+                {channel.isVerified ? <VerifiedChannelBadge /> : null}
               </div>
               <p className="text-muted-foreground text-sm">@{channel.handle}</p>
               {channel.description ? (

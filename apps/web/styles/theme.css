@@ -19,6 +19,11 @@
   }
 }
 
+@utility font-arabic-dua {
+  font-family:
+    'Noto Sans Arabic', 'IBM Plex Sans Arabic', Arial, Tahoma, sans-serif;
+}
+
 /*
  * Theme variables
   */

@@ -9,6 +9,7 @@ import { Plus, X } from 'lucide-react';
 import { cn } from '@kit/ui/utils';
 
 import { detectLanguage } from '../detect-language';
+import { arabicFontClassName } from '../detect-language';
 import type { PostingMode } from '../posting-settings';
 import type { ComposerCopy, SiteCopy } from '../site-copy';
 import { SITE_COPY_DEFAULTS } from '../site-copy';
@@ -191,11 +192,19 @@ export function HomeComposer({
                       >
                         <h2
                           id={titleId}
-                          className="text-xl font-semibold tracking-tight text-foreground"
+                          className={cn(
+                            'text-xl font-semibold tracking-tight text-foreground',
+                            isArabicComposer && arabicFontClassName,
+                          )}
                         >
                           {modalTitle}
                         </h2>
-                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        <p
+                          className={cn(
+                            'mt-1 text-sm leading-6 text-muted-foreground',
+                            isArabicComposer && arabicFontClassName,
+                          )}
+                        >
                           {modalDescription}
                         </p>
                       </div>
